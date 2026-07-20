@@ -15,6 +15,24 @@
 *   **중복 정리 폴더 (Duplicate Archive Folder)**
     *   보존 대상이 아닌 중복 페이지들이 이동할 임시 보관용 카테고리 페이지입니다. 페이지 이름은 `"중복 정리"`로 정의합니다.
 
+## 도메인 경계 (Domain Boundaries)
+
+*   **게임 개발 (Game Dev) vs Programming**
+    *   `게임 개발`은 프로그래밍의 하위 개념이 아닌, 기획/아트/기술을 아우르는 **독립적인 최상위 도메인**으로 정의합니다.
+    *   게임 서버 동기화, Unity 클라이언트 등 **'게임 특수성을 띠는 기술/코딩' 문서는 모두 `게임 개발` 산하로 편입**합니다. (이러한 문서들은 `Programming` 카테고리 산하에 두지 않습니다.)
+    *   반면, C#, Rust, Redis, 일반적인 DB/네트워크 개념 등 **범용적인 기술 기반 지식은 `Programming` 산하에 유지**합니다. (아무리 게임 서버 개발을 위해 학습하는 내용이라도, 특수 도메인이 섞이지 않은 범용 원리는 `Programming`에 남깁니다.)
+
+## 레이아웃 및 아키텍처 (Layout & Architecture)
+
+*   **구조의 평탄화 (Flat Hierarchy)**
+    *   `Programming` 산하의 서브 카테고리들은 뎁스를 줄이기 위해 루트 레벨로 꺼내어 `[Programming] Backend`와 같이 직관적으로 접근 가능하도록 배치합니다.
+    *   단, 사이드바가 지나치게 길어지는 것을 방지하기 위해 세부 카테고리(Language, Windows, Network, Auth 등)는 거시적인 통합 도메인으로 병합(Consolidation)하여 그 수를 엄격히 제한합니다.
+    *   **최종 루트 카테고리 통폐합 규격:**
+        1.  `[DEV] Backend & System`: Network/Server, Database, Auth, Akka, Windows 관련 문서 통합
+        2.  `[DEV] Language & Core`: Language, Funtional, Architecture/Pattern 관련 문서 통합
+        3.  `[DEV] Frontend`: 프론트엔드 관련 문서 통합
+        *(※ Unity 등 게임 전용 기술은 `게임 개발 (Game Dev)` 내부로 이동)*
+
 ## 동작 규칙 (Operations)
 
 1.  **동적 폴더 조회 및 생성**: '스크랩 정리' 하위에 `"중복 정리"` 이름의 카테고리 페이지가 있는지 조회합니다. 없다면 새로 생성하여 이동 대상으로 삼습니다.
