@@ -62,6 +62,8 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 2. `.ai/specs/T-NNN-<슬러그>.md` 작성 — `references/spec-template.md`를 따른다.
    - **채번**: `NNN`은 `.ai/specs/` 안의 기존 파일 중 가장 큰 번호 + 1. 세 자리 0 패딩(`T-001`).
    - **위임 가치가 음수인 태스크를 구분할 것.** spec에 내용을 전부 적어야 하는 태스크(문서·규범·템플릿 authoring)는 위임하면 같은 내용을 두 번 쓰는 셈이고, 워커의 산출물은 spec의 전사에 그친다. 이런 태스크는 설계자가 직접 쓴다. 위임이 유효한 것은 **spec이 요구사항이고 산출물이 코드일 때**다.
+   - **spec을 쓰기 전에 대상 코드를 직접 읽는다.** 구현을 읽어야 "이상해 보이지만 지금은 건드리면 안 되는 동작"을 미리 찾아낼 수 있고, 그걸 spec에 "이런 걸 만나면 고치지 말고 `ask`로 물어보라"로 적어둘 수 있다.
+     실측 사례: 잘림 처리가 `maxLength`를 초과하는 문자열을 반환하는 것을 설계자가 미리 발견해 그 지침을 spec에 넣었고, 리뷰어가 **정확히 그 지점에서 `ask`를 발동**했다. 그 지침이 없었다면 리뷰어가 `BLOCKER`를 올리고 → 구현자가 구현을 고치고 → `SPEC_VIOLATION`으로 잡혀 라운드 2회가 낭비됐을 것이다.
 3. `orca orchestration run-create --objective "<목표>" --json`
 4. `orca orchestration task-create --spec "<한 줄 요약 + spec 파일 경로>" [--deps <json_array>] --json`
    - **spec 전문을 `--spec`에 넣지 말 것.** 정본은 git 파일이고 `--spec`은 요약과 경로만 담는다.
@@ -77,7 +79,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 4. dispatch 후 대기 — (e)
 5. 게이트 독립 재검증 — (f)
 6. 리뷰 워커 dispatch, 리뷰 JSON 검증, 심각도 분기 — (g)
-7. PR 생성 후 세션 폐기 — (i), (j)
+7. 주체별 커밋 → PR 생성(경로 A) 또는 브랜치 보고(경로 B) → 세션 폐기 — (i), (j)
 
 ## (d) 워커 부트스트랩
 
@@ -86,6 +88,14 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 1. `orca worktree create --repo <sel> --name T-NNN --base-branch main --json` 으로 worktree 경로를 확보한다.
    - **`--base-branch`를 반드시 명시한다.** 생략하면 repo의 `defaultBaseRef`를 쓰는데, 그 값이 `null`인 저장소에서는 엉뚱한 지점에서 분기된다. 실측 사례: `defaultBaseRef: null`인 저장소에서 최신 `main`이 아니라 **최초 커밋**에서 분기되어, 워크트리에 소스가 거의 없는 상태로 만들어졌다.
    - 만든 직후 `git -C <worktree> log --oneline -1`로 base가 의도한 커밋인지 확인한다. 어긋났으면 `git -C <worktree> reset --hard <base>`로 맞춘다(추적되지 않은 파일은 보존된다).
+
+   **그리고 dispatch 전에 게이트를 한 번 돌려 기준선이 녹색인지 확인한다.** 이것이 (d) 전체에서 가장 자주 걸리는 함정이다.
+
+   - **fresh worktree에는 의존성이 설치되어 있지 않다.** 실측: 새로 만든 워크트리에서 `bun run test`가 `exit 1`이었고, 원인은 `node_modules` 부재였다. `bun install`(약 34초) 후 `exit 0`이 되었다.
+   - 저장소에 setup 훅이 있으면 `worktree create --setup run`이 대신 처리한다. `--setup skip`을 썼다면 준비를 직접 해야 한다.
+   - **기준선이 빨간 상태로 dispatch하면 안 된다.** 구현자가 자기 잘못과 환경 문제를 구분할 수 없고, (구현자 규범의) 게이트 자체 루프 3회를 환경 문제로 소진한 뒤 `escalation`을 올린다. 라운드 하나가 통째로 낭비된다.
+   - 종료코드로 판정한다. 파이프로 넘기면 실패가 사라진다 — (f) 참조.
+
 2. **`~/.gemini/antigravity-cli/settings.json`의 `trustedWorkspaces` 배열에 그 worktree 경로를 추가한다.**
    - 이유: 등록하지 않으면 agy가 "Do you trust the contents of this project?" 프롬프트에서 멈춘다. Orca가 이를 `agentWait{reason:"codex-trust-workspace"}`로 감지해 **`dispatch`를 `agent_prompt_blocked`로 거부한다.** 실측으로 확인된 동작이다.
    - 더 나쁜 점: 사람이 프롬프트를 해소해도 **스크롤백에 남은 텍스트 때문에 감지가 풀리지 않아 dispatch가 계속 막힌다.** 사전 등록이 유일하게 깨끗한 해법이다.
@@ -123,6 +133,8 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 - `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model gpt-5.6-luna --effort high --json`
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없고, `codex review --uncommitted`로 미커밋 변경을 그대로 볼 수 있어 구현자에게 커밋을 강제하지 않아도 된다.
+- **codex는 `--model`/`--effort`가 정상 전달된다.** 실측 응답: `launch.effective = {"agent":"codex","model":"gpt-5.6-luna","effort":"high"}`.
+  아래 antigravity의 `{"model": null, "effort": null}` 과 대조된다 — **Orca가 모델 지정을 못 하는 게 아니라 에이전트별로 지원이 갈리는 것**이다. 응답의 `launch.effective`를 항상 확인해 의도한 모델로 떴는지 본다.
 
 ### `worker-start --agent antigravity`를 쓰지 않는 이유
 
@@ -140,7 +152,20 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 - `orca orchestration check --wait --types worker_done,escalation,question --timeout-ms 600000 --json`
 - **stdout만 파이프할 것.** `--wait` 중 stderr로 keepalive(`{"_keepalive":true}`)가 나오므로 `2>&1`로 합치면 파서가 깨진다.
-- `question`이 오면 `orca orchestration reply --id <msg_id> --body <답> --json` 으로 답하고 다시 대기한다.
+- `question`이 오면 답하고 다시 대기한다. 순서는 다음과 같다:
+
+```bash
+# 1) question 수신 — 응답에서 msg_id 와 deliveryId 를 모두 뽑아둔다
+orca orchestration check --wait --types worker_done,escalation,question --timeout-ms 600000 --json
+
+# 2) 답변
+orca orchestration reply --id <msg_id> --body "<답>" --json
+
+# 3) ack 와 재대기를 한 번에 — 이 delivery 를 ack 하지 않으면 같은 배치가 재전달된다
+orca orchestration check --ack <delivery_id> --wait --types worker_done,escalation,question --timeout-ms 900000 --json
+```
+
+  워커의 질문에 답할 때는 **판단의 근거까지 적는다.** 워커는 spec과 역할 파일만 알고 이 대화를 모르므로, "승인"만 보내면 다음 유사 상황에서 또 물어본다. 어느 spec 항목에 근거했는지, 그 발견을 finding으로 올릴지 말지까지 함께 지시한다.
 
 창이 빈손으로 돌아왔을 때의 판정:
 
@@ -168,6 +193,8 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 - 이유 1: 워커의 자체 보고를 신뢰하되 검증한다.
 - 이유 2: 셸 명령이라 LLM 토큰을 쓰지 않는다 — 사실상 공짜다.
 - 이유 3: **게이트를 통과하지 못한 코드를 리뷰 워커에게 넘기면 codex 토큰이 낭비된다.**
+
+**워커가 정직하다는 관측이 쌓여도 이 단계를 빼지 않는다.** 셸 명령이라 LLM 비용이 0이므로, 신뢰가 쌓였다는 것은 이 단계를 뺄 근거가 되지 못한다. 비용이 0인 검증을 없애서 얻는 것은 없고, 한 번의 거짓 완료를 놓치면 그 뒤 모든 라운드가 오염된다.
 
 게이트 명령은 repo마다 다르며 spec의 인수 조건에 명시된다.
 예를 들어 Go repo라면 `go build ./... && go vet ./... && go test ./...` 이다.
@@ -251,8 +278,12 @@ orca orchestration dispatch --task <새 task_id> --to <워커 터미널 handle> 
 ## (i) 성공 종료
 
 - 게이트 통과와 리뷰 `pass`를 확인한다.
-- **자동 머지 금지.** 이유: 머지는 되돌리기 어려운 행위이고, 진행자(Sonnet)의 판단으로 사람의 최종 확인을 대체할 근거가 없다.
-- GitHub 리모트가 있으면 PR까지 만든다:
+- **자동 머지 금지.** 이유: 머지는 되돌리기 어려운 행위이고, 진행자(Sonnet)의 판단으로 사람의 최종 확인을 대체할 근거가 없다. 아래 어느 경로든 **머지 자체는 사람이 한다.**
+- **커밋은 주체별로 나눈다.** 하네스 설정 / spec(설계자) / 구현(구현자) / 리뷰 리포트(리뷰어)를 각각 별도 커밋으로 남기고, 커밋 메시지에 어느 모델이 만들었는지 적는다. 나중에 `git log`만 보고 파이프라인의 어느 단계가 무엇을 만들었는지 가릴 수 있어야 한다.
+
+### 경로 A — 리뷰어가 따로 있는 저장소: PR
+
+GitHub 리모트가 있고 다른 사람이 머지를 승인하는 경우:
 
 ```bash
 git -C <worktree> push -u origin HEAD
@@ -263,8 +294,26 @@ review: .ai/reviews/T-NNN.rN.json
 gate: <실행한 게이트 명령> — 통과"
 ```
 
+### 경로 B — 저장소 오너가 직접 머지: 로컬 머지
+
+오너 단독 저장소에서는 PR이 불필요한 왕복이다. 이때 진행 세션은 **브랜치와 커밋까지만** 만들고 멈춘다.
+
+```bash
+# 진행 세션은 여기까지만 한다: 브랜치명과 커밋 목록을 사용자에게 보고
+git -C <worktree> log --oneline <base>..HEAD
+
+# 아래는 사람이 실행한다 — 진행 세션이 대신 하지 않는다
+git -C <repo> merge --no-ff <branch> -m "Merge branch '<branch>'"
+```
+
+`--no-ff`를 쓰는 이유: 머지 커밋이 남아야 한 태스크의 커밋 묶음이 이력에서 하나의 단위로 보인다. fast-forward하면 파이프라인 산출물이 main의 다른 커밋들 사이에 흩어진다.
+
+**머지 후 게이트를 한 번 더 돌린다.** 브랜치에서 통과했어도 main과 합쳐진 뒤 깨질 수 있다.
+
+### 공통
+
 - 리모트가 없으면 브랜치만 남기고 사용자에게 브랜치명을 보고한다.
-- 어느 경우든 **머지하지 않고 세션을 폐기한다.**
+- 어느 경로든 **진행 세션은 머지하지 않고 폐기한다.**
 
 ## (j) 컨텍스트 위생 규범
 
