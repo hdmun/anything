@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://relay.local/schemas/review-schema.json",
+  "title": "relay review report",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "changes_requested"]
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "required": ["taskId", "verdict", "findings"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "$comment": "verdict가 pass이면 SPEC_VIOLATION/BLOCKER/MAJOR가 하나도 없어야 한다. 리뷰어가 심각한 지적을 남기고 pass를 주는 모순을 스키마가 막는다.",
+      "if": {
+        "properties": { "verdict": { "const": "pass" } },
+        "required": ["verdict"]
+      },
+      "then": {
+        "properties": {
+          "findings": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "severity": { "enum": ["SPEC_VIOLATION", "BLOCKER", "MAJOR"] }
+                },
+                "required": ["severity"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["SPEC_VIOLATION", "BLOCKER", "MAJOR", "MINOR"]
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "repro": {
+          "type": "string"
+        },
+        "specRef": {
+          "type": "string"
+        }
+      },
+      "required": ["severity", "file", "summary", "repro"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "severity": { "const": "SPEC_VIOLATION" } },
+            "required": ["severity"]
+          },
+          "then": {
+            "required": ["specRef"]
+          }
+        }
+      ]
+    }
+  }
+}
