@@ -7,6 +7,10 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 
 `relay`는 3개 AI 코딩 에이전트를 Orca orchestration 위에서 연결하는 파이프라인의 코디네이터 스킬이다.
 
+> **이 스킬 자체를 고칠 때**: 정본은 `scripts` 저장소의 `skills/relay/` 이고, `~/.claude/skills/relay/` 와 `~/.claude-max/skills/relay/` 는 **복사본**이다.
+> 설치본을 직접 고치면 다음 `sync-skills.ps1` 실행에서 사라진다. 반드시 `scripts` 저장소의 소스를 고치고 동기화한다.
+> (스크립트가 드리프트를 감지해 덮어쓰기를 거부하지만, 애초에 소스를 고치는 편이 낫다.)
+
 ## 역할과 모델
 
 | 역할 | 실행 주체 | 모델 / effort | Orca에서의 위치 |
