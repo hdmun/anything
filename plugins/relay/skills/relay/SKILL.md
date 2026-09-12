@@ -7,9 +7,13 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 
 `relay`는 3개 AI 코딩 에이전트를 Orca orchestration 위에서 연결하는 파이프라인의 코디네이터 스킬이다.
 
-> **이 스킬 자체를 고칠 때**: 정본은 `scripts` 저장소의 `skills/relay/` 이고, `~/.claude/skills/relay/` 와 `~/.claude-max/skills/relay/` 는 **복사본**이다.
-> 설치본을 직접 고치면 다음 `sync-skills.ps1` 실행에서 사라진다. 반드시 `scripts` 저장소의 소스를 고치고 동기화한다.
-> (스크립트가 드리프트를 감지해 덮어쓰기를 거부하지만, 애초에 소스를 고치는 편이 낫다.)
+> **이 스킬 자체를 고칠 때**: 정본은 `scripts` 저장소의 `plugins/relay/` 이고, 설치본은 Claude Code가
+> `plugins/cache/hdmun-scripts/relay/<version>/` 에 버전 경로로 두는 관리 복사본이다. 직접 고치지 않는다.
+> 소스를 고친 뒤 `plugin.json` 의 `version` 을 올리고 `claude plugin update relay` 를 설정 디렉터리마다 실행한다.
+>
+> **저장소 쪽 역할 파일**(`.ai/roles/`)은 이 플러그인의 `templates/` 가 정본이다. 저장소에서 `/relay:init` 으로
+> 생성하고, 플러그인을 업데이트한 뒤에는 `/relay:init --check` 로 드리프트를 확인한다(종료코드 1이면 드리프트).
+> **역할 파일을 손으로 고치지 않는다** — 공유 규범은 `templates/` 를, 저장소 고유분은 `.ai/relay-roles.json` 을 고친다.
 
 ## 역할과 모델
 
