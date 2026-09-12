@@ -54,6 +54,16 @@ def render(plugin_root, v, name):
     return t
 
 
+def strip_stamp(text):
+    """첫 줄이 생성 스탬프면 떼어낸다. 버전만 다른 것을 드리프트로 오인하지 않기 위해서다."""
+    if text is None:
+        return None
+    first, _sep, rest = text.partition(chr(10))
+    if first.startswith("<!-- relay-roles v") and first.rstrip().endswith("-->"):
+        return rest
+    return text
+
+
 def gitignore_block(repo, logs):
     p = repo / ".gitignore"
     body = "\n".join([
@@ -89,16 +99,22 @@ def main():
     gp, gold, gnew = gitignore_block(repo, v.get("gate_logs", ["gate.log"]))
     targets.append((gp, gnew))
 
-    drift = []
+    drift, stamp_only = [], []
     for path, new in targets:
         cur = path.read_text(encoding="utf-8") if path.exists() else None
         if cur == new:
+            continue
+        if cur is not None and strip_stamp(cur) == strip_stamp(new):
+            stamp_only.append((path, cur, new))
             continue
         drift.append((path, cur, new))
 
     if a.check:
         if not drift:
-            print("OK  드리프트 없음 (relay-roles v%s)" % v["version"])
+            if stamp_only:
+                print("OK  내용 동일. 스탬프만 낡음 (%d개 파일) — 필요하면 --force 로 갱신" % len(stamp_only))
+            else:
+                print("OK  드리프트 없음 (relay-roles v%s)" % v["version"])
             return 0
         for path, cur, new in drift:
             print("\nDRIFT %s" % path)
@@ -109,8 +125,16 @@ def main():
         print("\n드리프트 %d개 파일. 템플릿이 옳으면 --force, 현재가 옳으면 템플릿을 고치세요." % len(drift))
         return 1
 
-    if not drift:
+    if not drift and not stamp_only:
         print("변경 없음 (relay-roles v%s)" % v["version"])
+        return 0
+
+    for path, _c, new in stamp_only:
+        path.write_text(new, encoding="utf-8")
+        print("stamp  %s" % path)
+
+    if not drift:
+        print("스탬프만 갱신 (relay-roles v%s)" % v["version"])
         return 0
 
     existing = [p for p, cur, _ in drift if cur is not None]
