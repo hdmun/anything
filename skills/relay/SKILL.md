@@ -77,13 +77,18 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 ## (c) 진행 세션 절차
 
+0. **`orca skills get orchestration`으로 정본 가이드를 먼저 읽는다.**
+   이 스킬이 적는 orca 명령은 작성 시점의 스냅숏이다. 정본은 바이너리가 직접 서빙하고 릴리스마다 바뀐다 —
+   Orca가 배포하는 `orchestration` 스텁이 *"캐시된 복사본에서 서브커맨드나 플래그를 추측하지 말라"* 고
+   명시한 이유가 이것이다. **충돌하면 정본이 옳고, 이 스킬을 고친다.**
+   relay가 더하는 것은 명령 사용법이 아니라 그 위의 정책이다 — 역할 분리, 심각도 라우팅, 세션 폐기 규범.
 1. `orca orchestration run-use --id <run_id> --json`
 2. `orca orchestration task-list --ready --json` 로 다음 태스크를 꺼낸다. **태스크 상태를 컨텍스트에 들고 있지 말고 매번 Orca에 물어본다** (외부 메모리로 사용).
 3. 워커 부트스트랩 — (d)
 4. dispatch 후 대기 — (e)
-5. 게이트 독립 재검증 — (f)
-6. 리뷰 워커 dispatch, 리뷰 JSON 검증, 심각도 분기 — (g)
-7. 주체별 커밋 → PR 생성(경로 A) 또는 브랜치 보고(경로 B) → 세션 폐기 — (i), (j)
+5. 게이트 독립 재검증 — (f). **통과 즉시 구현 커밋한다. 리뷰 결과를 기다리지 않는다.**
+6. 리뷰 워커 dispatch, 리뷰 JSON 검증, 심각도 분기 — (g). 분기 결과와 무관하게 커밋은 이미 존재한다
+7. PR 생성(경로 A) 또는 브랜치·커밋 목록 보고(경로 B) → 세션 폐기 — (i), (j)
 
 ## (d) 워커 부트스트랩
 
@@ -136,7 +141,9 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 **리뷰 워커(codex)** — Orca 1급 에이전트라 훨씬 간단하다:
 
 - `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model gpt-5.6-luna --effort high --json`
-- **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없고, `codex review --uncommitted`로 미커밋 변경을 그대로 볼 수 있어 구현자에게 커밋을 강제하지 않아도 된다.
+- **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
+- **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. `worktree create`에 넘긴 `--base-branch`의 커밋 SHA를 그대로 적는다.
+- 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다** — 실측으로 드리프트가 발생했던 지점이다.
 - **codex는 `--model`/`--effort`가 정상 전달된다.** 실측 응답: `launch.effective = {"agent":"codex","model":"gpt-5.6-luna","effort":"high"}`.
   아래 antigravity의 `{"model": null, "effort": null}` 과 대조된다 — **Orca가 모델 지정을 못 하는 게 아니라 에이전트별로 지원이 갈리는 것**이다. 응답의 `launch.effective`를 항상 확인해 의도한 모델로 떴는지 본다.
 
@@ -247,6 +254,16 @@ grep -cE "error TS[0-9]+" tsc.log
 - 머지 후 검증 전에 의존성을 동기화한다.
 - 새 워크트리에서는 (d)의 기준선 확인이 같은 일을 한다.
 
+### 게이트 통과 즉시 커밋한다
+
+리뷰 결과를 기다리지 않고, 게이트가 초록이면 그 자리에서 구현자 커밋을 만든다.
+
+- **이유**: 리뷰가 `SPEC_VIOLATION`이나 `BLOCKER`를 올려도 이미 코드는 게이트를 통과한 유효한 산출물이다. 커밋을 리뷰 결과 뒤로 미루면 에스컬레이션이 걸릴 때마다 워크트리에 커밋 안 된 변경만 남고, 사람이 diff로 확인할 수 있는 이력이 없다.
+- 커밋 이후 리뷰나 사람이 수정을 요구하면 그 수정은 **새 커밋**으로 쌓는다. 기존 커밋을 amend하지 않는다 — 라운드마다 커밋이 남아야 몇 번째 라운드에서 무엇이 고쳐졌는지 `git log`로 보인다.
+- 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(T-NNN): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/gemini-3.8-flash-low`.
+  **산문(`구현: agy / ...`)이 아니라 트레일러여야 한다.** 포맷이 갈리면 `git log --format='%(trailers:key=Implemented-by)'` 같은 기계 판독이 깨지고, "`git log`만 보고 어느 단계가 무엇을 만들었는지 가린다"는 목적 자체가 무너진다.
+- 이 커밋 하나로 (g)의 심각도 분기 전체가 "커밋할지 말지"가 아니라 "다음 라운드를 여는지"만 정하면 되게 바뀐다.
+
 ## (g) 리뷰 결과 처리
 
 리뷰어는 `.ai/reviews/T-NNN.rN.json`(`N`은 리뷰 라운드 번호, 1부터)을 쓰고 `worker_done`의 `--report-path`로 경로를 넘긴다.
@@ -273,14 +290,16 @@ orca orchestration dispatch --task <새 task_id> --to <워커 터미널 handle> 
 - `--parent`로 원래 태스크에 묶으면 수정 라운드가 DAG에 기록된다.
 - **조치가 필요 없는 단순 안내**라면 Task를 만들지 말고 `orca terminal send --terminal <handle> --text "..." --enter` 로 직접 보낸다.
 
+**구현 커밋은 (f)에서 이미 만들어져 있다.** 아래 분기는 그 커밋을 만들지 여부가 아니라, 리뷰 리포트를 커밋할지와 다음 라운드를 열지를 정한다.
+
 심각도 분기:
 
 | 조건 | 행동 |
 |---|---|
-| `SPEC_VIOLATION`이 1건이라도 있음 | **즉시 Opus 에스컬레이션. 진행자가 판단하지 않는다.** 명세를 쓴 주체만 명세 위반 주장의 옳고 그름을 가릴 수 있다 |
-| `BLOCKER` 또는 `MAJOR` 있음 | **새 Task + 새 Dispatch**로 수정 라운드 (위 참조). 기존 dispatch로는 보낼 수 없다 |
-| `MINOR`만 있음 | 기록만 하고 수정을 요구하지 않는다 (핑퐁 방지) |
-| `verdict: "pass"` | 성공 종료로 진행 |
+| `SPEC_VIOLATION`이 1건이라도 있음 | 리뷰 리포트를 커밋하고 **즉시 Opus 에스컬레이션. 진행자가 판단하지 않는다.** 명세를 쓴 주체만 명세 위반 주장의 옳고 그름을 가릴 수 있다. 구현 커밋은 이미 있으므로 보고에 브랜치명과 커밋 목록을 포함한다 — 사람/Opus가 우선 그 커밋을 diff로 직접 볼 수 있다 |
+| `BLOCKER` 또는 `MAJOR` 있음 | 리뷰 리포트를 커밋하고 **새 Task + 새 Dispatch**로 수정 라운드 (위 참조). 기존 dispatch로는 보낼 수 없다. 수정 결과는 기존 커밋을 amend하지 않고 **새 커밋**으로 쌓는다 |
+| `MINOR`만 있음 | 리뷰 리포트만 커밋하고 수정을 요구하지 않는다 (핑퐁 방지) |
+| `verdict: "pass"` | 리뷰 리포트를 커밋하고 성공 종료로 진행 |
 
 ## (h) 에스컬레이션과 포기
 
@@ -300,10 +319,15 @@ orca orchestration dispatch --task <새 task_id> --to <워커 터미널 handle> 
 
 **"Opus 에스컬레이션"의 실제 행위** — 진행 세션은 스스로 판단하지 않고 다음을 한다:
 
-1. `orca orchestration task-update --id <task_id> --status <blocked 상태값> --json`
-   (유효한 상태값은 `--help`와 `task-list` 출력으로 확인한다. 추측해서 넣지 말 것)
-2. 사용자에게 **Run ID, Task ID, 에스컬레이션 사유, 관련 리뷰 파일 경로**를 보고한다
-3. 세션을 종료한다. 사람이 Opus 설계 세션을 열어 spec을 고치고 새 라운드를 시작한다
+1. `orca orchestration task-update --id <task_id> --status blocked --json`
+   (이 바이너리에서 확인한 유효 값: `pending`, `ready`, `dispatched`, `completed`, `failed`, `blocked`.
+   거부되면 추측하지 말고 `--help`로 다시 확인한다 — 릴리스마다 바뀔 수 있다.
+   `worker_done`으로 이미 정착한 Task라면 거부될 수 있는데, 그때 에스컬레이션 신호는 아래 2·3번이다. 억지로 뚫지 않는다.)
+2. **`orca orchestration worker-retain --dispatch <dispatch_id> --json`으로 워커를 보존한다.**
+   Opus가 터미널의 마지막 출력을 봐야 판단이 서는 경우가 있고, 닫으면 그 증거가 사라진다 — (i)의 「워커 정리」 표 참조.
+3. 사용자에게 **Run ID, Task ID, 에스컬레이션 사유, 관련 리뷰 파일 경로, 브랜치명과 커밋 목록**을 보고한다.
+   구현 커밋은 (f)에서 이미 만들어져 있으므로 워크트리를 뒤질 필요 없이 `git log --oneline <base>..HEAD`로 바로 확인할 수 있다
+4. 세션을 종료한다. 사람이 Opus 설계 세션을 열어 spec을 고치거나, 커밋을 직접 리뷰해 필요하면 새 커밋으로 고친 뒤 새 라운드를 시작한다
 
 **"사람 호출"의 실제 행위** — 위와 같되, 워커 터미널을 닫지 않고 남긴다:
 
@@ -314,7 +338,58 @@ orca orchestration dispatch --task <새 task_id> --to <워커 터미널 handle> 
 
 - 게이트 통과와 리뷰 `pass`를 확인한다.
 - **자동 머지 금지.** 이유: 머지는 되돌리기 어려운 행위이고, 진행자(Sonnet)의 판단으로 사람의 최종 확인을 대체할 근거가 없다. 아래 어느 경로든 **머지 자체는 사람이 한다.**
+- **구현 커밋은 (f)에서 이미 만들어졌다.** 여기서는 (g)에서 남긴 리뷰 리포트 커밋이 있는지만 확인한다.
 - **커밋은 주체별로 나눈다.** 하네스 설정 / spec(설계자) / 구현(구현자) / 리뷰 리포트(리뷰어)를 각각 별도 커밋으로 남기고, 커밋 메시지에 어느 모델이 만들었는지 적는다. 나중에 `git log`만 보고 파이프라인의 어느 단계가 무엇을 만들었는지 가릴 수 있어야 한다.
+- 사람이 직접 리뷰하는 단계(경로 B의 로컬 머지 전, 또는 경로 A의 PR 리뷰)에서 수정이 필요하면 그건 **추가 커밋**으로 처리한다. 이미 만든 커밋을 되돌리거나 amend할 필요 없다.
+
+### 워커 정리 — 세션을 폐기하기 전에 반드시
+
+Orca는 정착(settle)된 워커마다 **재사용 / `worker-retain` / `worker-release` 중 정확히 하나**를 요구하고,
+`reclaimable`이 남은 채로 코디네이터 턴을 끝내지 말라고 못박는다.
+진행 세션은 태스크마다 폐기되므로, **여기서 닫지 않으면 회수를 책임질 주체가 아예 사라진다.**
+
+relay의 세 갈래 출구에 그 "정확히 하나"를 대응시키면 이렇게 된다:
+
+| 출구 | 워커 처리 |
+|---|---|
+| 성공 종료 (i) | `worker-release` + 구현 터미널 close + `trustedWorkspaces` 해제 |
+| 수정 라운드 (g의 `BLOCKER`/`MAJOR`) | **재사용** — 닫지 않는다. 같은 handle로 새 dispatch를 건다 |
+| Opus 에스컬레이션 / 사람 호출 (h) | `worker-retain` — 증거를 남긴다 |
+
+성공 종료에서만 해제한다:
+
+```bash
+# 감독 워커(리뷰어) — worker-start 로 띄운 것
+orca orchestration worker-release --dispatch <review_dispatch_id> --json
+
+# 남은 것이 없는지 확인한 뒤에 세션을 끝낸다
+orca orchestration worker-list --run <run_id> --terminal-state reclaimable --json
+```
+
+- **구현 워커는 `worker-release` 대상이 아니다.** (d)의 수동 경로(`terminal create` + `dispatch --inject`)로 띄운 것을
+  Orca는 *비감독(unsupervised), terminal state `retained`* 로 분류한다. 내가 만든 터미널이므로 `orca terminal close`로 직접 닫는다.
+- 다만 **감독 워커의 release가 불확실할 때 그 대체로 `terminal close`를 쓰지 않는다.** 정본 가이드가 명시적으로 금지하며,
+  release 실패는 자체 recovery receipt를 따른다.
+
+**그리고 `trustedWorkspaces`에서 그 워크트리 경로를 지운다.** (d) 2번이 추가한 항목이고, 지우는 단계가 없으면 단조 증가한다.
+실측: 항목 16개 중 **5개가 이미 삭제된 relay 워크트리**였다. 워크트리 경로는 태스크명으로 재사용되므로,
+죽은 항목이 남아 있으면 **미래의 다른 워크트리를 미리 신뢰하게 만든다.**
+
+```bash
+python - "<worktree path>" <<'PY'
+import json, sys, pathlib
+p = pathlib.Path.home() / ".gemini/antigravity-cli/settings.json"
+s = json.loads(p.read_text(encoding="utf-8"))
+ws = s.get("trustedWorkspaces", [])
+target = sys.argv[1].replace("/", "\\")
+if target in ws:
+    ws.remove(target)
+    p.write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("removed:", target)
+else:
+    print("not present:", target)
+PY
+```
 
 ### 경로 A — 리뷰어가 따로 있는 저장소: PR
 
