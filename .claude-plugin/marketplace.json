@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "hdmun-scripts",
+  "description": "hdmun 개인 도구 마켓플레이스",
+  "owner": {
+    "name": "hdmun",
+    "url": "https://github.com/hdmun"
+  },
+  "plugins": [
+    {
+      "name": "relay",
+      "description": "Orca orchestration 위에서 설계자·진행자·구현자·리뷰어 4역할 파이프라인을 굴리는 코디네이터",
+      "source": "./plugins/relay",
+      "category": "workflow"
+    }
+  ]
+}
