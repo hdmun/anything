@@ -1,0 +1,7 @@
+# Environment variables
+*.env
+notion/notion_sync.env
+
+# Logs
+*.log
+notion/logs/
