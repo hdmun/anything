@@ -219,8 +219,10 @@ orca orchestration check --ack <delivery_id> --wait --types worker_done,escalati
 orca orchestration worker-list --run <run_id> --include-remote --json
 ```
 
-- `projection.attention.requiresAction`이 `true`이고 `projection.nextAction.kind`가 `none`이 아니면 **`nextAction.argv`를 그대로 실행한다.** 실측으로 `{"kind":"release","argv":[...]}`가 돌아온 사례가 있다.
+- `projection.attention.requiresAction`이 `true`이고 `projection.nextAction.kind`가 `none`이 아니면 **`nextAction.argv`를 실행한다.** 실측으로 `{"kind":"release","argv":[...]}`가 돌아온 사례가 있다.
+  `argv`에는 실행 파일명이 빠져 있다(`["orchestration","worker-release",...]`) — **앞에 `orca`를 붙여** 실행한다.
 - `projection.liveness.verdict`가 `exited`면 양성 증거다. `unverifiable`은 **부재이지 증거가 아니다.**
+- **agy 워커는 2층이 답을 주지 않는다.** 실측(T-004): `liveness: unverifiable (missing_status)`, `nextAction: none`만 돌아왔다. agy는 2층을 건너뛰고 바로 3층으로 간다.
 
 **3층 — `nextAction.kind`가 `none`이면 벽시계로 판정한다.** 정본은 여기서 *"`liveness.reason`을 읽고 계속 기다려라"* 라고만 하는데, 그건 종료 조건이 없다. relay는 여기에 임계값을 둔다.
 
@@ -357,12 +359,24 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
 | 워커가 `escalation` 발신 | Opus |
 | 리뷰 라운드 3회 초과 | Opus |
 | 총 라운드 5회 초과 | **사람**, 태스크 중단 |
+| 같은 Task의 기동 실패 2회 | **사람**, 재시도 금지 |
 | 무응답 판정 (e) | **사람** |
 
-**라운드 수는 파일로 센다.** 진행 세션은 폐기되므로 카운터를 컨텍스트에 둘 수 없다.
+### 시도와 라운드를 구분한다
 
-- 리뷰 라운드 수 = `.ai/reviews/T-NNN.r*.json` 파일 개수
-- "같은 지적이 2회 반복"은 `T-NNN.r1.json`과 `r2.json`의 findings를 `file` + `summary` 기준으로 비교해 판정한다
+용어는 `CONTEXT.md`가 정본이다. 셋을 섞으면 예산이 엉뚱하게 깎인다.
+
+| 용어 | 뜻 | 세는 법 (세션 폐기 후에도 남는 곳) |
+|---|---|---|
+| **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 (d)의 **전달 확인** 실패를 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
+| **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 |
+| **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/T-NNN.r*.json` 파일 개수 |
+| **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 |
+
+- **기동 실패는 2회에서 멈춘다.** Orca는 같은 Task가 3회 연속 실패하면 circuit-break한다. 2회째에 재시도하면 마지막 기회를 원인 모른 채 쓰게 된다(T-004에서 구현·리뷰 Task 둘 다 그 직전까지 갔다).
+  원인을 찾아 해소했다면 기존 Task를 포기하고 **새 Task**로 다시 시작한다 — 재시도가 아니라 재출발이다. 재출발 전에 Task 밖에서 `terminal create` → `tui-idle`로 준비 감지가 통과하는지 먼저 확인한다.
+- 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
+- "같은 지적이 2회 반복"은 **직전 라운드와 이번 라운드**(`r(N-1)`과 `rN`)의 findings를 `file` + `summary` 기준으로 비교해 판정한다
 
 **"Opus 에스컬레이션"의 실제 행위** — 진행 세션은 스스로 판단하지 않고 다음을 한다:
 
@@ -380,7 +394,7 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
    - `--options`의 JSON 배열은 **셸 인용 규칙을 따른다.** PowerShell이나 `cmd.exe`에 POSIX 홑따옴표를 그대로 옮기지 않는다.
    - 게이트 명령은 Orca 터미널 안에서만 동작한다(밖에서는 `no_active_sender_terminal`). 필요하면 `--from <handle>`을 준다.
    - **아직 미검증**: `worker_done`으로 이미 정착한 Task에 게이트가 걸리는지 확인되지 않았다. 거부되면 게이트를 **리뷰 워커 dispatch 전에 미리** 만들어 두고 결과에 따라 `gate-resolve`하는 형태로 바꾼다.
-2. **`orca orchestration worker-retain --dispatch <dispatch_id> --json`으로 워커를 보존한다.**
+2. **`orca orchestration worker-retain --dispatch <dispatch_id> --json`으로 워커를 보존한다.** 정착한 dispatch **전부**(구현·리뷰)에 대해 각각 실행한다 — 하나라도 빠지면 `reclaimable`로 남는다.
    Opus가 터미널의 마지막 출력을 봐야 판단이 서는 경우가 있고, 닫으면 그 증거가 사라진다 — (i)의 「워커 정리」 표 참조.
 3. 사용자에게 **Run ID, Task ID, 에스컬레이션 사유, 관련 리뷰 파일 경로, 브랜치명과 커밋 목록**을 보고한다.
    구현 커밋은 (f)에서 이미 만들어져 있으므로 워크트리를 뒤질 필요 없이 `git log --oneline <base>..HEAD`로 바로 확인할 수 있다
@@ -407,24 +421,30 @@ Orca는 정착(settle)된 워커마다 **재사용 / `worker-retain` / `worker-r
 
 relay의 세 갈래 출구에 그 "정확히 하나"를 대응시키면 이렇게 된다:
 
-| 출구 | 워커 처리 |
-|---|---|
-| 성공 종료 (i) | `worker-release` + 구현 터미널 close + `trustedWorkspaces` 해제 |
-| 수정 라운드 (g의 `BLOCKER`/`MAJOR`) | **재사용** — 닫지 않는다. 같은 handle로 새 dispatch를 건다 |
-| Opus 에스컬레이션 / 사람 호출 (h) | `worker-retain` — 증거를 남긴다 |
+| 출구 | 구현 워커 (agy) | 리뷰 워커 (codex) |
+|---|---|---|
+| 성공 종료 (i) | `worker-release` + 터미널 close + `trustedWorkspaces` 해제 | `worker-release` |
+| 수정 라운드 (g의 `BLOCKER`/`MAJOR`) | **재사용** — 닫지 않는다. 같은 handle로 새 dispatch를 건다 | `worker-release`. 다음 리뷰 라운드는 새 워커로 띄운다 — 이전 리뷰의 맥락에 끌려가지 않게 |
+| Opus 에스컬레이션 / 사람 호출 (h) | `worker-retain` — 증거를 남긴다 | `worker-retain` |
 
-성공 종료에서만 해제한다:
+성공 종료에서만 구현 워커를 해제한다:
 
 ```bash
-# 구현·리뷰 워커 둘 다 worker-start 로 띄웠으므로 둘 다 release 대상이다
+# 구현·리뷰 워커 둘 다 worker-start 로 감독했으므로 둘 다 release 대상이다
 orca orchestration worker-release --dispatch <impl_dispatch_id> --json
 orca orchestration worker-release --dispatch <review_dispatch_id> --json
+
+# 구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않을 수 있다 — 닫혔는지 보고 남아 있으면 닫는다
+orca terminal show --terminal <impl_handle> --json
+orca terminal close --terminal <impl_handle> --json
 
 # 남은 것이 없는지 확인한 뒤에 세션을 끝낸다
 orca orchestration worker-list --run <run_id> --terminal-state reclaimable --json
 ```
 
 - **`release`가 불확실할 때 그 대체로 `terminal close`를 쓰지 않는다.** 정본이 명시적으로 금지하며, release 실패는 자체 recovery receipt를 따른다.
+  위의 `terminal close`는 대체가 아니다 — release가 **성공한 뒤**, 우리가 직접 만든 터미널을 만든 쪽이 정리하는 것이다.
+  (**미검증**: 정본상 미리 존재하던 터미널은 release 후 `retained`로 남는다고 읽히지만 실측 전이다. 확인되면 이 주석을 고친다.)
 - **증거 보존을 이유로 워커를 살려두지 않는다.** 정본: *"Do not leave it live only to inspect output; archived output remains available through `worker-read`."* release 후에도 `worker-read`로 산출물을 읽을 수 있다.
 
 **그리고 `trustedWorkspaces`에서 그 워크트리 경로를 지운다.** (d) 2번이 추가한 항목이고, 지우는 단계가 없으면 단조 증가한다.
