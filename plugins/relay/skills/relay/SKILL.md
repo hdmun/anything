@@ -138,21 +138,53 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
    PY
    ```
 
-3. `orca orchestration worker-start --task <id> --worktree id:<wt> --agent antigravity --json`
-   - **모델을 지정하지 않는다.** 정본은 `--model`/`--effort`를 *fresh Claude, Codex, or Cursor terminal* 에만 전달한다고 명시한다.
-     antigravity는 그 목록에 없어 `launch.effective`가 `{"model": null, "effort": null}`로 돌아온다 —
-     **고쳐질 버그가 아니라 문서화된 설계다.** 따라서 구현자는 **기본 모델(Flash Medium)** 로 뜬다.
-     Low로 핀하는 방법은 수동 기동(`terminal create` + `dispatch --inject`)뿐인데, 그 대가로 위의 감독 수단 전부를 잃는다.
-   - 응답의 `launch.effective`를 확인해 의도한 대로 떴는지 본다. `dispatch.id`도 기록한다.
-   - **응답에 dispatch가 비어 있으면**(`stage: "input_accepted"`만 오는 경우가 있다) `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것.
+3. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
+
+   ```bash
+   orca terminal create --worktree id:<wt> --title "T-NNN agy" --command agy --json
+   orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
+   orca orchestration worker-start --task <id> [--retry-of <dispatch_id>] --worktree id:<wt> --terminal <h> --json
+   ```
+
+   - **이유**: agy는 입력창이 준비되기 전에 들어온 입력을 **조용히 버린다.** Orca는 antigravity의 전달 여부를 관측하지 못해(`provider: unsupported`) 경고도 없다.
+     실측(poker-server T-004): `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다 — 2회 연속.
+   - `tui-idle`을 건너뛰고 바로 `worker-start --terminal`을 걸면 `agent_unconfigured`로 거부된다. Orca가 터미널에 `agentIdentity: antigravity`를 태깅하기 전이기 때문이다.
+   - `tui-idle`이 timeout이면 `worker-start`를 걸지 않는다 — Task 밖에서 실패한 것이라 기동 실패 예산을 쓰지 않는다. 터미널 화면을 확인하고 사람을 부른다.
+   - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 구현자는 **agy 기본 모델**로 뜬다.
+     (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
+   - **응답에 dispatch가 비어 있으면**(이 경로에서는 보통 그렇다) `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것.
+
+4. **60초 안에 전달을 확인한다.** Orca의 "입력 수락"은 전달의 증거가 아니다.
+
+   ```bash
+   # 가장 최근 agy 로그에 HandleUserInput 줄이 생겼는지 본다
+   ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1 | xargs grep -c "HandleUserInput called with text:"
+   ```
+
+   - 1 이상이면 전달됨 — (e)의 대기로 넘어간다.
+   - 0이면 **전달 실패 = 기동 실패**다. 재시도하지 않고 `worker-retain` 후 사람을 부른다 — (h).
+     이 단계가 없으면 빈 대기 3회(30분)를 다 쓰고 나서야 유실을 알게 된다(T-004 실측).
 
 **리뷰 워커(codex)**
 
-- `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model gpt-5.6-luna --effort high --json`
+사전 조건 — `~/.codex/config.toml`에 다음 두 키가 있어야 한다. 없으면 기동하지 말고 사용자에게 추가를 요청한다.
+
+```toml
+check_for_update_on_startup = false          # 최상위. 업데이트 프롬프트가 기동을 막는다 (agent_prompt_blocked)
+
+[tui]
+terminal_title = ["app-name", "activity", "project-name"]   # 제목에 "codex"가 있어야 Orca가 준비를 감지한다
+```
+
+- 두 번째 키가 필요한 이유: Orca(1.4.216)는 codex가 준비됐는지를 **배너의 `model:`/`directory:` 라벨**이나 **터미널 제목 속 `codex`** 로만 판정한다.
+  codex 0.159는 배너에서 라벨을 빼고 제목을 폴더 이름으로 바꿔 둘 다 사라졌고, 그 결과 `agent_readiness timeout`이 난다(T-004 실측). 이 키를 넣으면 6초 안에 준비가 감지된다.
+- 모델은 **codex 기본 모델을 따른다.** `config.toml`의 최상위 `model` 값을 읽어 넘긴다. `--effort`는 `--model` 없이 쓸 수 없으므로 둘을 함께 준다.
+
+- `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model <config.toml의 model> --effort high --json`
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
 - **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. 1번에서 적어둔 커밋 SHA를 그대로 넣는다.
 - 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다** — 실측으로 드리프트가 발생했던 지점이다. `/relay:init --check`로 확인한다.
-- **codex는 `--model`/`--effort`가 정상 전달된다.** 실측 응답: `launch.effective = {"agent":"codex","model":"gpt-5.6-luna","effort":"high"}`.
+- **codex는 `--model`/`--effort`가 정상 전달된다.** 응답의 `launch.effective`(예: `{"agent":"codex","model":"<model>","effort":"high"}`)로 확인하고 `model`을 기록한다 — 리뷰 리포트 커밋의 트레일러에 쓴다.
 
 **Git Bash 주의** — `terminal send --text "/clear"` 처럼 `/`로 시작하는 인자는 Git Bash가 `C:/Program Files/Git/clear`로 경로 변환한다. `MSYS_NO_PATHCONV=1`을 앞에 붙인다.
 
