@@ -91,7 +91,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 3. 워커 부트스트랩 — (d)
 4. `worker-start` 후 대기 — (e)
 5. 게이트 독립 재검증 — (f). **통과 즉시 구현 커밋한다. 리뷰 결과를 기다리지 않는다.**
-6. 리뷰 워커 기동(`<base>`를 spec에 넣는다), 리뷰 JSON 검증, 심각도 분기 — (g). 분기 결과와 무관하게 커밋은 이미 존재한다
+6. 빈 diff 확인 후 리뷰 워커 기동(`<base>`를 spec에 넣는다) — (d), 리뷰 JSON 검증, 심각도 분기 — (g). 분기 결과와 무관하게 커밋은 이미 존재한다
 7. PR 생성(경로 A) 또는 브랜치·커밋 목록 보고(경로 B) — (i)
 8. **워커 정리** — `worker-release` + `trustedWorkspaces` 해제. `reclaimable`이 0인지 확인한 뒤 세션 폐기 — (i), (j)
 
@@ -179,6 +179,16 @@ terminal_title = ["app-name", "activity", "project-name"]   # 제목에 "codex"�
 - 두 번째 키가 필요한 이유: Orca(1.4.216)는 codex가 준비됐는지를 **배너의 `model:`/`directory:` 라벨**이나 **터미널 제목 속 `codex`** 로만 판정한다.
   codex 0.159는 배너에서 라벨을 빼고 제목을 폴더 이름으로 바꿔 둘 다 사라졌고, 그 결과 `agent_readiness timeout`이 난다(T-004 실측). 이 키를 넣으면 6초 안에 준비가 감지된다.
 - 모델은 **codex 기본 모델을 따른다.** `config.toml`의 최상위 `model` 값을 읽어 넘긴다. `--effort`는 `--model` 없이 쓸 수 없으므로 둘을 함께 준다.
+
+**기동 전에 리뷰할 diff가 실제로 있는지 확인한다.** 빈 범위를 넘기면 리뷰어는 아무것도 검증하지 않고 `pass`를 낸다 — 정상 통과와 구분되지 않는 가장 비싼 실패다.
+
+```bash
+git -C <worktree> diff --stat <base>..HEAD | tail -1
+```
+
+- 출력이 비어 있으면 **리뷰 워커를 띄우지 않는다.** `<base>`가 틀렸거나 (f)의 구현 커밋이 빠진 것이다. 둘 중 무엇인지 확인하고 고친 뒤 다시 본다.
+  알아낼 수 없으면 사람을 부른다. 이 확인은 셸 명령이라 비용이 0이다.
+- 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
 
 - `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model <config.toml의 model> --effort high --json`
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
