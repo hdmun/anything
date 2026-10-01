@@ -17,12 +17,16 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 
 ## 역할과 모델
 
-| 역할 | 실행 주체 | 모델 / effort | Orca에서의 위치 |
+| 역할 | 실행 주체 | 모델 계열 / effort | Orca에서의 위치 |
 |---|---|---|---|
-| 설계자 | Claude Code | Opus / high | 코디네이터 자신 (워커 아님) |
-| 진행자 | Claude Code | Sonnet 5 / medium | Run에 재바인딩, 태스크당 세션 폐기 |
-| 구현자 | agy (Antigravity CLI) | 기본값(Flash Medium) — 핀 불가, (d) 참조 | supervised worker |
-| 리뷰어 | codex | `gpt-5.6-luna` / high | supervised worker |
+| 설계자 | Claude Code | Opus (`/model opus`) / high | 코디네이터 자신 (워커 아님) |
+| 진행자 | Claude Code | Sonnet (`/model sonnet`) / medium | Run에 재바인딩, 태스크당 세션 폐기 |
+| 구현자 | agy (Antigravity CLI) | agy 기본 모델 — (d) 참조 | supervised worker |
+| 리뷰어 | codex | codex 기본 모델(`~/.codex/config.toml`의 `model`) / high | supervised worker |
+
+**이 스킬은 모델 버전을 적지 않는다.** 역할에는 **모델 계열**만 배정하고(용어는 `CONTEXT.md`), 실제로 쓰인 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)에 사후로 남긴다.
+Claude 세션은 별칭(`opus`/`sonnet`)이 최신을 따라가고, codex는 업그레이드 때 바꾸는 기본 모델을 따라간다 — 새 모델이 나와도 이 파일을 고칠 필요가 없다.
+단, codex 기본 모델을 평소 용도로 낮추면 리뷰어도 함께 낮아진다.
 
 ## 왜 세션을 둘로 나누는가
 
@@ -43,7 +47,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
                           ↓
 [진행 Sonnet·med] run-use → 워커 부트스트랩 → worker-start
                           ↓
-[구현 agy·medium] 구현 + 자체 게이트 루프
+[구현 agy]        구현 + 자체 게이트 루프
                           ↓
 [진행]            게이트 독립 재검증
                           ↓
@@ -56,7 +60,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 | 구분 | 설계 세션 | 진행 세션 |
 |---|---|---|
-| 실행 주체 | Claude Code Opus / high | Claude Code Sonnet 5 / medium |
+| 실행 주체 | Claude Code Opus / high | Claude Code Sonnet / medium |
 | 하는 일 | spec 작성, run/task 생성, 심각도 판단(SPEC_VIOLATION 등) | 워커 부트스트랩, dispatch, 대기, 게이트 재검증, 리뷰 분기, PR 생성 |
 | 끝나는 지점 | `task-create` 완료 후, Run ID를 사용자에게 알리고 세션 종료 | 태스크 하나가 성공 종료(i)되거나 사람 에스컬레이션이 발생한 직후 세션 폐기 |
 | Orca에서의 위치 | 코디네이터 자신 (워커 아님) | Run에 재바인딩되는 코디네이터. 구현/리뷰는 워커로 dispatch |
@@ -315,8 +319,9 @@ grep -cE "error TS[0-9]+" tsc.log
 
 - **이유**: 리뷰가 `SPEC_VIOLATION`이나 `BLOCKER`를 올려도 이미 코드는 게이트를 통과한 유효한 산출물이다. 커밋을 리뷰 결과 뒤로 미루면 에스컬레이션이 걸릴 때마다 워크트리에 커밋 안 된 변경만 남고, 사람이 diff로 확인할 수 있는 이력이 없다.
 - 커밋 이후 리뷰나 사람이 수정을 요구하면 그 수정은 **새 커밋**으로 쌓는다. 기존 커밋을 amend하지 않는다 — 라운드마다 커밋이 남아야 몇 번째 라운드에서 무엇이 고쳐졌는지 `git log`로 보인다.
-- 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(T-NNN): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<launch.effective.model>` (예: `agy/gemini-3.8-flash-medium`).
-  모델명은 추측하지 말고 `worker-start` 응답의 `launch.effective`에서 읽는다.
+- 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(T-NNN): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<모델>`.
+  모델명은 추측하지 않는다. agy는 `--terminal` 경로로 띄우므로 `launch.effective.model`이 비어 있다 — 대신 (d) 4번에서 본 agy 로그의 마지막 모델 라벨을 쓴다:
+  `grep -o 'label="[^"]*"' <그 로그> | tail -1` (예: `label="Gemini 3.8 Flash (Medium)"` → `Implemented-by: agy/Gemini 3.8 Flash (Medium)`). 라벨이 없으면 `agy/unknown`.
   **산문(`구현: agy / ...`)이 아니라 트레일러여야 한다.** 포맷이 갈리면 `git log --format='%(trailers:key=Implemented-by)'` 같은 기계 판독이 깨지고, "`git log`만 보고 어느 단계가 무엇을 만들었는지 가린다"는 목적 자체가 무너진다.
 - 이 커밋 하나로 (g)의 심각도 분기 전체가 "커밋할지 말지"가 아니라 "다음 라운드를 여는지"만 정하면 되게 바뀐다.
 
@@ -328,6 +333,14 @@ grep -cE "error TS[0-9]+" tsc.log
 
 진행자는 `references/review-schema.json`에 맞는지 검증한다.
 형식 위반이면 재작성을 요구한다 — 비용은 리뷰 1회 재실행뿐이다.
+
+리뷰 리포트 커밋은 아래 형식을 따른다. 구현 커밋의 `Implemented-by:`와 짝이다.
+
+```
+review(T-NNN): rN <verdict>
+
+Reviewed-by: codex/<리뷰 워커 worker-start 응답의 launch.effective.model>
+```
 
 ### 수정 라운드는 새 Task + 새 Dispatch로 만든다
 
