@@ -20,6 +20,10 @@ Orca relay 파이프라인에서 **구현 결과를 spec과 대조해 심각도 
    **`--uncommitted`를 쓰지 않는다.** 커밋 이후라 빈 diff가 나오고, 아무것도 검증하지 않은 채
    `verdict: "pass"` / `findings: []`를 내게 된다 — 정상 통과와 구분되지 않는 가장 비싼 실패다.
 
+   **리뷰를 시작하기 전에 `git diff --stat <base>..HEAD`가 비어 있지 않은지 확인한다.**
+   비어 있으면 리포트를 쓰지 말고 `worker_done --outcome failed`로 끝낸다. `--body`에 사용한 `<base>`와 "diff 없음"을 적는다.
+   빈 diff에 대한 `pass`는 거짓 통과다 — 실패로 보고하는 편이 훨씬 싸다.
+
 ## 이 저장소에서 특히 볼 것
 
 {{REVIEW_FOCUS}}
