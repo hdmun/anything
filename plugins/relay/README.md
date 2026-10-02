@@ -103,8 +103,72 @@ plugins/relay/
 1. 이 폴더의 소스를 고친다. 설치본(`~/.claude*/plugins/cache/hdmun-scripts/relay/<version>/`)은 관리 복사본이라 직접 고치지 않는다.
 2. `.claude-plugin/plugin.json`의 `version`을 올린다.
 3. 머지한 뒤 **main이 체크아웃된 상태에서** 설정 디렉터리마다 `claude plugin update relay`를 실행한다. 마켓플레이스 소스가 로컬 폴더라 체크아웃된 내용이 그대로 설치된다.
-4. 템플릿을 바꿨다면 relay를 쓰는 저장소마다 `/relay:init --check` → `--force`. 진행 중인 태스크가 있으면 끝난 뒤에 한다 — 역할 파일 변경이 그 태스크의 diff에 섞인다.
-5. 진행 중인 relay 세션은 재시작해야 새 스킬을 읽는다.
+4. 진행 중인 relay 세션은 재시작해야 새 스킬을 읽는다.
+5. 템플릿(`templates/`)이 바뀐 버전이면 relay를 쓰는 저장소마다 역할 파일을 갱신한다 — 아래 「사용 중인 저장소 갱신」.
+
+## 사용 중인 저장소 갱신
+
+플러그인을 업데이트해도 **저장소에 생성된 역할 파일은 그대로**다. 저장소마다 손으로 다시 렌더링해야 한다.
+
+| 저장소 쪽 파일 | 플러그인에서 오는가 | 갱신 방법 |
+|---|---|---|
+| `.ai/roles/implementer.md`, `reviewer.md` | 예 (템플릿) | 아래 절차 |
+| `.gitignore`의 relay 블록 | 예 (`gate_logs`) | 아래 절차가 함께 처리 |
+| `.ai/relay-roles.json` | 아니오 — 저장소 소유 | 손으로 고친다 |
+| `.ai/specs/`, `.ai/reviews/` | 아니오 — 산출물 | 건드리지 않는다 |
+
+스킬(`SKILL.md`)만 바뀐 버전이면 저장소 쪽은 할 일이 없다. 바뀐 파일은 `git log -p <이전 태그나 커밋>.. -- plugins/relay/templates` 로 확인한다.
+
+### 절차 (저장소 하나당 약 3분)
+
+1. **진행 중인 태스크가 없는지 확인한다.** 워커는 **워크트리 안의** 역할 파일을 읽으므로, 태스크 도중에 main을 갱신해도 그 태스크엔 반영되지 않는다. 반대로 워크트리에서 갱신하면 변경이 태스크 diff에 섞여 리뷰에서 spec 밖 변경으로 잡힌다.
+
+   ```bash
+   git -C <repo> worktree list     # main 외에 relay 워크트리(T-NNN)가 있으면 그 태스크가 끝난 뒤에 한다
+   ```
+
+2. **기본 브랜치에서, 작업 트리가 깨끗한 상태로** 드리프트를 확인한다.
+
+   ```bash
+   P=$(ls -d ~/.claude/plugins/cache/hdmun-scripts/relay/*/ | sort -V | tail -1)   # 설치된 최신 버전
+   cd <repo>
+   python -X utf8 "$P/scripts/render_roles.py" --plugin-root "$P" --repo . --check ; echo "exit=$?"
+   ```
+
+   Claude 세션 안이라면 `/relay:init --check` 와 같다.
+   `-X utf8` 을 빼지 않는다 — Windows에서 출력을 파이프로 받으면 cp949로 인코딩하다 `UnicodeEncodeError`로 죽는다.
+
+3. **결과를 읽는다.**
+
+   | 출력 | 뜻 | 할 일 |
+   |---|---|---|
+   | `OK 드리프트 없음` (exit 0) | 이미 최신 | 끝 |
+   | `OK 내용 동일. 스탬프만 낡음` (exit 0) | 버전 스탬프만 다름 | 선택. 맞추려면 4번 |
+   | `DRIFT ...` (exit 1) | 템플릿이 바뀌었다 | diff를 읽고, 템플릿 쪽이 맞으면 4번. 저장소 쪽이 맞으면 **템플릿을 고친다**(저장소 파일을 손으로 고치지 않는다) |
+   | `치환되지 않은 자리표시자: [...]` | 새 버전이 변수를 추가했다 | 그 키를 `.ai/relay-roles.json`에 넣고 2번부터 다시 |
+
+4. **덮어쓰고 커밋한다.**
+
+   ```bash
+   python -X utf8 "$P/scripts/render_roles.py" --plugin-root "$P" --repo . --force
+   git diff --stat                      # .ai/roles/*.md 와 .gitignore 만 바뀌어야 한다
+   git add .ai/roles .gitignore
+   git commit -m "chore(relay): 역할 파일 relay-roles v<버전> 반영"
+   ```
+
+5. **다음 태스크부터 적용된다.** 새 워크트리는 갱신된 main에서 분기하므로 따로 할 일이 없다.
+
+### 현황 확인
+
+relay를 쓰는 저장소와 각 역할 파일의 버전을 한 번에 본다.
+
+```bash
+for r in ~/repo/*/; do
+  if [ -f "$r/.ai/relay-roles.json" ]; then
+    echo "$(basename "$r")  $(head -1 "$r/.ai/roles/implementer.md" | grep -o 'v[0-9.]*')"
+  fi
+done
+```
 
 **모델 버전은 적지 않는다.** 역할에는 계열(Opus, Sonnet, codex·agy 기본 모델)만 배정하고, 실제 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)로 남는다. 새 모델이 나와도 고칠 곳이 없다.
 
