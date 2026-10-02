@@ -31,6 +31,13 @@
        Windows 파이프 출력 시 cp949 `UnicodeEncodeError` (stdout 을 UTF-8 로 재설정 — 지금은 `python -X utf8` 로 우회)
 2. [ ] trust + review (60분) — `trust add/remove/prune`, `validate-review`, `review-branch`, 라운드 수, `r(N-1)`/`rN` 반복 판정, `changes_requested` 정합 → SKILL.md 분기 표 대체
 3. [ ] orca + model (45분) — `startup`, `liveness`, `model reviewer` + T-004 픽스처 → SKILL.md (d)(e) 대체
+   - `startup` 에 **준비 감지 오판 → 1회 재생성** 분기: `tui-idle` timeout 인데 화면(`terminal read --screen`)에 입력창(`>` 단독 줄)이
+     보이고 차단 문구(trust/update/permission)가 없으면 `{"action":"recreate_terminal"}` — 터미널을 닫고 새로 만든다. Task 밖이라 예산 무관.
+     재생성 후에도 timeout 이면 `{"action":"human"}`. 한 번만 허용한다(무한 재생성 방지).
+   - 근거(poker-server T-004 수정 라운드, 2026-10-02): agy 1.2.14 가 로그아웃 상태로 떠 로그인하며 다시 그릴 때 상태줄이
+     `Antigravity CLI` 머리글보다 **먼저** 스트림에 찍혔다. Orca 는 머리글 뒤의 `gemini…` 줄 + `>` 줄로 준비를 판정하므로
+     화면은 정상인데 영원히 timeout. 새 터미널은 2초 만에 통과했다 — 그리기 순서 경합이다.
+   - 픽스처: 위 스트림 순서(상태줄 → 머리글 → 로고 줄 → `>`)와 정상 순서 둘 다.
 4. [ ] doctor + smoke (60분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
 5. [ ] evals (45분) — 판단형 5케이스, `--model sonnet`, threshold 1.0, `--no-publish` → 통과 시 1.2.0
 
@@ -52,4 +59,4 @@
 - `--command agy` 로 모델 핀 가능 여부 / codex `--terminal` 경로
 - `worker-release` 가 수동 생성 터미널을 닫는가
 - 정착한 Task 에 decision gate 가 걸리는가
-- agy `auto_updater` 차단 방법
+- agy `auto_updater` 차단 방법 — 필요성은 확인됨: 9/23 1.2.3·1.2.8 → 10/02 1.2.14 로 자동 업데이트
