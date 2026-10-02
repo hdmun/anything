@@ -17,12 +17,16 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 
 ## 역할과 모델
 
-| 역할 | 실행 주체 | 모델 / effort | Orca에서의 위치 |
+| 역할 | 실행 주체 | 모델 계열 / effort | Orca에서의 위치 |
 |---|---|---|---|
-| 설계자 | Claude Code | Opus / high | 코디네이터 자신 (워커 아님) |
-| 진행자 | Claude Code | Sonnet 5 / medium | Run에 재바인딩, 태스크당 세션 폐기 |
-| 구현자 | agy (Antigravity CLI) | 기본값(Flash Medium) — 핀 불가, (d) 참조 | supervised worker |
-| 리뷰어 | codex | `gpt-5.6-luna` / high | supervised worker |
+| 설계자 | Claude Code | Opus (`/model opus`) / high | 코디네이터 자신 (워커 아님) |
+| 진행자 | Claude Code | Sonnet (`/model sonnet`) / medium | Run에 재바인딩, 태스크당 세션 폐기 |
+| 구현자 | agy (Antigravity CLI) | agy 기본 모델 — (d) 참조 | supervised worker |
+| 리뷰어 | codex | codex 기본 모델(`~/.codex/config.toml`의 `model`) / high | supervised worker |
+
+**이 스킬은 모델 버전을 적지 않는다.** 역할에는 **모델 계열**만 배정하고(용어는 `CONTEXT.md`), 실제로 쓰인 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)에 사후로 남긴다.
+Claude 세션은 별칭(`opus`/`sonnet`)이 최신을 따라가고, codex는 업그레이드 때 바꾸는 기본 모델을 따라간다 — 새 모델이 나와도 이 파일을 고칠 필요가 없다.
+단, codex 기본 모델을 평소 용도로 낮추면 리뷰어도 함께 낮아진다.
 
 ## 왜 세션을 둘로 나누는가
 
@@ -43,7 +47,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
                           ↓
 [진행 Sonnet·med] run-use → 워커 부트스트랩 → worker-start
                           ↓
-[구현 agy·medium] 구현 + 자체 게이트 루프
+[구현 agy]        구현 + 자체 게이트 루프
                           ↓
 [진행]            게이트 독립 재검증
                           ↓
@@ -56,7 +60,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 | 구분 | 설계 세션 | 진행 세션 |
 |---|---|---|
-| 실행 주체 | Claude Code Opus / high | Claude Code Sonnet 5 / medium |
+| 실행 주체 | Claude Code Opus / high | Claude Code Sonnet / medium |
 | 하는 일 | spec 작성, run/task 생성, 심각도 판단(SPEC_VIOLATION 등) | 워커 부트스트랩, dispatch, 대기, 게이트 재검증, 리뷰 분기, PR 생성 |
 | 끝나는 지점 | `task-create` 완료 후, Run ID를 사용자에게 알리고 세션 종료 | 태스크 하나가 성공 종료(i)되거나 사람 에스컬레이션이 발생한 직후 세션 폐기 |
 | Orca에서의 위치 | 코디네이터 자신 (워커 아님) | Run에 재바인딩되는 코디네이터. 구현/리뷰는 워커로 dispatch |
@@ -91,7 +95,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 3. 워커 부트스트랩 — (d)
 4. `worker-start` 후 대기 — (e)
 5. 게이트 독립 재검증 — (f). **통과 즉시 구현 커밋한다. 리뷰 결과를 기다리지 않는다.**
-6. 리뷰 워커 기동(`<base>`를 spec에 넣는다), 리뷰 JSON 검증, 심각도 분기 — (g). 분기 결과와 무관하게 커밋은 이미 존재한다
+6. 빈 diff 확인 후 리뷰 워커 기동(`<base>`를 spec에 넣는다) — (d), 리뷰 JSON 검증, 심각도 분기 — (g). 분기 결과와 무관하게 커밋은 이미 존재한다
 7. PR 생성(경로 A) 또는 브랜치·커밋 목록 보고(경로 B) — (i)
 8. **워커 정리** — `worker-release` + `trustedWorkspaces` 해제. `reclaimable`이 0인지 확인한 뒤 세션 폐기 — (i), (j)
 
@@ -138,21 +142,63 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
    PY
    ```
 
-3. `orca orchestration worker-start --task <id> --worktree id:<wt> --agent antigravity --json`
-   - **모델을 지정하지 않는다.** 정본은 `--model`/`--effort`를 *fresh Claude, Codex, or Cursor terminal* 에만 전달한다고 명시한다.
-     antigravity는 그 목록에 없어 `launch.effective`가 `{"model": null, "effort": null}`로 돌아온다 —
-     **고쳐질 버그가 아니라 문서화된 설계다.** 따라서 구현자는 **기본 모델(Flash Medium)** 로 뜬다.
-     Low로 핀하는 방법은 수동 기동(`terminal create` + `dispatch --inject`)뿐인데, 그 대가로 위의 감독 수단 전부를 잃는다.
-   - 응답의 `launch.effective`를 확인해 의도한 대로 떴는지 본다. `dispatch.id`도 기록한다.
-   - **응답에 dispatch가 비어 있으면**(`stage: "input_accepted"`만 오는 경우가 있다) `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것.
+3. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
+
+   ```bash
+   orca terminal create --worktree id:<wt> --title "T-NNN agy" --command agy --json
+   orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
+   orca orchestration worker-start --task <id> [--retry-of <dispatch_id>] --worktree id:<wt> --terminal <h> --json
+   ```
+
+   - **이유**: agy는 입력창이 준비되기 전에 들어온 입력을 **조용히 버린다.** Orca는 antigravity의 전달 여부를 관측하지 못해(`provider: unsupported`) 경고도 없다.
+     실측(poker-server T-004): `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다 — 2회 연속.
+   - `tui-idle`을 건너뛰고 바로 `worker-start --terminal`을 걸면 `agent_unconfigured`로 거부된다. Orca가 터미널에 `agentIdentity: antigravity`를 태깅하기 전이기 때문이다.
+   - `tui-idle`이 timeout이면 `worker-start`를 걸지 않는다 — Task 밖에서 실패한 것이라 기동 실패 예산을 쓰지 않는다. 터미널 화면을 확인하고 사람을 부른다.
+   - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 구현자는 **agy 기본 모델**로 뜬다.
+     (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
+   - **응답에 dispatch가 비어 있으면**(이 경로에서는 보통 그렇다) `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것.
+
+4. **60초 안에 전달을 확인한다.** Orca의 "입력 수락"은 전달의 증거가 아니다.
+
+   ```bash
+   # 가장 최근 agy 로그에 HandleUserInput 줄이 생겼는지 본다
+   ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1 | xargs grep -c "HandleUserInput called with text:"
+   ```
+
+   - 1 이상이면 전달됨 — (e)의 대기로 넘어간다.
+   - 0이면 **전달 실패 = 기동 실패**다. 재시도하지 않고 `worker-retain` 후 사람을 부른다 — (h).
+     이 단계가 없으면 빈 대기 3회(30분)를 다 쓰고 나서야 유실을 알게 된다(T-004 실측).
 
 **리뷰 워커(codex)**
 
-- `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model gpt-5.6-luna --effort high --json`
+사전 조건 — `~/.codex/config.toml`에 다음 두 키가 있어야 한다. 없으면 기동하지 말고 사용자에게 추가를 요청한다.
+
+```toml
+check_for_update_on_startup = false          # 최상위. 업데이트 프롬프트가 기동을 막는다 (agent_prompt_blocked)
+
+[tui]
+terminal_title = ["app-name", "activity", "project-name"]   # 제목에 "codex"가 있어야 Orca가 준비를 감지한다
+```
+
+- 두 번째 키가 필요한 이유: Orca(1.4.216)는 codex가 준비됐는지를 **배너의 `model:`/`directory:` 라벨**이나 **터미널 제목 속 `codex`** 로만 판정한다.
+  codex 0.159는 배너에서 라벨을 빼고 제목을 폴더 이름으로 바꿔 둘 다 사라졌고, 그 결과 `agent_readiness timeout`이 난다(T-004 실측). 이 키를 넣으면 6초 안에 준비가 감지된다.
+- 모델은 **codex 기본 모델을 따른다.** `config.toml`의 최상위 `model` 값을 읽어 넘긴다. `--effort`는 `--model` 없이 쓸 수 없으므로 둘을 함께 준다.
+
+**기동 전에 리뷰할 diff가 실제로 있는지 확인한다.** 빈 범위를 넘기면 리뷰어는 아무것도 검증하지 않고 `pass`를 낸다 — 정상 통과와 구분되지 않는 가장 비싼 실패다.
+
+```bash
+git -C <worktree> diff --stat <base>..HEAD | tail -1
+```
+
+- 출력이 비어 있으면 **리뷰 워커를 띄우지 않는다.** `<base>`가 틀렸거나 (f)의 구현 커밋이 빠진 것이다. 둘 중 무엇인지 확인하고 고친 뒤 다시 본다.
+  알아낼 수 없으면 사람을 부른다. 이 확인은 셸 명령이라 비용이 0이다.
+- 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
+
+- `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model <config.toml의 model> --effort high --json`
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
 - **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. 1번에서 적어둔 커밋 SHA를 그대로 넣는다.
 - 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다** — 실측으로 드리프트가 발생했던 지점이다. `/relay:init --check`로 확인한다.
-- **codex는 `--model`/`--effort`가 정상 전달된다.** 실측 응답: `launch.effective = {"agent":"codex","model":"gpt-5.6-luna","effort":"high"}`.
+- **codex는 `--model`/`--effort`가 정상 전달된다.** 응답의 `launch.effective`(예: `{"agent":"codex","model":"<model>","effort":"high"}`)로 확인하고 `model`을 기록한다 — 리뷰 리포트 커밋의 트레일러에 쓴다.
 
 **Git Bash 주의** — `terminal send --text "/clear"` 처럼 `/`로 시작하는 인자는 Git Bash가 `C:/Program Files/Git/clear`로 경로 변환한다. `MSYS_NO_PATHCONV=1`을 앞에 붙인다.
 
@@ -187,8 +233,10 @@ orca orchestration check --ack <delivery_id> --wait --types worker_done,escalati
 orca orchestration worker-list --run <run_id> --include-remote --json
 ```
 
-- `projection.attention.requiresAction`이 `true`이고 `projection.nextAction.kind`가 `none`이 아니면 **`nextAction.argv`를 그대로 실행한다.** 실측으로 `{"kind":"release","argv":[...]}`가 돌아온 사례가 있다.
+- `projection.attention.requiresAction`이 `true`이고 `projection.nextAction.kind`가 `none`이 아니면 **`nextAction.argv`를 실행한다.** 실측으로 `{"kind":"release","argv":[...]}`가 돌아온 사례가 있다.
+  `argv`에는 실행 파일명이 빠져 있다(`["orchestration","worker-release",...]`) — **앞에 `orca`를 붙여** 실행한다.
 - `projection.liveness.verdict`가 `exited`면 양성 증거다. `unverifiable`은 **부재이지 증거가 아니다.**
+- **agy 워커는 2층이 답을 주지 않는다.** 실측(T-004): `liveness: unverifiable (missing_status)`, `nextAction: none`만 돌아왔다. agy는 2층을 건너뛰고 바로 3층으로 간다.
 
 **3층 — `nextAction.kind`가 `none`이면 벽시계로 판정한다.** 정본은 여기서 *"`liveness.reason`을 읽고 계속 기다려라"* 라고만 하는데, 그건 종료 조건이 없다. relay는 여기에 임계값을 둔다.
 
@@ -271,8 +319,9 @@ grep -cE "error TS[0-9]+" tsc.log
 
 - **이유**: 리뷰가 `SPEC_VIOLATION`이나 `BLOCKER`를 올려도 이미 코드는 게이트를 통과한 유효한 산출물이다. 커밋을 리뷰 결과 뒤로 미루면 에스컬레이션이 걸릴 때마다 워크트리에 커밋 안 된 변경만 남고, 사람이 diff로 확인할 수 있는 이력이 없다.
 - 커밋 이후 리뷰나 사람이 수정을 요구하면 그 수정은 **새 커밋**으로 쌓는다. 기존 커밋을 amend하지 않는다 — 라운드마다 커밋이 남아야 몇 번째 라운드에서 무엇이 고쳐졌는지 `git log`로 보인다.
-- 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(T-NNN): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<launch.effective.model>` (예: `agy/gemini-3.8-flash-medium`).
-  모델명은 추측하지 말고 `worker-start` 응답의 `launch.effective`에서 읽는다.
+- 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(T-NNN): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<모델>`.
+  모델명은 추측하지 않는다. agy는 `--terminal` 경로로 띄우므로 `launch.effective.model`이 비어 있다 — 대신 (d) 4번에서 본 agy 로그의 마지막 모델 라벨을 쓴다:
+  `grep -o 'label="[^"]*"' <그 로그> | tail -1` (예: `label="Gemini 3.8 Flash (Medium)"` → `Implemented-by: agy/Gemini 3.8 Flash (Medium)`). 라벨이 없으면 `agy/unknown`.
   **산문(`구현: agy / ...`)이 아니라 트레일러여야 한다.** 포맷이 갈리면 `git log --format='%(trailers:key=Implemented-by)'` 같은 기계 판독이 깨지고, "`git log`만 보고 어느 단계가 무엇을 만들었는지 가린다"는 목적 자체가 무너진다.
 - 이 커밋 하나로 (g)의 심각도 분기 전체가 "커밋할지 말지"가 아니라 "다음 라운드를 여는지"만 정하면 되게 바뀐다.
 
@@ -284,6 +333,14 @@ grep -cE "error TS[0-9]+" tsc.log
 
 진행자는 `references/review-schema.json`에 맞는지 검증한다.
 형식 위반이면 재작성을 요구한다 — 비용은 리뷰 1회 재실행뿐이다.
+
+리뷰 리포트 커밋은 아래 형식을 따른다. 구현 커밋의 `Implemented-by:`와 짝이다.
+
+```
+review(T-NNN): rN <verdict>
+
+Reviewed-by: codex/<리뷰 워커 worker-start 응답의 launch.effective.model>
+```
 
 ### 수정 라운드는 새 Task + 새 Dispatch로 만든다
 
@@ -325,12 +382,24 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
 | 워커가 `escalation` 발신 | Opus |
 | 리뷰 라운드 3회 초과 | Opus |
 | 총 라운드 5회 초과 | **사람**, 태스크 중단 |
+| 같은 Task의 기동 실패 2회 | **사람**, 재시도 금지 |
 | 무응답 판정 (e) | **사람** |
 
-**라운드 수는 파일로 센다.** 진행 세션은 폐기되므로 카운터를 컨텍스트에 둘 수 없다.
+### 시도와 라운드를 구분한다
 
-- 리뷰 라운드 수 = `.ai/reviews/T-NNN.r*.json` 파일 개수
-- "같은 지적이 2회 반복"은 `T-NNN.r1.json`과 `r2.json`의 findings를 `file` + `summary` 기준으로 비교해 판정한다
+용어는 `CONTEXT.md`가 정본이다. 셋을 섞으면 예산이 엉뚱하게 깎인다.
+
+| 용어 | 뜻 | 세는 법 (세션 폐기 후에도 남는 곳) |
+|---|---|---|
+| **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 (d)의 **전달 확인** 실패를 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
+| **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 |
+| **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/T-NNN.r*.json` 파일 개수 |
+| **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 |
+
+- **기동 실패는 2회에서 멈춘다.** Orca는 같은 Task가 3회 연속 실패하면 circuit-break한다. 2회째에 재시도하면 마지막 기회를 원인 모른 채 쓰게 된다(T-004에서 구현·리뷰 Task 둘 다 그 직전까지 갔다).
+  원인을 찾아 해소했다면 기존 Task를 포기하고 **새 Task**로 다시 시작한다 — 재시도가 아니라 재출발이다. 재출발 전에 Task 밖에서 `terminal create` → `tui-idle`로 준비 감지가 통과하는지 먼저 확인한다.
+- 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
+- "같은 지적이 2회 반복"은 **직전 라운드와 이번 라운드**(`r(N-1)`과 `rN`)의 findings를 `file` + `summary` 기준으로 비교해 판정한다
 
 **"Opus 에스컬레이션"의 실제 행위** — 진행 세션은 스스로 판단하지 않고 다음을 한다:
 
@@ -348,7 +417,7 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
    - `--options`의 JSON 배열은 **셸 인용 규칙을 따른다.** PowerShell이나 `cmd.exe`에 POSIX 홑따옴표를 그대로 옮기지 않는다.
    - 게이트 명령은 Orca 터미널 안에서만 동작한다(밖에서는 `no_active_sender_terminal`). 필요하면 `--from <handle>`을 준다.
    - **아직 미검증**: `worker_done`으로 이미 정착한 Task에 게이트가 걸리는지 확인되지 않았다. 거부되면 게이트를 **리뷰 워커 dispatch 전에 미리** 만들어 두고 결과에 따라 `gate-resolve`하는 형태로 바꾼다.
-2. **`orca orchestration worker-retain --dispatch <dispatch_id> --json`으로 워커를 보존한다.**
+2. **`orca orchestration worker-retain --dispatch <dispatch_id> --json`으로 워커를 보존한다.** 정착한 dispatch **전부**(구현·리뷰)에 대해 각각 실행한다 — 하나라도 빠지면 `reclaimable`로 남는다.
    Opus가 터미널의 마지막 출력을 봐야 판단이 서는 경우가 있고, 닫으면 그 증거가 사라진다 — (i)의 「워커 정리」 표 참조.
 3. 사용자에게 **Run ID, Task ID, 에스컬레이션 사유, 관련 리뷰 파일 경로, 브랜치명과 커밋 목록**을 보고한다.
    구현 커밋은 (f)에서 이미 만들어져 있으므로 워크트리를 뒤질 필요 없이 `git log --oneline <base>..HEAD`로 바로 확인할 수 있다
@@ -375,24 +444,30 @@ Orca는 정착(settle)된 워커마다 **재사용 / `worker-retain` / `worker-r
 
 relay의 세 갈래 출구에 그 "정확히 하나"를 대응시키면 이렇게 된다:
 
-| 출구 | 워커 처리 |
-|---|---|
-| 성공 종료 (i) | `worker-release` + 구현 터미널 close + `trustedWorkspaces` 해제 |
-| 수정 라운드 (g의 `BLOCKER`/`MAJOR`) | **재사용** — 닫지 않는다. 같은 handle로 새 dispatch를 건다 |
-| Opus 에스컬레이션 / 사람 호출 (h) | `worker-retain` — 증거를 남긴다 |
+| 출구 | 구현 워커 (agy) | 리뷰 워커 (codex) |
+|---|---|---|
+| 성공 종료 (i) | `worker-release` + 터미널 close + `trustedWorkspaces` 해제 | `worker-release` |
+| 수정 라운드 (g의 `BLOCKER`/`MAJOR`) | **재사용** — 닫지 않는다. 같은 handle로 새 dispatch를 건다 | `worker-release`. 다음 리뷰 라운드는 새 워커로 띄운다 — 이전 리뷰의 맥락에 끌려가지 않게 |
+| Opus 에스컬레이션 / 사람 호출 (h) | `worker-retain` — 증거를 남긴다 | `worker-retain` |
 
-성공 종료에서만 해제한다:
+성공 종료에서만 구현 워커를 해제한다:
 
 ```bash
-# 구현·리뷰 워커 둘 다 worker-start 로 띄웠으므로 둘 다 release 대상이다
+# 구현·리뷰 워커 둘 다 worker-start 로 감독했으므로 둘 다 release 대상이다
 orca orchestration worker-release --dispatch <impl_dispatch_id> --json
 orca orchestration worker-release --dispatch <review_dispatch_id> --json
+
+# 구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않을 수 있다 — 닫혔는지 보고 남아 있으면 닫는다
+orca terminal show --terminal <impl_handle> --json
+orca terminal close --terminal <impl_handle> --json
 
 # 남은 것이 없는지 확인한 뒤에 세션을 끝낸다
 orca orchestration worker-list --run <run_id> --terminal-state reclaimable --json
 ```
 
 - **`release`가 불확실할 때 그 대체로 `terminal close`를 쓰지 않는다.** 정본이 명시적으로 금지하며, release 실패는 자체 recovery receipt를 따른다.
+  위의 `terminal close`는 대체가 아니다 — release가 **성공한 뒤**, 우리가 직접 만든 터미널을 만든 쪽이 정리하는 것이다.
+  (**미검증**: 정본상 미리 존재하던 터미널은 release 후 `retained`로 남는다고 읽히지만 실측 전이다. 확인되면 이 주석을 고친다.)
 - **증거 보존을 이유로 워커를 살려두지 않는다.** 정본: *"Do not leave it live only to inspect output; archived output remains available through `worker-read`."* release 후에도 `worker-read`로 산출물을 읽을 수 있다.
 
 **그리고 `trustedWorkspaces`에서 그 워크트리 경로를 지운다.** (d) 2번이 추가한 항목이고, 지우는 단계가 없으면 단조 증가한다.
