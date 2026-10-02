@@ -38,7 +38,18 @@
      `Antigravity CLI` 머리글보다 **먼저** 스트림에 찍혔다. Orca 는 머리글 뒤의 `gemini…` 줄 + `>` 줄로 준비를 판정하므로
      화면은 정상인데 영원히 timeout. 새 터미널은 2초 만에 통과했다 — 그리기 순서 경합이다.
    - 픽스처: 위 스트림 순서(상태줄 → 머리글 → 로고 줄 → `>`)와 정상 순서 둘 다.
-4. [ ] doctor + smoke (60분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
+4. [ ] doctor + smoke + 예열 (75분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
+   - **agy 예열(`relay_cli.py warmup agy`)** — 자동 업데이트를 막지 않고, Task 밖에서 버전을 고정한 뒤 워커를 띄운다.
+     워커 터미널을 만들기 전에(구현 기동, 수정 라운드 재기동 모두) 실행한다:
+     1. agy 를 한 번 띄운다 → 최신 `cli-*.log` 에 `auto_updater` 줄을 기다린다
+     2. `Spawned background update process with PID <n>` 이면 그 PID 가 끝날 때까지 대기(상한 5분, 넘으면 `human`)
+        / `skipping update (fast path)` 이면 대기 없음
+     3. 닫고 다시 띄워 `tui-idle` 통과와 `agy --version` 을 확인 → 결정 `{"action":"ready","version":...}`
+        또는 `{"action":"human","reason":"readiness_after_update"}`
+     4. 버전이 `verified-cli.json` 밖이면 결정에 `"unverified": true` — 진행은 하되 결과를 사용자에게 보고하고, Task 가 성공하면 사람이 목록에 추가한다
+   - 근거: agy 업데이트는 백그라운드 프로세스로 돌고 실행 중인 세션을 막지 않으며 다음 실행부터 적용된다(로그 `auto_updater.go:334`, 15분 fast path).
+     위험은 업데이트 자체가 아니라 **Task 도중 버전이 바뀌어** 새 TUI 가 Orca 준비 감지를 깨는 것이다. 예열은 그 실패를 Task 예산 밖으로 옮긴다.
+   - SKILL.md (d) 3번 앞에 "예열" 단계를 넣는다.
 5. [ ] evals (45분) — 판단형 5케이스, `--model sonnet`, threshold 1.0, `--no-publish` → 통과 시 1.2.0
 
 ### 규약
@@ -59,4 +70,4 @@
 - `--command agy` 로 모델 핀 가능 여부 / codex `--terminal` 경로
 - `worker-release` 가 수동 생성 터미널을 닫는가
 - 정착한 Task 에 decision gate 가 걸리는가
-- agy `auto_updater` 차단 방법 — 필요성은 확인됨: 9/23 1.2.3·1.2.8 → 10/02 1.2.14 로 자동 업데이트
+- ~~agy `auto_updater` 차단~~ → 차단하지 않고 예열로 대응하기로 결정(2026-10-02, 트랙 2 4단계). 남은 미검증: Windows 에서 실행 중인 `agy.exe` 를 업데이트가 어떻게 교체하는지 — 예열 구현 중 확인
