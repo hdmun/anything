@@ -1,0 +1,2 @@
+# hook 은 sh 가 읽는다 — CRLF 로 체크아웃되면 shebang 이 깨진다
+.githooks/* text eol=lf
