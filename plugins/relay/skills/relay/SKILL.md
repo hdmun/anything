@@ -90,6 +90,17 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
    Orca가 배포하는 `orchestration` 스텁이 *"캐시된 복사본에서 서브커맨드나 플래그를 추측하지 말라"* 고
    명시한 이유가 이것이다. **충돌하면 정본이 옳고, 이 스킬을 고친다.**
    relay가 더하는 것은 명령 사용법이 아니라 그 위의 정책이다 — 역할 분리, 심각도 라우팅, 세션 폐기 규범.
+
+   **relay 정책은 `relay_cli.py`가 판정한다** (ADR 0001). 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위가 플러그인 루트다:
+
+   ```bash
+   RELAY="<Base directory>/../.."          # 예: .../plugins/cache/hdmun-scripts/relay/1.2.0
+   python "$RELAY/scripts/relay_cli.py" --help
+   ```
+
+   - **결정기**(`review-branch` 등)는 stdout에 JSON 한 줄을 낸다. 첫 키 `action`대로 행동하고, 판정 규칙을 이 문서에서 다시 계산하지 않는다.
+   - **검사기**(`diff-guard`, `validate-review`)는 종료코드 0 통과 / 1 실패.
+   - 종료코드 **2는 입력 오류**(경로·base 오타 등)다. 고쳐서 다시 부른다.
 1. `orca orchestration run-use --id <run_id> --json`
 2. `orca orchestration task-list --ready --json` 로 다음 태스크를 꺼낸다. **태스크 상태를 컨텍스트에 들고 있지 말고 매번 Orca에 물어본다** (외부 메모리로 사용).
 3. 워커 부트스트랩 — (d)
@@ -123,24 +134,13 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 2. **`~/.gemini/antigravity-cli/settings.json`의 `trustedWorkspaces` 배열에 그 worktree 경로를 추가한다.**
    - 등록하지 않으면 agy가 "Do you trust the contents of this project?" 프롬프트에서 멈춘다. **기동 방식과 무관하게 필수다.**
    - 더 나쁜 점: 사람이 프롬프트를 해소해도 **스크롤백에 남은 텍스트 때문에 감지가 풀리지 않는다.** 사전 등록이 유일하게 깨끗한 해법이다.
-   - `worktree create`는 경로를 슬래시(`C:/Users/...`)로 반환하지만 기존 항목은 백슬래시다. **반드시 백슬래시로 정규화해서 넣는다.**
    - 성공 종료 때 이 항목을 지운다 — (i)의 「워커 정리」. 지우는 단계가 없으면 단조 증가한다.
 
    ```bash
-   python - "<worktree path>" <<'PY'
-   import json, sys, pathlib
-   p = pathlib.Path.home() / ".gemini/antigravity-cli/settings.json"
-   s = json.loads(p.read_text(encoding="utf-8"))
-   ws = s.setdefault("trustedWorkspaces", [])
-   new = sys.argv[1].replace("/", "\\")
-   if new in ws:
-       print("already trusted:", new)
-   else:
-       ws.append(new)
-       p.write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
-       print("added:", new)
-   PY
+   python "$RELAY/scripts/relay_cli.py" trust add "<worktree path>"     # added: / already trusted:
    ```
+
+   경로 정규화(슬래시 → 백슬래시)와 대소문자 무시 비교는 스크립트가 한다.
 
 3. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
 
@@ -187,10 +187,10 @@ terminal_title = ["app-name", "activity", "project-name"]   # 제목에 "codex"�
 **기동 전에 리뷰할 diff가 실제로 있는지 확인한다.** 빈 범위를 넘기면 리뷰어는 아무것도 검증하지 않고 `pass`를 낸다 — 정상 통과와 구분되지 않는 가장 비싼 실패다.
 
 ```bash
-git -C <worktree> diff --stat <base>..HEAD | tail -1
+python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <base> ; echo "exit=$?"
 ```
 
-- 출력이 비어 있으면 **리뷰 워커를 띄우지 않는다.** `<base>`가 틀렸거나 (f)의 구현 커밋이 빠진 것이다. 둘 중 무엇인지 확인하고 고친 뒤 다시 본다.
+- 종료코드 1이면 **리뷰 워커를 띄우지 않는다.** `<base>`가 틀렸거나 (f)의 구현 커밋이 빠진 것이다. 둘 중 무엇인지 확인하고 고친 뒤 다시 본다.
   알아낼 수 없으면 사람을 부른다. 이 확인은 셸 명령이라 비용이 0이다.
 - 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
 
@@ -331,8 +331,23 @@ grep -cE "error TS[0-9]+" tsc.log
 
 **라운드마다 파일을 따로 남기는 이유는 (h)의 카운터 때문이다.** 진행 세션은 태스크마다 폐기되므로 라운드 수를 컨텍스트에 들고 있을 수 없다. 파일 개수가 곧 라운드 수이고, git에 남아 세션과 무관하게 유지된다.
 
-진행자는 `references/review-schema.json`에 맞는지 검증한다.
-형식 위반이면 재작성을 요구한다 — 비용은 리뷰 1회 재실행뿐이다.
+`worker_done`을 받으면 **판정을 스크립트에 맡긴다.** 검증·심각도 분기·라운드 한도가 한 번에 나온다.
+
+```bash
+python "$RELAY/scripts/relay_cli.py" review-branch --task T-NNN --worktree <worktree> --base <base>
+# {"action": "fix_round", "report": ".../T-NNN.r1.json", "review_rounds": 1, "impl_rounds": 1, "round": 2, "severities": ["MAJOR"]}
+```
+
+| `action` | 할 일 |
+|---|---|
+| `rewrite` | 리포트가 `references/review-schema.json`을 어겼다. `errors`를 리뷰어에게 그대로 보내 재작성을 요구한다 — 비용은 리뷰 1회 재실행뿐. **리포트를 커밋하지 않는다** |
+| `success` | 리포트를 커밋하고 성공 종료 — (i). `MINOR`만 있어도 여기로 온다 (수정을 요구하지 않는다 — 핑퐁 방지) |
+| `fix_round` | 리포트를 커밋하고 아래 「수정 라운드」. `round`가 다음 리뷰 라운드 번호다 |
+| `escalate` | 리포트를 커밋하고 설계 세션(Opus)으로 — (h). `reason`을 게이트 질문에 적는다 |
+| `human` | 리포트를 커밋하고 사람 호출, 태스크 중단 — (h) |
+
+판정 규칙(심각도 우선순위, 반복 지적 비교, 라운드 한도)의 정본은 `scripts/relaylib/review.py`와 그 테스트다. 여기서 다시 계산하지 않는다.
+**왜 이렇게 나누는가**: `SPEC_VIOLATION`은 명세를 쓴 주체만 옳고 그름을 가릴 수 있어 진행자가 판단하지 않는다. 같은 지적이 직전 라운드에 이어 또 나오면 구현자로는 못 고친다는 뜻이다. 라운드 한도는 비용 상한이다.
 
 리뷰 리포트 커밋은 아래 형식을 따른다. 구현 커밋의 `Implemented-by:`와 짝이다.
 
@@ -362,26 +377,15 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
 - `--parent`로 원래 태스크에 묶으면 수정 라운드가 DAG에 기록된다.
 - **조치가 필요 없는 단순 안내**라면 Task를 만들지 말고 `orca terminal send --terminal <handle> --text "..." --enter` 로 직접 보낸다.
 
-**구현 커밋은 (f)에서 이미 만들어져 있다.** 아래 분기는 그 커밋을 만들지 여부가 아니라, 리뷰 리포트를 커밋할지와 다음 라운드를 열지를 정한다.
-
-심각도 분기:
-
-| 조건 | 행동 |
-|---|---|
-| `SPEC_VIOLATION`이 1건이라도 있음 | 리뷰 리포트를 커밋하고 **즉시 Opus 에스컬레이션. 진행자가 판단하지 않는다.** 명세를 쓴 주체만 명세 위반 주장의 옳고 그름을 가릴 수 있다. 구현 커밋은 이미 있으므로 보고에 브랜치명과 커밋 목록을 포함한다 — 사람/Opus가 우선 그 커밋을 diff로 직접 볼 수 있다 |
-| `BLOCKER` 또는 `MAJOR` 있음 | 리뷰 리포트를 커밋하고 **새 Task + 새 Dispatch**로 수정 라운드 (위 참조). 기존 dispatch로는 보낼 수 없다. 수정 결과는 기존 커밋을 amend하지 않고 **새 커밋**으로 쌓는다 |
-| `MINOR`만 있음 | 리뷰 리포트만 커밋하고 수정을 요구하지 않는다 (핑퐁 방지) |
-| `verdict: "pass"` | 리뷰 리포트를 커밋하고 성공 종료로 진행 |
+**구현 커밋은 (f)에서 이미 만들어져 있다.** 분기는 그 커밋을 만들지 여부가 아니라 다음 라운드를 열지를 정한다. 수정 라운드의 결과는 기존 커밋을 amend하지 않고 **새 커밋**으로 쌓는다.
 
 ## (h) 에스컬레이션과 포기
 
+리뷰에서 오는 에스컬레이션(`SPEC_VIOLATION`, 반복 지적, 리뷰 라운드 한도, 총 라운드 한도)은 (g)의 `review-branch`가 판정한다. 그 밖의 트리거:
+
 | 트리거 | 행동 |
 |---|---|
-| `SPEC_VIOLATION` 1회 | Opus |
-| 같은 지적이 리뷰에서 2회 반복 | Opus (구현자로는 못 고침) |
 | 워커가 `escalation` 발신 | Opus |
-| 리뷰 라운드 3회 초과 | Opus |
-| 총 라운드 5회 초과 | **사람**, 태스크 중단 |
 | 같은 Task의 기동 실패 2회 | **사람**, 재시도 금지 |
 | 무응답 판정 (e) | **사람** |
 
@@ -392,14 +396,13 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
 | 용어 | 뜻 | 세는 법 (세션 폐기 후에도 남는 곳) |
 |---|---|---|
 | **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 (d)의 **전달 확인** 실패를 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
-| **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 |
+| **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 — **트레일러가 빠진 커밋은 세지 못한다** |
 | **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/T-NNN.r*.json` 파일 개수 |
-| **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 |
+| **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (`review-branch`가 센다) |
 
 - **기동 실패는 2회에서 멈춘다.** Orca는 같은 Task가 3회 연속 실패하면 circuit-break한다. 2회째에 재시도하면 마지막 기회를 원인 모른 채 쓰게 된다(T-004에서 구현·리뷰 Task 둘 다 그 직전까지 갔다).
   원인을 찾아 해소했다면 기존 Task를 포기하고 **새 Task**로 다시 시작한다 — 재시도가 아니라 재출발이다. 재출발 전에 Task 밖에서 `terminal create` → `tui-idle`로 준비 감지가 통과하는지 먼저 확인한다.
 - 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
-- "같은 지적이 2회 반복"은 **직전 라운드와 이번 라운드**(`r(N-1)`과 `rN`)의 findings를 `file` + `summary` 기준으로 비교해 판정한다
 
 **"Opus 에스컬레이션"의 실제 행위** — 진행 세션은 스스로 판단하지 않고 다음을 한다:
 
@@ -475,20 +478,10 @@ orca orchestration worker-list --run <run_id> --terminal-state reclaimable --jso
 죽은 항목이 남아 있으면 **미래의 다른 워크트리를 미리 신뢰하게 만든다.**
 
 ```bash
-python - "<worktree path>" <<'PY'
-import json, sys, pathlib
-p = pathlib.Path.home() / ".gemini/antigravity-cli/settings.json"
-s = json.loads(p.read_text(encoding="utf-8"))
-ws = s.get("trustedWorkspaces", [])
-target = sys.argv[1].replace("/", "\\")
-if target in ws:
-    ws.remove(target)
-    p.write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
-    print("removed:", target)
-else:
-    print("not present:", target)
-PY
+python "$RELAY/scripts/relay_cli.py" trust remove "<worktree path>"   # removed: / not present:
 ```
+
+이미 남아 버린 죽은 항목은 `trust prune`(기본 dry-run, `--apply`로 삭제)이 `~/orca/workspaces/` 아래 항목만 골라 정리한다. 사용자가 직접 넣은 항목은 건드리지 않는다.
 
 ### 경로 A — 리뷰어가 따로 있는 저장소: PR
 

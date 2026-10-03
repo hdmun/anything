@@ -29,7 +29,7 @@
 1. [x] 골격 + roles (40분) — `tests/`(unittest), `scripts/relaylib/`, `scripts/relay_cli.py`, `.githooks/pre-commit`.
        TDD로: `.gitignore` 블록 없을 때 init 거부 버그, CRLF, 필수 키 검증, 미치환 자리표시자 정규식,
        Windows 파이프 출력 시 cp949 `UnicodeEncodeError` (stdout 을 UTF-8 로 재설정 — 지금은 `python -X utf8` 로 우회)
-2. [ ] trust + review (60분) — `trust add/remove/prune`, `validate-review`, `review-branch`, 라운드 수, `r(N-1)`/`rN` 반복 판정, `changes_requested` 정합 → SKILL.md 분기 표 대체
+2. [x] trust + review (60분) — `trust add/remove/prune`, `validate-review`, `review-branch`, 라운드 수, `r(N-1)`/`rN` 반복 판정, `changes_requested` 정합 → SKILL.md 분기 표 대체
 3. [ ] orca + model (45분) — `startup`, `liveness`, `model reviewer` + T-004 픽스처 → SKILL.md (d)(e) 대체
    - `startup` 에 **준비 감지 오판 → 1회 재생성** 분기: `tui-idle` timeout 인데 화면(`terminal read --screen`)에 입력창(`>` 단독 줄)이
      보이고 차단 문구(trust/update/permission)가 없으면 `{"action":"recreate_terminal"}` — 터미널을 닫고 새로 만든다. Task 밖이라 예산 무관.
@@ -58,6 +58,13 @@
 - 검사기(`validate-review`, `diff-guard`, `doctor`)는 종료코드 0/1, 사유는 stderr 한 줄.
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
+
+## 결정 대기
+
+- **구현자 자체 커밋** — poker-server T-004 수정 라운드 커밋 `dd95130` 은 `feat(T-NNN)` 형식도 `Implemented-by:` 도 Co-Author 도 없다.
+  agy `settings.json` 의 `permissions.allow` 에 `command(git commit)` 이 있어 agy 가 직접 커밋한 것으로 보인다(템플릿은 커밋 금지).
+  영향: `review-branch` 의 구현 라운드 수가 1 적게 나오고(실측 1, 실제 2) 이력에서 귀속이 사라진다.
+  선택지: (a) agy 권한에서 `git commit` 제거 (b) 진행자가 `worker_done` 후 `base..HEAD` 에 트레일러 없는 커밋이 있으면 멈추는 검사기 추가 (c) 둘 다
 
 ## 별도 과제
 
