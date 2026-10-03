@@ -39,6 +39,25 @@
           }
         }
       }
+    },
+    {
+      "$comment": "verdict가 changes_requested이면 SPEC_VIOLATION/BLOCKER/MAJOR가 하나 이상 있어야 한다. MINOR는 수정 대상이 아니므로 MINOR만이면 pass다.",
+      "if": {
+        "properties": { "verdict": { "const": "changes_requested" } },
+        "required": ["verdict"]
+      },
+      "then": {
+        "properties": {
+          "findings": {
+            "contains": {
+              "properties": {
+                "severity": { "enum": ["SPEC_VIOLATION", "BLOCKER", "MAJOR"] }
+              },
+              "required": ["severity"]
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {
