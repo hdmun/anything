@@ -5,3 +5,6 @@ notion/notion_sync.env
 # Logs
 *.log
 notion/logs/
+
+# Python
+__pycache__/

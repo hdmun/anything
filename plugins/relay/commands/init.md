@@ -32,6 +32,8 @@ argument-hint: "[--check | --force]"
 | `dep_rule` | 테스트 러너·의존성 정책. 확신이 없으면 묻는다 |
 | `gate_logs` | 게이트가 만드는 로그 파일명 배열. 최소 `["gate.log"]` |
 | `review_focus` | **반드시 사용자에게 묻는다.** 게이트가 못 잡는 것이 무엇인지는 저장소 주인만 안다 |
+
+필수 키(비어 있으면 렌더링이 거부된다): `rules_doc`, `dep_rule`, `gate_cmd_prose`, `gate_cmd_raw`, `review_focus`.
 | `ask_extra` | 구현자가 추가로 물어야 할 상황 한 줄. 없으면 빈 문자열 |
 
 추론한 값을 사용자에게 표로 보여주고 확인받은 뒤 `.ai/relay-roles.json` 에 쓴다.
@@ -39,8 +41,10 @@ argument-hint: "[--check | --force]"
 ### 3. 렌더링
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/render_roles.py" --plugin-root "${CLAUDE_PLUGIN_ROOT}" --repo . $1
+python "${CLAUDE_PLUGIN_ROOT}/scripts/relay_cli.py" roles --plugin-root "${CLAUDE_PLUGIN_ROOT}" --repo . $1
 ```
+
+종료코드: 0 성공 / 1 드리프트(`--check`) / 2 거부 또는 입력 오류(변수 파일의 필수 키 누락, 템플릿의 미치환 자리표시자 — 사유가 stderr 에 나온다).
 
 ### 4. 결과 보고
 
