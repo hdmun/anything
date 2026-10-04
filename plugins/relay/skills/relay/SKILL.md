@@ -101,6 +101,11 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
    - **결정기**(`review-branch` 등)는 stdout에 JSON 한 줄을 낸다. 첫 키 `action`대로 행동하고, 판정 규칙을 이 문서에서 다시 계산하지 않는다.
    - **검사기**(`diff-guard`, `validate-review`)는 종료코드 0 통과 / 1 실패.
    - 종료코드 **2는 입력 오류**(경로·base 오타 등)다. 고쳐서 다시 부른다.
+
+   **그리고 머신을 점검한다** — `python "$RELAY/scripts/relay_cli.py" doctor`. 셸 명령이라 비용이 0이다.
+   - `FAIL`(종료코드 1)이면 시작하지 않는다. 출력의 `→` 줄(고치는 방법)을 사용자에게 전한다.
+   - `WARN version:*`(미검증 버전)이면 사용자에게 알리고 `relay_cli.py smoke --dir <trust 등록된 디렉터리>`를 권한다. smoke가 실패한 CLI로는 그 역할의 워커를 띄우지 않는다.
+   - 그 밖의 `WARN`은 보고만 하고 진행한다.
 1. `orca orchestration run-use --id <run_id> --json`
 2. `orca orchestration task-list --ready --json` 로 다음 태스크를 꺼낸다. **태스크 상태를 컨텍스트에 들고 있지 말고 매번 Orca에 물어본다** (외부 메모리로 사용).
 3. 워커 부트스트랩 — (d)
@@ -142,7 +147,18 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
    경로 정규화(슬래시 → 백슬래시)와 대소문자 무시 비교는 스크립트가 한다.
 
-3. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
+3. **예열 — 터미널을 만들기 전에 agy 업데이트를 Task 밖에서 끝낸다.** 구현 기동과 수정 라운드 재기동 모두 그렇다.
+
+   ```bash
+   python "$RELAY/scripts/relay_cli.py" warmup agy
+   # {"action": "ready", "version": "1.2.16", "updated": true, "unverified": true}
+   ```
+
+   - agy는 실행할 때마다 백그라운드로 자동 업데이트하고 다음 실행부터 새 버전을 쓴다. 막지 않는 대신 여기서 `agy update`로 먼저 끝내, **Task 도중에 버전이 바뀌지 않게** 한다(CONTEXT.md 「예열」).
+   - `unverified: true`면 그 버전은 smoke를 통과한 적이 없다. 사용자에게 알리고 `relay_cli.py smoke --agent antigravity`를 먼저 돌린다. 실패하면 워커를 띄우지 않고 사람을 부른다.
+   - `human`이면 업데이트 실패 — 사람.
+
+4. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
 
    ```bash
    orca terminal create --worktree id:<wt> --title "T-NNN agy" --command agy --json
@@ -181,13 +197,13 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
      | `action` | 할 일 |
      |---|---|
-     | `ok` | `dispatch`를 기록하고 4번(전달 확인)으로 |
+     | `ok` | `dispatch`를 기록하고 5번(전달 확인)으로 |
      | `lookup_dispatch` | 이 경로에선 보통 이렇다. `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것 |
      | `wait_tui_idle` | (`agent_unconfigured`) 터미널이 아직 에이전트로 태깅되지 않았다. Task는 멀쩡하다 — `tui-idle`부터 다시 |
      | `new_task` | 기동 실패 1회. **그 Task는 이미 `failed`다.** Task 밖에서 `tui-idle`을 통과시킨 뒤 **새 Task**로 재출발한다(통과하는 터미널이 있으면 그대로 `--terminal`로 재사용해도 된다) |
      | `human` | `startup_budget`(기동 실패 2회), `agent_prompt_blocked`(자동 응답 금지) 등 — (h) |
 
-4. **60초 안에 전달을 확인한다.** Orca의 "입력 수락"은 전달의 증거가 아니다.
+5. **60초 안에 전달을 확인한다.** Orca의 "입력 수락"은 전달의 증거가 아니다.
 
    ```bash
    # 가장 최근 agy 로그에 HandleUserInput 줄이 생겼는지 본다
@@ -362,7 +378,7 @@ grep -cE "error TS[0-9]+" tsc.log
 - **이유**: 리뷰가 `SPEC_VIOLATION`이나 `BLOCKER`를 올려도 이미 코드는 게이트를 통과한 유효한 산출물이다. 커밋을 리뷰 결과 뒤로 미루면 에스컬레이션이 걸릴 때마다 워크트리에 커밋 안 된 변경만 남고, 사람이 diff로 확인할 수 있는 이력이 없다.
 - 커밋 이후 리뷰나 사람이 수정을 요구하면 그 수정은 **새 커밋**으로 쌓는다. 기존 커밋을 amend하지 않는다 — 라운드마다 커밋이 남아야 몇 번째 라운드에서 무엇이 고쳐졌는지 `git log`로 보인다.
 - 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(T-NNN): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<모델>`.
-  모델명은 추측하지 않는다. agy는 `--terminal` 경로로 띄우므로 `launch.effective.model`이 비어 있다 — 대신 (d) 4번에서 본 agy 로그의 마지막 모델 라벨을 쓴다:
+  모델명은 추측하지 않는다. agy는 `--terminal` 경로로 띄우므로 `launch.effective.model`이 비어 있다 — 대신 (d) 5번에서 본 agy 로그의 마지막 모델 라벨을 쓴다:
   `grep -o 'label="[^"]*"' <그 로그> | tail -1` (예: `label="Gemini 3.8 Flash (Medium)"` → `Implemented-by: agy/Gemini 3.8 Flash (Medium)`). 라벨이 없으면 `agy/unknown`.
   **산문(`구현: agy / ...`)이 아니라 트레일러여야 한다.** 포맷이 갈리면 `git log --format='%(trailers:key=Implemented-by)'` 같은 기계 판독이 깨지고, "`git log`만 보고 어느 단계가 무엇을 만들었는지 가린다"는 목적 자체가 무너진다.
 - 이 커밋 하나로 (g)의 심각도 분기 전체가 "커밋할지 말지"가 아니라 "다음 라운드를 여는지"만 정하면 되게 바뀐다.
