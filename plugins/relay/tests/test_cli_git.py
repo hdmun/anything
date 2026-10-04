@@ -81,6 +81,82 @@ class ReviewBranchCli(GitRepoCase):
         self.assertEqual(r.returncode, 2)
 
 
+class CommitGuard(GitRepoCase):
+    def test_attributed_commits_pass(self):
+        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/x")
+        self.commit("r.json", "review(T-004): r1 pass\n\nReviewed-by: codex/m")
+        r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_worker_self_commit_fails(self):
+        # 실측(T-004 dd95130): agy 가 git commit 권한으로 직접 커밋 — 트레일러 없음
+        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/x")
+        self.commit("c.txt", "fix(analysis): 무작위 입력 검사 추가")
+        r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
+        self.assertEqual(r.returncode, 1)
+        err = r.stderr.decode("utf-8")
+        self.assertIn("fix(analysis)", err)
+        self.assertNotIn("feat(T-004)", err)
+
+    def test_merge_commits_ignored(self):
+        git(self.repo, "checkout", "-q", "-b", "side")
+        self.commit("s.txt", "feat(T-1): s\n\nImplemented-by: agy/x")
+        git(self.repo, "checkout", "-q", "main")
+        self.commit("m.txt", "feat(T-1): m\n\nImplemented-by: agy/x")
+        git(self.repo, "merge", "-q", "--no-ff", "side", "-m", "Merge branch 'side'")
+        r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_empty_range_passes(self):
+        self.assertEqual(cli("commit-guard", "--worktree", str(self.repo), "--base", self.base).returncode, 0)
+
+
+class OrcaCli(unittest.TestCase):
+    FIX = pathlib.Path(__file__).parent / "fixtures" / "orca"
+
+    def test_startup_reads_file(self):
+        r = cli("startup", "--response", str(self.FIX / "worker-start-readiness-failed.json"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["action"], "new_task")
+
+    def test_startup_reads_stdin(self):
+        data = (self.FIX / "worker-start-no-dispatch.json").read_bytes()
+        r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "startup", "--response", "-"], input=data, capture_output=True)
+        self.assertEqual(json.loads(r.stdout)["action"], "lookup_dispatch")
+
+    def test_readiness_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = pathlib.Path(d) / "cli.log"
+            log.write_text("OAuth: authenticated successfully as x\n", encoding="utf-8")
+            r = cli("readiness", "--agent", "antigravity", "--screen", str(self.FIX / "agy-screen-misordered.txt"),
+                    "--agy-log", str(log), "--retries", "3")
+            self.assertEqual(json.loads(r.stdout)["action"], "recreate_terminal")
+
+    def test_readiness_accepts_orca_json_screen(self):
+        # orca terminal read --screen --json 출력을 그대로 넘겨도 된다
+        tail = (self.FIX / "codex-screen-ready.txt").read_text(encoding="utf-8").splitlines()
+        with tempfile.TemporaryDirectory() as d:
+            p = pathlib.Path(d) / "screen.json"
+            p.write_text(json.dumps({"ok": True, "result": {"terminal": {"tail": tail}}}), encoding="utf-8")
+            r = cli("readiness", "--agent", "codex", "--screen", str(p), "--retries", "3")
+            self.assertEqual(json.loads(r.stdout)["action"], "recreate_terminal")
+
+    def test_liveness_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            t = pathlib.Path(d) / "term.json"
+            t.write_text(json.dumps({"ok": True, "result": {"terminal": {"agentWait": None, "lastOutputAt": 1000}}}), encoding="utf-8")
+            r = cli("liveness", "--worker", str(self.FIX / "worker-list-entry.json"), "--terminal", str(t),
+                    "--role", "implementer", "--now", str(1000 + 6 * 60_000))
+            self.assertEqual(json.loads(r.stdout)["reason"], "stalled")
+
+    def test_model_reviewer_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = pathlib.Path(d) / "config.toml"
+            c.write_text('model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n[tui]\nterminal_title = ["app-name"]\n', encoding="utf-8")
+            r = cli("model", "reviewer", "--config", str(c))
+            self.assertEqual(json.loads(r.stdout)["model"], "gpt-6-luna")
+
+
 class ValidateCli(unittest.TestCase):
     def test_exit_codes(self):
         with tempfile.TemporaryDirectory() as d:

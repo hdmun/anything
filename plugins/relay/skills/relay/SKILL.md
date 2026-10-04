@@ -154,15 +154,38 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
      실측(poker-server T-004): `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다 — 2회 연속.
    - `tui-idle`을 건너뛰고 바로 `worker-start --terminal`을 걸면 `agent_unconfigured`로 거부된다. Orca가 터미널에 `agentIdentity: antigravity`를 태깅하기 전이기 때문이다.
    - **`worker-start` 직전에 `tui-idle`이 `satisfied: true`여야 한다.** `worker-start`가 안에서 같은 `tui-idle` 대기를 한 번 더 하고, 거기서 실패하면 **그 Task가 곧바로 `failed`가 된다**(`task_not_startable` — 같은 Task로는 다시 `worker-start`할 수 없다). 그래서 `tui-idle`을 Task 밖에서 먼저 통과시키는 것이 유일한 안전장치다.
-   - **`worker-start`의 성공 여부는 `ok`가 아니라 `result.failedStage`로 본다.** 준비 감지에 실패해도 `ok: true`가 돌아온다(실측: `failedStage: agent_readiness`, `dispatch: null`). 성공이면 `stage: input_accepted`이고 `failedStage`가 `null`이다.
-   - **`tui-idle`이 timeout이면 `worker-start`를 걸지 않는다.** Task 밖의 실패라 기동 실패 예산을 쓰지 않는다. 바로 사람을 부르지 말고 아래를 순서대로 한다. 각 단계는 셸 명령이라 비용이 0이다.
-     1. **로그인이 실제로 됐는지 본다.** 화면의 `You are currently not signed in.`은 시작 직후 한 번 찍히는 문구이고, 곧바로 `Signing in...`이 뜨고 keyring 인증이 끝난다. 최신 `cli-*.log`에 `OAuth: authenticated successfully`가 있으면 로그인된 것이다. 없으면 진짜 로그아웃이므로 **사람**.
-     2. **`tui-idle`을 30초 간격으로 최대 3번 더 건다.** 로그인 직후 다시 그리는 동안 일시적으로 감지가 못 푸는 경우가 있다.
-     3. 그래도 timeout이면 `terminal read`로 화면 맨 아래에 입력창(`>` 단독 줄)이 있는지 본다. **없으면** agy가 아직 그리는 중이거나 멈춘 것이니 **사람**. 있으면 터미널을 **한 번만** 닫고 새로 만든다. 재생성 뒤에도 timeout이면 **사람**(무한 재생성 금지).
-     - **알려진 한계(측정됨, 원인 미확정)** — poker-server T-005 (agy 1.2.14, Orca 1.4.216): 새 터미널 2개가 30초 timeout, `worker-start`의 준비 대기도 실패했는데 **같은 터미널이 약 18시간 뒤 0.5초 만에 통과**했다. 그 사이 한 일은 확인용 입력 한 줄(`ok` 응답)뿐이라, 입력이 풀었는지 시간이 풀었는지 **가려지지 않았다.** Orca의 판정은 마지막 `Antigravity CLI` 머리글 **뒤**에 `>` 단독 줄이 있어야 하고 `sign in` 등이 없어야 하는데, 로그인 직후 다시 그리는 화면에서 이 순서가 어긋나는 것으로 보인다. 1~3의 순서는 이 관측에 맞춘 것이지 검증된 해법이 아니다.
+   - **`tui-idle`이 timeout이면 `worker-start`를 걸지 않는다.** Task 밖의 실패라 기동 실패 예산을 쓰지 않는다. 화면과 로그를 파일로 받아 `readiness`에 묻는다 — 셸 명령이라 비용이 0이다.
+
+     ```bash
+     orca terminal read --terminal <h> --screen --json > screen.json
+     python "$RELAY/scripts/relay_cli.py" readiness --agent antigravity --screen screen.json \
+       --agy-log "$(ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1)" --retries <이미 다시 건 횟수> [--recreated]
+     ```
+
+     | `action` | 할 일 |
+     |---|---|
+     | `retry_tui_idle` | `wait_seconds`(30초) 뒤 `tui-idle`을 다시 건다. 다시 timeout이면 `--retries`를 1 올려 또 묻는다 |
+     | `recreate_terminal` | 화면엔 입력창이 있는데 Orca가 못 알아본다(그리기 순서 경합). 터미널을 닫고 새로 만든 뒤 `--recreated`를 붙여 같은 사다리를 다시 탄다 |
+     | `human` | `reason`과 함께 사람 호출: `blocked_prompt`(trust·update·permission — 자동 응답 금지), `not_signed_in`(로그에 로그인 기록 없음), `no_prompt`(입력창이 아직 없다), `recreate_failed`(재생성도 실패) |
+
+     사다리(로그인 확인 → 재시도 3회 → 1회 재생성 → 사람)의 정본은 `scripts/relaylib/orca.py`다.
+     - **알려진 한계(측정됨, 원인 미확정)** — poker-server T-005 (agy 1.2.14, Orca 1.4.216): 새 터미널 2개가 30초 timeout, `worker-start`의 준비 대기도 실패했는데 **같은 터미널이 약 18시간 뒤 0.5초 만에 통과**했다. 그 사이 한 일은 확인용 입력 한 줄(`ok` 응답)뿐이라, 입력이 풀었는지 시간이 풀었는지 **가려지지 않았다.** Orca의 판정은 마지막 `Antigravity CLI` 머리글 **뒤**에 `>` 단독 줄이 있어야 하고 `sign in` 등이 없어야 하는데, 로그인 직후 다시 그리는 화면에서 이 순서가 어긋나는 것으로 보인다. 사다리는 이 관측에 맞춘 것이지 검증된 해법이 아니다.
    - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 구현자는 **agy 기본 모델**로 뜬다.
      (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
-   - **응답에 dispatch가 비어 있으면**(이 경로에서는 보통 그렇다) `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것.
+   - **`worker-start` 응답은 `startup`에 해석시킨다.** `ok`는 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 온다(실측: `failedStage: agent_readiness`, `dispatch: null`).
+
+     ```bash
+     orca orchestration worker-start ... --json > start.json
+     python "$RELAY/scripts/relay_cli.py" startup --response start.json [--prior-failures <이 태스크 계열의 이전 기동 실패 수>]
+     ```
+
+     | `action` | 할 일 |
+     |---|---|
+     | `ok` | `dispatch`를 기록하고 4번(전달 확인)으로 |
+     | `lookup_dispatch` | 이 경로에선 보통 이렇다. `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것 |
+     | `wait_tui_idle` | (`agent_unconfigured`) 터미널이 아직 에이전트로 태깅되지 않았다. Task는 멀쩡하다 — `tui-idle`부터 다시 |
+     | `new_task` | 기동 실패 1회. **그 Task는 이미 `failed`다.** Task 밖에서 `tui-idle`을 통과시킨 뒤 **새 Task**로 재출발한다(통과하는 터미널이 있으면 그대로 `--terminal`로 재사용해도 된다) |
+     | `human` | `startup_budget`(기동 실패 2회), `agent_prompt_blocked`(자동 응답 금지) 등 — (h) |
 
 4. **60초 안에 전달을 확인한다.** Orca의 "입력 수락"은 전달의 증거가 아니다.
 
@@ -177,18 +200,25 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 **리뷰 워커(codex)**
 
-사전 조건 — `~/.codex/config.toml`에 다음 두 키가 있어야 한다. 없으면 기동하지 말고 사용자에게 추가를 요청한다.
+사전 조건과 모델을 `model reviewer`에 묻는다:
 
-```toml
-check_for_update_on_startup = false          # 최상위. 업데이트 프롬프트가 기동을 막는다 (agent_prompt_blocked)
-
-[tui]
-terminal_title = ["app-name", "activity", "project-name"]   # 제목에 "codex"가 있어야 Orca가 준비를 감지한다
+```bash
+python "$RELAY/scripts/relay_cli.py" model reviewer
+# {"action": "launch", "agent": "codex", "model": "gpt-6-luna", "effort": "high"}
 ```
 
-- 두 번째 키가 필요한 이유: Orca(1.4.216)는 codex가 준비됐는지를 **배너의 `model:`/`directory:` 라벨**이나 **터미널 제목 속 `codex`** 로만 판정한다.
+- `launch`면 그 `model`·`effort`로 띄운다. 모델은 **codex 기본 모델**(`config.toml`의 최상위 `model`)을 따른다 — 모델 계열.
+- `human`(`codex_prereq_missing`)이면 기동하지 말고 `missing`에 적힌 키를 사용자에게 추가해 달라고 한다:
+
+  ```toml
+  check_for_update_on_startup = false          # 최상위. 업데이트 프롬프트가 기동을 막는다 (agent_prompt_blocked)
+
+  [tui]
+  terminal_title = ["app-name", "activity", "project-name"]   # 제목에 "codex"가 있어야 Orca가 준비를 감지한다
+  ```
+
+  두 번째 키가 필요한 이유: Orca(1.4.216)는 codex가 준비됐는지를 **배너의 `model:`/`directory:` 라벨**이나 **터미널 제목 속 `codex`** 로만 판정한다.
   codex 0.159는 배너에서 라벨을 빼고 제목을 폴더 이름으로 바꿔 둘 다 사라졌고, 그 결과 `agent_readiness timeout`이 난다(T-004 실측). 이 키를 넣으면 6초 안에 준비가 감지된다.
-- 모델은 **codex 기본 모델을 따른다.** `config.toml`의 최상위 `model` 값을 읽어 넘긴다. `--effort`는 `--model` 없이 쓸 수 없으므로 둘을 함께 준다.
 
 **기동 전에 리뷰할 diff가 실제로 있는지 확인한다.** 빈 범위를 넘기면 리뷰어는 아무것도 검증하지 않고 `pass`를 낸다 — 정상 통과와 구분되지 않는 가장 비싼 실패다.
 
@@ -200,7 +230,7 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
   알아낼 수 없으면 사람을 부른다. 이 확인은 셸 명령이라 비용이 0이다.
 - 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
 
-- `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model <config.toml의 model> --effort high --json`
+- `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model <model reviewer 의 model> --effort high --json` — 응답은 구현 워커와 같이 `startup`에 해석시킨다
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
 - **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. 1번에서 적어둔 커밋 SHA를 그대로 넣는다.
 - 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다** — 실측으로 드리프트가 발생했던 지점이다. `/relay:init --check`로 확인한다.
@@ -233,26 +263,23 @@ orca orchestration check --ack <delivery_id> --wait --types worker_done,escalati
 
 **1층 — 3회까지는 그냥 기다린다.** `check --wait`를 다시 건다. heartbeat나 화면 활동은 *살아 있다*는 뜻이지 *끝났다*는 뜻이 아니다.
 
-**2층 — 3회 연속 빈 대기면 fleet projection을 본다.** 감독 워커에만 존재하는 신호이고, 추측 없이 다음 행동을 문자열로 준다.
+**2·3층 — 3회 연속 빈 대기면 fleet projection과 터미널 상태를 받아 `liveness`에 묻는다.**
 
 ```bash
-orca orchestration worker-list --run <run_id> --include-remote --json
+orca orchestration worker-list --run <run_id> --include-remote --json > workers.json   # 그 워커 항목만 남겨도 된다
+orca terminal show --terminal <worker handle> --json > term.json
+python "$RELAY/scripts/relay_cli.py" liveness --worker workers.json --terminal term.json --role implementer|reviewer
 ```
 
-- `projection.attention.requiresAction`이 `true`이고 `projection.nextAction.kind`가 `none`이 아니면 **`nextAction.argv`를 실행한다.** 실측으로 `{"kind":"release","argv":[...]}`가 돌아온 사례가 있다.
-  `argv`에는 실행 파일명이 빠져 있다(`["orchestration","worker-release",...]`) — **앞에 `orca`를 붙여** 실행한다.
-- `projection.liveness.verdict`가 `exited`면 양성 증거다. `unverifiable`은 **부재이지 증거가 아니다.**
-- **agy 워커는 2층이 답을 주지 않는다.** 실측(T-004): `liveness: unverifiable (missing_status)`, `nextAction: none`만 돌아왔다. agy는 2층을 건너뛰고 바로 3층으로 간다.
+| `action` | 할 일 |
+|---|---|
+| `run_argv` | projection이 다음 행동을 줬다(`attention.requiresAction`). `argv`를 그대로 실행한다 — `orca` 접두는 이미 붙어 있다 |
+| `wait` | 작업 중이다. 1층으로 돌아가 계속 대기 |
+| `human` | `prompt_wait`(`agentWait` — 자동 응답 금지), `stalled`(출력 정지: 구현 5분·리뷰 10분), `exited`(워커 종료) |
 
-**3층 — `nextAction.kind`가 `none`이면 벽시계로 판정한다.** 정본은 여기서 *"`liveness.reason`을 읽고 계속 기다려라"* 라고만 하는데, 그건 종료 조건이 없다. relay는 여기에 임계값을 둔다.
-
-| 관측 | 해석 | 행동 |
-|---|---|---|
-| `agentWait` ≠ null | 프롬프트에 멈춤 | **사람 호출** (자동 응답 금지) |
-| `lastOutputAt`이 기준시간 이내 | 작업 중 | 1층으로 돌아가 계속 대기 |
-| `lastOutputAt`이 기준시간 이상 정지 | 조용히 멈춤 | **사람 호출** |
-
-기준시간은 구현 워커 **5분**, 리뷰 워커 **10분**이다.
+- **2층(projection)이 1차 신호**이고 3층(`lastOutputAt` 벽시계)은 projection이 답을 못 줄 때만 쓴다. 정본은 3층에서 *"`liveness.reason`을 읽고 계속 기다려라"* 라고만 해서 종료 조건이 없다 — relay가 임계값을 둔 이유다.
+- **agy 워커는 2층이 답을 주지 않는다.** 실측(T-004): `liveness: unverifiable (missing_status)`, `nextAction: none`만 돌아왔다. `liveness`는 이 경우 자동으로 3층으로 내려간다.
+- 임계값과 판정 순서의 정본은 `scripts/relaylib/orca.py`다.
 **사람 호출은 상태를 바꾸지 않으므로 안전한 종료 조건이다.** 정본이 금지하는 것은 부재를 근거로 `stop`·`abandon`·`retry`·`release`하는 것이지, 사람을 부르는 것이 아니다.
 
 **`agentWait`는 양성 신호로만 믿는다.** 값이 있으면 실제로 멈춘 것이지만, `null`은 안 멈췄다는 증거가 아니다.
@@ -265,6 +292,15 @@ orca orchestration worker-list --run <run_id> --include-remote --json
 ## (f) 게이트 독립 재검증
 
 워커가 자체 루프로 게이트를 돌리지만, `worker_done` 수신 후 **진행자가 같은 게이트를 직접 다시 실행한다.**
+
+**그 전에 워커가 직접 커밋하지 않았는지 본다.** 구현자·리뷰어는 커밋하지 않는다(역할 파일). 그런데 agy는 `git commit` 권한이 있으면 직접 커밋한다 — 실측(T-004 `dd95130`): 트레일러 없는 커밋이 생겨 구현 라운드가 1 적게 세졌다.
+
+```bash
+python "$RELAY/scripts/relay_cli.py" commit-guard --worktree <worktree> --base <base> ; echo "exit=$?"
+```
+
+- 종료코드 1이면 귀속 트레일러(`Implemented-by:`/`Reviewed-by:`)가 없는 커밋이 stderr에 나온다. **고치지 말고**(amend·reset 금지 — 이력이 증거다) `worker-retain` 후 사람을 부른다.
+- 리뷰 워커의 `worker_done` 뒤에도 같은 검사를 한다.
 
 - 이유 1: 워커의 자체 보고를 신뢰하되 검증한다.
 - 이유 2: 셸 명령이라 LLM 토큰을 쓰지 않는다 — 사실상 공짜다.

@@ -1,0 +1,5 @@
+  ✨ Update available! 0.154.0 -> 0.156.0
+  1. Update now
+  2. Skip
+  3. Skip until next version
+  Press enter to continue
