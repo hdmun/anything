@@ -38,6 +38,11 @@
      `Antigravity CLI` 머리글보다 **먼저** 스트림에 찍혔다. Orca 는 머리글 뒤의 `gemini…` 줄 + `>` 줄로 준비를 판정하므로
      화면은 정상인데 영원히 timeout. 새 터미널은 2초 만에 통과했다 — 그리기 순서 경합이다.
    - 픽스처: 위 스트림 순서(상태줄 → 머리글 → 로고 줄 → `>`)와 정상 순서 둘 다.
+   - **재생성이 항상 듣지는 않는다**(poker-server T-005, 2026-10-03~04): 새 터미널 2개 모두 30초 timeout, `worker-start` 준비 대기도 실패 → Task `failed`.
+     같은 터미널이 약 18시간 뒤 `tui-idle` 0.5초 통과(그 사이 확인용 입력 1회). 입력이 풀었는지 시간이 풀었는지 미확인 — `startup` 은 재생성 1회 전에
+     `tui-idle` 재시도 3회(30초 간격)와 로그인 로그(`OAuth: authenticated successfully`) 확인을 먼저 한다. Orca 쪽 판정 함수는 마지막 `antigravity cli`
+     머리글 뒤의 `>` 단독 줄과 `do you trust|sign in|…` 부재를 본다(app.asar 에서 확인) — 픽스처에 "머리글 뒤에 `>` 가 아직 없는 화면"을 추가한다.
+   - `worker-start` 는 준비 감지에 실패해도 `ok: true` 를 돌려주고 Task 를 `failed` 로 만든다 → `startup` 이 `result.failedStage` 로 판정하게 한다.
 4. [ ] doctor + smoke + 예열 (75분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
    - **agy 예열(`relay_cli.py warmup agy`)** — 자동 업데이트를 막지 않고, Task 밖에서 버전을 고정한 뒤 워커를 띄운다.
      워커 터미널을 만들기 전에(구현 기동, 수정 라운드 재기동 모두) 실행한다:

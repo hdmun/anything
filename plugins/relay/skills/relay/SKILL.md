@@ -153,7 +153,13 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
    - **이유**: agy는 입력창이 준비되기 전에 들어온 입력을 **조용히 버린다.** Orca는 antigravity의 전달 여부를 관측하지 못해(`provider: unsupported`) 경고도 없다.
      실측(poker-server T-004): `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다 — 2회 연속.
    - `tui-idle`을 건너뛰고 바로 `worker-start --terminal`을 걸면 `agent_unconfigured`로 거부된다. Orca가 터미널에 `agentIdentity: antigravity`를 태깅하기 전이기 때문이다.
-   - `tui-idle`이 timeout이면 `worker-start`를 걸지 않는다 — Task 밖에서 실패한 것이라 기동 실패 예산을 쓰지 않는다. 터미널 화면을 확인하고 사람을 부른다.
+   - **`worker-start` 직전에 `tui-idle`이 `satisfied: true`여야 한다.** `worker-start`가 안에서 같은 `tui-idle` 대기를 한 번 더 하고, 거기서 실패하면 **그 Task가 곧바로 `failed`가 된다**(`task_not_startable` — 같은 Task로는 다시 `worker-start`할 수 없다). 그래서 `tui-idle`을 Task 밖에서 먼저 통과시키는 것이 유일한 안전장치다.
+   - **`worker-start`의 성공 여부는 `ok`가 아니라 `result.failedStage`로 본다.** 준비 감지에 실패해도 `ok: true`가 돌아온다(실측: `failedStage: agent_readiness`, `dispatch: null`). 성공이면 `stage: input_accepted`이고 `failedStage`가 `null`이다.
+   - **`tui-idle`이 timeout이면 `worker-start`를 걸지 않는다.** Task 밖의 실패라 기동 실패 예산을 쓰지 않는다. 바로 사람을 부르지 말고 아래를 순서대로 한다. 각 단계는 셸 명령이라 비용이 0이다.
+     1. **로그인이 실제로 됐는지 본다.** 화면의 `You are currently not signed in.`은 시작 직후 한 번 찍히는 문구이고, 곧바로 `Signing in...`이 뜨고 keyring 인증이 끝난다. 최신 `cli-*.log`에 `OAuth: authenticated successfully`가 있으면 로그인된 것이다. 없으면 진짜 로그아웃이므로 **사람**.
+     2. **`tui-idle`을 30초 간격으로 최대 3번 더 건다.** 로그인 직후 다시 그리는 동안 일시적으로 감지가 못 푸는 경우가 있다.
+     3. 그래도 timeout이면 `terminal read`로 화면 맨 아래에 입력창(`>` 단독 줄)이 있는지 본다. **없으면** agy가 아직 그리는 중이거나 멈춘 것이니 **사람**. 있으면 터미널을 **한 번만** 닫고 새로 만든다. 재생성 뒤에도 timeout이면 **사람**(무한 재생성 금지).
+     - **알려진 한계(측정됨, 원인 미확정)** — poker-server T-005 (agy 1.2.14, Orca 1.4.216): 새 터미널 2개가 30초 timeout, `worker-start`의 준비 대기도 실패했는데 **같은 터미널이 약 18시간 뒤 0.5초 만에 통과**했다. 그 사이 한 일은 확인용 입력 한 줄(`ok` 응답)뿐이라, 입력이 풀었는지 시간이 풀었는지 **가려지지 않았다.** Orca의 판정은 마지막 `Antigravity CLI` 머리글 **뒤**에 `>` 단독 줄이 있어야 하고 `sign in` 등이 없어야 하는데, 로그인 직후 다시 그리는 화면에서 이 순서가 어긋나는 것으로 보인다. 1~3의 순서는 이 관측에 맞춘 것이지 검증된 해법이 아니다.
    - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 구현자는 **agy 기본 모델**로 뜬다.
      (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
    - **응답에 dispatch가 비어 있으면**(이 경로에서는 보통 그렇다) `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것.
@@ -402,6 +408,7 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
 
 - **기동 실패는 2회에서 멈춘다.** Orca는 같은 Task가 3회 연속 실패하면 circuit-break한다. 2회째에 재시도하면 마지막 기회를 원인 모른 채 쓰게 된다(T-004에서 구현·리뷰 Task 둘 다 그 직전까지 갔다).
   원인을 찾아 해소했다면 기존 Task를 포기하고 **새 Task**로 다시 시작한다 — 재시도가 아니라 재출발이다. 재출발 전에 Task 밖에서 `terminal create` → `tui-idle`로 준비 감지가 통과하는지 먼저 확인한다.
+- **`agent_readiness` 실패는 한 번으로 그 Task를 `failed`로 만든다**(실측). 같은 Task에 `worker-start`를 다시 걸면 `task_not_startable`로 거부되므로 예산 2회를 다 쓰기 전에도 재출발은 **항상 새 Task**다. 이미 `tui-idle`이 통과하는 터미널이 있으면 **그 터미널을 `worker-start --terminal`로 그대로 재사용해도 된다**(실측: 새 Task + 같은 터미널로 기동 성공, 60초 안에 `HandleUserInput` 확인).
 - 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
 
 **"Opus 에스컬레이션"의 실제 행위** — 진행 세션은 스스로 판단하지 않고 다음을 한다:
