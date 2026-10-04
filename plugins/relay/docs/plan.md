@@ -43,7 +43,7 @@
      `tui-idle` 재시도 3회(30초 간격)와 로그인 로그(`OAuth: authenticated successfully`) 확인을 먼저 한다. Orca 쪽 판정 함수는 마지막 `antigravity cli`
      머리글 뒤의 `>` 단독 줄과 `do you trust|sign in|…` 부재를 본다(app.asar 에서 확인) — 픽스처에 "머리글 뒤에 `>` 가 아직 없는 화면"을 추가한다.
    - `worker-start` 는 준비 감지에 실패해도 `ok: true` 를 돌려주고 Task 를 `failed` 로 만든다 → `startup` 이 `result.failedStage` 로 판정하게 한다.
-4. [ ] doctor + smoke + 예열 (75분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
+4. [x] doctor + smoke + 예열 (75분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
    - **agy 예열(`relay_cli.py warmup agy`)** — 자동 업데이트를 막지 않고, Task 밖에서 버전을 고정한 뒤 워커를 띄운다.
      워커 터미널을 만들기 전에(구현 기동, 수정 라운드 재기동 모두) 실행한다:
      1. agy 를 한 번 띄운다 → 최신 `cli-*.log` 에 `auto_updater` 줄을 기다린다
@@ -64,6 +64,16 @@
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
 
+## 결정 대기 — agy 1.2.16 이 Orca 준비 감지를 통과하지 못한다 (2026-10-04)
+
+- smoke 실측: agy 1.2.16 `tui-idle` 60초 timeout **3/3**, codex 0.159.3 은 8초 통과. 화면에는 `>` 입력창이 정상인데,
+  Orca 가 판정에 쓰는 **스트림**에는 `Antigravity CLI 1.2.16` 머리글 뒤에 `Gemini …` 줄과 `>` 줄이 없다(빈 줄만). 빈 Enter 로도 안 풀린다.
+  1.2.15 변경 내역 "redraw 마다 할당 감소", 1.2.16 "no flicker (altscreen) mode 개선" — 다시 그리는 방식이 바뀐 것으로 보인다.
+- 이 상태로는 `worker-start` 가 안에서 같은 판정을 해 Task 가 곧바로 `failed` → **relay 구현 워커를 띄울 수 없다.**
+- 확인한 사실: 1.2.14 실행 파일이 `%LOCALAPPDATA%gyingy.exe.1791006271316710200.old` 로 남아 있다.
+  자동 업데이트를 끄는 환경 변수 `AGY_CLI_DISABLE_AUTO_UPDATE` 가 바이너리에 있다. `/config` 에 화면 방식 선택(inline / altscreen)이 있다(설정 키 미특정).
+- 선택지: (1) `/config` 에서 inline 으로 바꾸고 smoke 재시도 (2) 1.2.14 로 되돌리고 자동 업데이트 끄기 (3) Orca 판정 패치/보고
+
 ## 결정됨
 
 - **구현자 자체 커밋** (2026-10-04, A안) — poker-server T-004 `dd95130` 은 agy 가 `git commit` 권한으로 직접 커밋한 것으로 보인다(트레일러 없음, 구현 라운드 1 적게 셈).
@@ -78,7 +88,7 @@
 
 ## 미검증 (smoke·실전에서 확인)
 
-- `--command agy` 로 모델 핀 가능 여부 / codex `--terminal` 경로
+- `--command agy` 로 모델 핀 가능 여부 — agy 에 `--model`·`--effort` 플래그가 있음(1.2.16 `--help`). 실측 전 / codex `--terminal` 경로
 - `worker-release` 가 수동 생성 터미널을 닫는가
 - 정착한 Task 에 decision gate 가 걸리는가
-- ~~agy `auto_updater` 차단~~ → 차단하지 않고 예열로 대응하기로 결정(2026-10-02, 트랙 2 4단계). 남은 미검증: Windows 에서 실행 중인 `agy.exe` 를 업데이트가 어떻게 교체하는지 — 예열 구현 중 확인
+- ~~agy `auto_updater` 차단~~ → 예열로 대응(2026-10-02). 실행 중 교체는 확인됨: 기존 파일을 `agy.exe.<숫자>.old` 로 옮기고 새 파일을 놓는다(1.2.14 세션이 떠 있는 동안 1.2.16 설치). 예열은 `agy update`(동기) 사용

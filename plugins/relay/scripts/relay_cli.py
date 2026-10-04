@@ -13,6 +13,9 @@
   python relay_cli.py readiness --agent antigravity|codex --screen <file> [--agy-log <file>] --retries N [--recreated]   (결정기)
   python relay_cli.py liveness --worker <file> [--terminal <file>] --role implementer|reviewer [--now <ms>]   (결정기)
   python relay_cli.py model reviewer [--config <file>]                  (결정기)
+  python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
+  python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
+  python relay_cli.py smoke --dir <trusted dir> [--agent antigravity|codex|all]   (검사기 — 실제 CLI 리허설, 수동)
 
 규약 (docs/adr/0001):
   검사기 — 종료코드 0 통과 / 1 실패, 사유는 출력
@@ -27,7 +30,7 @@ import sys
 
 import time
 
-from relaylib import orca, review, roles, trust
+from relaylib import doctor, orca, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -187,6 +190,81 @@ def cmd_model(a):
     return _emit(orca.reviewer_model(path.read_text(encoding="utf-8")))
 
 
+AGY_LOG_DIR = pathlib.Path.home() / ".gemini" / "antigravity-cli" / "log"
+CLI_BINARIES = {"codex": "codex", "antigravity": "agy", "orca": "orca"}
+
+
+def _run(argv, timeout=120):
+    """(rc, stdout). 실행 파일이 없으면 (127, '')."""
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout, shell=(sys.platform == "win32"))
+    except (OSError, subprocess.TimeoutExpired):
+        return 127, ""
+    return r.returncode, r.stdout
+
+
+def _cli_version(agent):
+    rc, out = _run([CLI_BINARIES[agent], "--version"], timeout=30)
+    return doctor.parse_version(out) if rc == 0 else None
+
+
+def _verified():
+    return json.loads(doctor.VERIFIED_PATH.read_text(encoding="utf-8"))
+
+
+def _newest_agy_log():
+    logs = sorted(AGY_LOG_DIR.glob("cli-*.log"), key=lambda p: p.stat().st_mtime) if AGY_LOG_DIR.is_dir() else []
+    return logs[-1].read_text(encoding="utf-8", errors="replace") if logs else ""
+
+
+def cmd_doctor(a):
+    codex_cfg = pathlib.Path.home() / ".codex" / "config.toml"
+    agy = trust.DEFAULT_SETTINGS
+    settings = trust.load(agy) if agy.exists() else None
+    facts = {
+        "codex_config": codex_cfg.read_text(encoding="utf-8") if codex_cfg.exists() else None,
+        "versions": {k: _cli_version(k) for k in doctor.AGENTS},
+        "verified": _verified(),
+        "agy_settings": settings,
+        "trust_root": str(trust.DEFAULT_ROOT),
+        "exists": lambda p: pathlib.Path(p).is_dir(),
+    }
+    checks = doctor.evaluate(facts)
+    if a.fix and settings is not None:
+        dead = trust.prune(settings, str(trust.DEFAULT_ROOT))
+        if dead:
+            trust.save(agy, settings)
+            checks.append({"name": "fix", "status": "ok", "detail": "trust 항목 %d개 정리: %s" % (len(dead), ", ".join(dead)), "fix": ""})
+    if a.json:
+        print(json.dumps(checks, ensure_ascii=False))
+    else:
+        mark = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
+        for c in checks:
+            print("%s %-16s %s" % (mark[c["status"]], c["name"], c["detail"]))
+            if c["status"] != "ok" and c["fix"]:
+                print("     %-16s → %s" % ("", c["fix"]))
+    return doctor.exit_code(checks)
+
+
+def cmd_warmup(a):
+    before = _cli_version("antigravity")
+    rc, _ = _run(["agy", "update"], timeout=600) if before else (0, "")
+    after = _cli_version("antigravity")
+    return _emit(doctor.warmup_decide(before, rc, after, _verified()))
+
+
+def cmd_smoke(a):
+    agents = ("antigravity", "codex") if a.agent == "all" else (a.agent,)
+    results = [smoke.run_agent(ag, a.dir.replace("\\", "/"), lambda argv: _run(argv, timeout=180),
+                               read_log=_newest_agy_log, version=_cli_version(ag)) for ag in agents]
+    verified = _verified()
+    for r in results:
+        r["verified"] = r["version"] in verified.get(r["agent"], [])
+        print(json.dumps(r, ensure_ascii=False))
+    return 0 if all(r["passed"] for r in results) else 1
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="relay_cli.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -252,6 +330,20 @@ def build_parser():
     m.add_argument("role", choices=("reviewer",))
     m.add_argument("--config", help="기본: ~/.codex/config.toml")
     m.set_defaults(func=cmd_model)
+
+    dr = sub.add_parser("doctor", help="머신 점검: codex 설정·CLI 버전·trust·agy 권한")
+    dr.add_argument("--fix", action="store_true", help="relay 워크트리 루트 아래 죽은 trust 항목만 정리")
+    dr.add_argument("--json", action="store_true")
+    dr.set_defaults(func=cmd_doctor)
+
+    w = sub.add_parser("warmup", help="에이전트 CLI 업데이트를 Task 밖에서 끝낸다")
+    w.add_argument("agent", choices=("agy",))
+    w.set_defaults(func=cmd_warmup)
+
+    sm = sub.add_parser("smoke", help="Task 없이 실제 기동·전달 확인 (수동)")
+    sm.add_argument("--dir", required=True, help="agy trustedWorkspaces 에 등록된 디렉터리")
+    sm.add_argument("--agent", default="all", choices=("antigravity", "codex", "all"))
+    sm.set_defaults(func=cmd_smoke)
     return ap
 
 
