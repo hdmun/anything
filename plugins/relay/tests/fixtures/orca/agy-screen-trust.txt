@@ -1,0 +1,4 @@
+      ▄▀▀▄        Antigravity CLI 1.2.14
+ Do you trust the contents of this project?
+ > Yes, trust this folder
+   No, exit
