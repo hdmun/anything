@@ -64,15 +64,15 @@
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
 
-## 결정 대기 — agy 1.2.16 이 Orca 준비 감지를 통과하지 못한다 (2026-10-04)
+## 측정 — agy 준비 감지 실패는 버전이 아니라 시간대에 몰리는 경합이다 (2026-10-04~05)
 
-- smoke 실측: agy 1.2.16 `tui-idle` 60초 timeout **3/3**, codex 0.159.3 은 8초 통과. 화면에는 `>` 입력창이 정상인데,
-  Orca 가 판정에 쓰는 **스트림**에는 `Antigravity CLI 1.2.16` 머리글 뒤에 `Gemini …` 줄과 `>` 줄이 없다(빈 줄만). 빈 Enter 로도 안 풀린다.
-  1.2.15 변경 내역 "redraw 마다 할당 감소", 1.2.16 "no flicker (altscreen) mode 개선" — 다시 그리는 방식이 바뀐 것으로 보인다.
-- 이 상태로는 `worker-start` 가 안에서 같은 판정을 해 Task 가 곧바로 `failed` → **relay 구현 워커를 띄울 수 없다.**
-- 확인한 사실: 1.2.14 실행 파일이 `%LOCALAPPDATA%gyingy.exe.1791006271316710200.old` 로 남아 있다.
-  자동 업데이트를 끄는 환경 변수 `AGY_CLI_DISABLE_AUTO_UPDATE` 가 바이너리에 있다. `/config` 에 화면 방식 선택(inline / altscreen)이 있다(설정 키 미특정).
-- 선택지: (1) `/config` 에서 inline 으로 바꾸고 smoke 재시도 (2) 1.2.14 로 되돌리고 자동 업데이트 끄기 (3) Orca 판정 패치/보고
+- 처음엔 agy 1.2.16 smoke 가 `tui-idle` 3/3 실패해 버전 문제로 보였다. 이어서 **1.2.14(.old 실행 파일)도 3/3 실패**, 워크트리에서도 실패 — 연속 8회.
+  그 뒤 같은 조건에서 **13회 중 12회 통과(약 2.3초)**, smoke 3/3 통과(전달 확인 포함). 실행 방식(PowerShell 직접 / smoke)과도 무관했다.
+- 실패한 회차는 모두 Orca 가 판정에 쓰는 스트림(제어 문자를 지운 PTY 줄 목록)에 `>` 줄이 없었다. 화면에는 입력창이 있다 — 커서 이동으로 다시 그린 줄이 목록에 남지 않는다.
+- agy `/config` 의 `Rendering Mode` 는 이미 `Native Terminal experience (inline)` 이었다 — 원인 아님.
+- 결론: 되돌리기·업데이트 차단은 하지 않는다(효과 없음). smoke 는 재생성하며 최대 3회 시도하고 이력(`attempts`)을 남긴다.
+  `readiness` 사다리(재시도 3 → 재생성 1)는 몰린 시간대엔 모자랄 수 있다 — 실전 데이터가 더 쌓이면 재생성 횟수를 조정한다.
+- 확인한 부수 사실: 1.2.14 실행 파일이 `agy.exe.<숫자>.old` 로 남아 있다. 자동 업데이트를 끄는 환경 변수 `AGY_CLI_DISABLE_AUTO_UPDATE` 가 있다.
 
 ## 결정됨
 

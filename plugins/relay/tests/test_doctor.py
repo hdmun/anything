@@ -133,7 +133,26 @@ class Smoke(unittest.TestCase):
         r = smoke.run_agent("codex", "C:/w", o.run, read_log=lambda: "", sleep=lambda s: None, version="0.159.3")
         self.assertFalse(r["passed"])
         self.assertEqual(r["failed_at"], "tui_idle")
+        self.assertEqual(r["attempts"], ["tui_idle"] * smoke.ATTEMPTS)
         self.assertEqual(o.calls[-1][1:3], ["terminal", "close"])
+        creates = [c for c in o.calls if c[1:3] == ["terminal", "create"]]
+        closes = [c for c in o.calls if c[1:3] == ["terminal", "close"]]
+        self.assertEqual(len(creates), len(closes), "시도마다 만든 터미널을 닫는다")
+
+    def test_flaky_readiness_passes_on_retry(self):
+        o = FakeOrca(screen="› %s" % smoke.PING)
+        results = iter([(1, '{"ok": false}'), (0, '{"ok": true}')])
+        orig = o.run
+
+        def run(argv):
+            if argv[1:3] == ["terminal", "wait"]:
+                o.calls.append(argv)
+                return next(results)
+            return orig(argv)
+
+        r = smoke.run_agent("codex", "C:/w", run, read_log=lambda: "", sleep=lambda s: None, version="0.159.3")
+        self.assertTrue(r["passed"])
+        self.assertEqual(r["attempts"], ["tui_idle", "passed"])
 
     def test_codex_delivery_via_screen(self):
         o = FakeOrca(screen="› %s\n• OK" % smoke.PING)
