@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eval report — relay v1.1.2</title>
+</head>
+<body>
+<style>
+:root{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{--plane:#0d0d0d;--surface:#1a1a19;--ink:#ffffff;--ink-2:#c3c2b7;--ink-3:#898781;--hairline:rgba(255,255,255,.10);--grid:#2c2c2a;--inset:rgba(255,255,255,.05);--accent:#3987e5;--base-fill:#898781;--delta-good:#0ca30c;--good:#0ca30c;--warning:#fab219;--critical:#e06c6c;color-scheme:dark}}
+:root[data-theme="dark"]{--plane:#0d0d0d;--surface:#1a1a19;--ink:#ffffff;--ink-2:#c3c2b7;--ink-3:#898781;--hairline:rgba(255,255,255,.10);--grid:#2c2c2a;--inset:rgba(255,255,255,.05);--accent:#3987e5;--base-fill:#898781;--delta-good:#0ca30c;--good:#0ca30c;--warning:#fab219;--critical:#e06c6c;color-scheme:dark}
+:root[data-theme="light"]{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);
+  font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-text-size-adjust:100%}
+.wrap{max-width:880px;margin:0 auto;padding:40px 24px 64px;display:flex;flex-direction:column;gap:20px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+header h1{margin:2px 0 0;font-size:24px;font-weight:600;line-height:1.25;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;color:var(--ink-2);font-size:13px}
+.meta .num{font-variant-numeric:tabular-nums lining-nums}
+.banner{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;
+  border:1px solid var(--hairline);background:var(--surface);font-size:13px}
+.banner .chip-warn{color:var(--warning);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:14px 16px;
+  display:flex;flex-direction:column;gap:4px}
+.tile .label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.tile .value{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums lining-nums;line-height:1.1}
+.tile.hero .value{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:48px}
+.tile .sub{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.tile .value.delta-pos{color:var(--delta-good)}
+.tile .value.delta-neg{color:var(--critical)}
+.toolbar{display:flex;gap:8px;justify-content:flex-end}
+.toolbar button{font:12px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink-2);
+  background:var(--surface);border:1px solid var(--hairline);border-radius:6px;padding:4px 10px;cursor:pointer}
+.toolbar button:hover{color:var(--ink)}
+.toolbar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.case{background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:18px 20px;
+  display:flex;flex-direction:column;gap:10px}
+.case-regressed{border-left:3px solid var(--critical)}
+.verdict{margin:6px 0 0;font-size:15px}
+.verdict .delta{font-size:15px}
+.flag{font-size:11px;font-weight:600;color:var(--warning);white-space:nowrap}
+.star{color:var(--warning);font-size:.45em;vertical-align:super;line-height:0;cursor:help}
+.legend summary{cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.legend-list{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2)}
+.case-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.case-head h2{margin:0;font-size:16px;font-weight:600}
+.case-head .spacer{flex:1}
+.case-score{font-size:15px;font-weight:600}
+.mono{font:12px "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.muted{color:var(--ink-3);font-size:12px}
+.meter{display:inline-block;position:relative;width:120px;height:6px;border-radius:4px;background:var(--grid);
+  vertical-align:middle}
+.meter>span{display:block;height:100%;border-radius:4px;max-width:100%}
+.meter .tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-3);border-radius:1px}
+.m-accent>span{background:var(--accent)}
+.m-base>span{background:var(--base-fill)}
+.delta{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.delta-pos{color:var(--delta-good)}
+.delta-neg{color:var(--critical)}
+.delta-zero{color:var(--ink-3)}
+details.section{border-top:1px solid var(--grid);padding-top:10px}
+details.section>summary{cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink-2);list-style-position:outside;margin-left:2px}
+details.section>summary:hover{color:var(--ink)}
+details.section[open]>summary{margin-bottom:8px}
+.md{display:flex;flex-direction:column;gap:8px;background:var(--inset);border-radius:8px;
+  padding:12px 14px;overflow-wrap:break-word}
+.md>:first-child{margin-top:0}
+.md h1,.md h2,.md h3,.md h4,.md h5,.md h6{margin:4px 0 0;font-size:1em;font-weight:600;line-height:1.3}
+.md p,.md ul,.md ol,.md blockquote,.md table,.md pre,.md hr{margin:0}
+.md ul,.md ol{display:flex;flex-direction:column;gap:4px;padding-left:20px}
+.md blockquote{border-left:2px solid var(--hairline);padding-left:10px;color:var(--ink-2)}
+.md :not(pre)>code{background:var(--inset);padding:1px 4px;border-radius:4px;
+  font:.92em "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.md pre{background:var(--inset);border:1px solid var(--hairline);padding:10px 12px;border-radius:6px;
+  overflow-x:auto;font:12px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.md pre code{background:none;padding:0;font:inherit}
+.md table{width:100%;border-collapse:collapse}
+.md th,.md td{padding:5px 8px;text-align:left;vertical-align:top;border-bottom:1px solid var(--grid)}
+.md th{font-weight:600;color:var(--ink-2)}
+.md a{color:var(--accent);text-decoration:none}
+.md a:hover{text-decoration:underline}
+.grader-def{display:flex;flex-direction:column;gap:6px;padding:8px 0}
+.grader-def+.grader-def{border-top:1px solid var(--grid)}
+.grader-def-head{display:flex;align-items:baseline;gap:8px}
+.grader-name{font:13px "SF Mono",ui-monospace,Menlo,Consolas,monospace;font-weight:600}
+.badge{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);
+  border:1px solid var(--hairline);border-radius:999px;padding:1px 8px}
+.config{display:flex;flex-direction:column;gap:2px;background:var(--inset);border-radius:8px;padding:10px 14px}
+.config code{font:12px "SF Mono",ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.arm{display:flex;flex-direction:column;gap:8px;padding:6px 0}
+.arm+.arm{border-top:1px dashed var(--grid);margin-top:4px;padding-top:12px}
+.arm-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.arm-label{font-size:13px;font-weight:600}
+.run{border:1px solid var(--grid);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.run-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.run-title{font-size:12px;font-weight:600;color:var(--ink-2)}
+.run-error .explanation{color:var(--ink-2)}
+.note{font-size:12px;color:var(--ink-2)}
+.graders{display:flex;flex-direction:column;gap:4px}
+details.grader{border-radius:6px}
+details.grader>summary{cursor:pointer;display:flex;align-items:baseline;gap:8px;padding:3px 4px;
+  border-radius:6px;list-style:none}
+details.grader>summary::-webkit-details-marker{display:none}
+details.grader>summary::before{content:'▸';font-size:10px;color:var(--ink-3);flex:none;
+  transition:transform .12s ease}
+details.grader[open]>summary::before{transform:rotate(90deg)}
+details.grader>summary:hover{background:var(--inset)}
+details.grader>summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.grader-body{padding:6px 8px 8px 24px;display:flex;flex-direction:column;gap:6px}
+.chip{font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.chip-pass{color:var(--good);border:1px solid currentColor}
+.chip-fail{color:var(--critical);border:1px solid currentColor}
+.chip.chip-warn{color:var(--warning);border:1px solid currentColor}
+.explanation{margin:0;font-size:13px;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:break-word}
+.kv{display:flex;gap:8px;font-size:12px;color:var(--ink-3)}
+.votes{font-variant-numeric:tabular-nums;letter-spacing:.1em}
+pre.evidence{margin:0;background:var(--inset);border:1px solid var(--hairline);border-radius:6px;
+  padding:8px 10px;overflow-x:auto;max-height:320px;
+  font:12px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:break-word}
+footer{color:var(--ink-3);font-size:12px;text-align:center;padding-top:8px}
+@media (prefers-reduced-motion:no-preference){
+  details.grader>summary,.toolbar button{transition:background .12s ease,color .12s ease}
+}
+@media (prefers-reduced-motion:reduce){
+  details.grader>summary::before{transition:none}
+}
+@media print{
+  :root,:root[data-theme="dark"],:root[data-theme="light"]{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;color-scheme:light}
+  body{background:#fff}
+  .toolbar{display:none}
+  .case,.run,.grader-def{break-inside:avoid}
+  pre.evidence{max-height:none}
+}
+</style>
+<div class="wrap">
+<header>
+<div class="eyebrow">Plugin eval report</div>
+<h1>relay v1.1.2</h1>
+
+<div class="meta">
+<span class="mono">.</span>
+<span>Claude Code v2.1.289</span>
+<span class="num">2026-10-05 05:51 UTC</span>
+<span class="num">1m 38s</span>
+<span class="num">$0.71</span>
+<span class="num">5 runs</span>
+
+
+
+<span>judge default</span>
+<span class="num">threshold 0%</span>
+
+</div>
+</header>
+
+<section class="tiles">
+<div class="tile hero"><span class="label">Suite score</span><span class="value">73.3%</span><span class="sub">mean of per-case scores</span></div>
+
+<div class="tile"><span class="label">Cases</span><span class="value num">5</span><span class="sub">5 of 5 ≥ 0% threshold</span></div>
+<div class="tile"><span class="label">Perfect runs</span><span class="value num">60%</span><span class="sub">runs where every grader passed</span></div>
+</section>
+<details class="section legend">
+<summary>How to read this report</summary>
+<ul class="legend-list">
+<li>A run's score is the weighted fraction of its graders that passed; a "perfect" run passed every grader.</li>
+<li>A case's score is the mean of its runs; a case passes when its score is at or above the 0% threshold (the tick on each case bar).</li>
+<li>The suite score is the mean of the per-case scores.</li>
+<li>Judge votes are independent samples of the LLM judge; the majority decides pass or fail.</li>
+<li><strong>No baseline arm was run</strong> (ablation off) — this report shows absolute scores only and cannot say whether the plugin caused them. Re-run with <code>--ablation with-without</code> to measure the plugin’s effect.</li>
+
+</ul>
+</details>
+<div class="toolbar"><button type="button" data-act="expand">Expand all</button><button type="button" data-act="collapse">Collapse all</button></div>
+<article class="case" id="case-1">
+<div class="case-head">
+<h2>delivery-failed</h2>
+<span class="muted mono">evals\delivery-failed</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">3 turns · $0.15 · 05:51:38 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">criteria</span>  </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">**판단: 전달 실패이고, 기동 실패로 센다. 재시도하지 말고 `worker-retain`을 한 뒤 사람을 호출해야 한다.**
+
+(d) 5번 규칙에 따르면, 60초 안에 `HandleUserInput`이 0건이면 Orca가 입력을 수락했더라도 전달은 안 된 것이다. agy는 입력창이 준비되기 전에 들어온 입력을 조용히 버리는데, 이게 poker-server T-004에서 실측된 패턴과 같다. 환영 화면 그대로고 워크트리 변경도 없다는 점이 이 진단과 맞는다. 75초를 더 기다려도 소용없다. 입력이 버려졌으니 빈 대기 3회(30분)만 쓰게 된다.
+
+이전 기동 실패가 없었으니 기동 실패 예산(2회)은 이번이 1회째다. 그래도 같은 Task에 재시도하면 안 되고, 사람이 원인을 본 뒤 새 Task로 재출발해야 한다.
+
+**실행할 명령 (실행은 안 했습니다)**
+
+1. 확인용으로 한 번 더 센다. 최신 로그가 바뀌지 않았는지 보기 위한 것이다.
+   ```bash
+   ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1 | xargs grep -c &quot;HandleUserInput called with text:&quot;
+   ```
+2. 터미널 화면을 증거로 남긴다. `worker-retain` 전에 해도 되고, retain 때문에 터미널이 보존되므로 사람이 직접 봐도 된다.
+   ```bash
+   orca terminal read --terminal &lt;h&gt; --screen --json &gt; screen.json
+   ```
+3. 워커를 보존한다. release나 terminal close는 하지 않는다.
+   ```bash
+   orca orchestration worker-retain --dispatch ctx_4e21aa --json
+   ```
+4. 사람에게 보고한다. 내용은 Run ID, Task `task_b310`, dispatch `ctx_4e21aa`, 사유(`HandleUserInput` 0건인 전달 실패), 터미널 handle, 워크트리 경로다.
+
+**사람이 원인을 본 뒤 재출발할 때**
+
+- 새 Task를 만든다. `task_b310`은 재사용하지 않는다.
+- 새 Task를 걸기 전에 Task 밖에서 `orca terminal wait --terminal &lt;h&gt; --for tui-idle --timeout-ms 30000`이 `satisfied: true`인지 확인한다.
+- 그 터미널이 통과하면 `worker-start --terminal &lt;h&gt;`로 그대로 재사용해도 된다. 통과하지 않으면 `readiness` 사다리를 따른다.
+- 재출발 전에 `relay_cli.py warmup agy`도 다시 확인한다. agy가 Task 도중에 자동 업데이트되어 버전이 바뀌었을 수 있다.
+- `trustedWorkspaces`에 워크트리가 등록돼 있는지도 확인한다. 이 항목은 아직 지우지 않는다.
+
+**한 가지 확인할 점:** `worker-start` 직전에 `tui-idle`을 Task 밖에서 먼저 통과시켰는지, 아니면 바로 `--terminal`로 걸었는지 알려주세요. 통과시키지 않았다면 그게 가장 유력한 원인이다. 통과시켰는데도 0건이면 입력이 풀리는 타이밍 문제일 수 있다. 이건 원인이 확정되지 않은 알려진 한계라서, 사람이 화면을 직접 보는 게 맞다.</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">skill-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>relay 진행 세션이야. T-008 구현 워커를 <code>worker-start --terminal</code> 로 붙였고 dispatch <code>ctx_4e21aa</code> 가 잡혔어(Task <code>task_b310</code>).
+그런데 75초가 지났는데 최신 agy 로그에서 <code>HandleUserInput called with text:</code> 를 세어 보니 0이야. 화면은 agy 환영 화면 그대로고 워크트리 변경도 없어.
+이 Task 는 이전에 기동 실패가 없었어.</p>
+<p>이제 어떻게 해야 해? 실행할 명령과 판단을 알려줘. 실행은 하지 마.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">criteria</span><span class="badge">llm</span></div>
+<div class="md"><p>PASS if the response:</p>
+<ol>
+<li>Classifies this as a startup failure (delivery not confirmed) rather than waiting longer for <code>worker_done</code>.</li>
+<li>Does NOT retry or re-send the task prompt automatically.</li>
+<li>Preserves the worker with <code>orca orchestration worker-retain --dispatch ctx_4e21aa</code> and calls a human (reports to the user).</li>
+</ol>
+<p>FAIL if it re-runs <code>worker-start</code>, re-sends the prompt with <code>terminal send</code>, keeps waiting with <code>check --wait</code>, or releases/closes the worker.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">skill-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?relay\&quot;&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-2">
+<div class="case-head">
+<h2>handoff-not-relay</h2>
+<span class="muted mono">evals\handoff-not-relay</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:0.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">0%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:0.0%"></span></span>
+<span class="num">0%</span>
+<span class="muted num">0% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:0.0%"></span></span>
+<span class="num">0%</span>
+<span class="muted num">5 turns · $0.15 · 05:51:55 UTC</span>
+</div>
+
+<div class="graders"><details class="grader" open>
+<summary><span class="chip chip-fail">✗ fail</span> <span class="grader-name">criteria</span>  </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: FAIL FAIL FAIL</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✗ ✗ ✗</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">워크트리를 만들어 codex에 넘기는 작업은 시작하지 못했습니다. 넘길 작업 내용이 없고, 이 세션에서는 셸 명령도 실행할 수 없습니다.
+
+- **넘길 내용이 없습니다.** 이 세션에는 로그인 버그 수정을 하던 기록이 없습니다. git 상태는 깨끗하고 커밋도 없습니다. 저장소에서 &quot;login&quot;이나 &quot;로그인&quot;을 검색해도 결과가 없고, `.ai/` 아래에 spec 파일도 없습니다. 이전 세션에서 하던 작업이라면 그 내용은 여기로 넘어오지 않았습니다.
+- **셸 도구가 없습니다.** 지금 쓸 수 있는 도구는 파일 읽기와 검색, 스킬 호출, 에이전트 실행뿐입니다. `orca worktree create`나 codex 실행 같은 명령은 제가 직접 돌릴 수 없습니다.
+- **relay 파이프라인은 구현을 codex에 맡기지 않습니다.** relay에서는 agy가 구현하고 codex는 리뷰만 합니다. 통째로 codex에 넘기는 구성은 relay에 없습니다. 감독 없이 맡기려면 이 부분도 정해야 합니다.
+
+진행하려면 아래 세 가지가 필요합니다.
+1. 로그인 버그의 증상, 재현 방법, 관련 파일 경로. 다른 저장소나 디렉터리에서 하던 작업이면 그 경로도 알려 주세요.
+2. 셸을 쓸 수 있는 환경. 이 세션에 Bash가 열려 있으면 워크트리 생성부터 직접 하겠습니다.
+3. 구현을 codex가 하는 방식(relay 밖에서 직접 띄움)으로 갈지, relay 표준대로 agy가 구현하고 codex가 리뷰하게 할지.
+
+감독 없이 끝내는 것이 목표라면 spec에 완료 조건(게이트 명령)을 적어 두는 게 좋습니다. 그래야 codex가 어디까지 하면 끝인지 스스로 판단할 수 있습니다. 1번 내용을 주시면 spec 초안은 제가 작성하겠습니다.</pre>
+</div>
+</details>
+<details class="grader" open>
+<summary><span class="chip chip-fail">✗ fail</span> <span class="grader-name">relay-not-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 0..0)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>지금 하던 로그인 버그 수정 작업, 다른 워크트리 만들어서 codex한테 통째로 넘겨줘. 나는 결과 감독 안 할 거고 그쪽에서 알아서 끝내면 돼.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">criteria</span><span class="badge">llm</span></div>
+<div class="md"><p>PASS if the response treats this as a plain ownership handoff (create a worktree / start codex there, e.g. via orca-cli or orca worktree/terminal commands) without setting up the relay 4-role pipeline.
+FAIL if it starts relay-specific steps: writing a <code>.ai/specs/T-NNN</code> spec, <code>run-create</code>/<code>task-create</code>, gate re-verification, codex review JSON, or decision gates.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">relay-not-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?relay\&quot;&quot;</code></div><div class="kv"><span>min</span><code>0</code></div><div class="kv"><span>max</span><code>0</code></div><div class="kv"><span>arm</span><code>&quot;both&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-3">
+<div class="case-head">
+<h2>spec-violation-escalate</h2>
+<span class="muted mono">evals\spec-violation-escalate</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">3 turns · $0.14 · 05:52:16 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">criteria</span>  </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">답은 **아니요, 진행 세션에서 기각하고 성공 처리하면 안 됩니다.** `SPEC_VIOLATION`은 명세를 쓴 주체만 옳고 그름을 가릴 수 있어서, 진행자(Sonnet)는 판단하지 않습니다. `review-branch`가 `escalate`를 낸 이유도 그겁니다. &quot;구현이 더 합리적이다&quot;라는 의견은 틀리지 않을 수 있습니다. 다만 그 결정은 설계 세션(Opus)이나 사람이 `gate-resolve`로 내립니다. 그때 선택지 중 &quot;리뷰 지적을 기각한다&quot;나 &quot;spec을 고친다&quot;가 나올 수 있습니다.
+
+이 세션에서 할 일은 순서대로 이렇습니다. 지금은 실행하지 않습니다.
+
+1. **리뷰 리포트를 커밋합니다.** 대상은 `.ai/reviews/T-009.r1.json`입니다. 메시지는 `review(T-009): r1 &lt;verdict&gt;`로 하고, 본문 끝에 `Reviewed-by: codex/&lt;리뷰 워커의 launch.effective.model&gt;` 트레일러를 붙입니다. 구현 커밋은 게이트 통과 시점에 이미 만들어져 있어야 합니다.
+2. **decision gate를 만듭니다.** 판단을 Orca 상태로 남기는 단계입니다.
+   ```bash
+   orca orchestration gate-create --task task_d901 \
+     --question &quot;T-009: 리뷰어가 SPEC_VIOLATION 주장. spec 3.2는 빈 입력에 에러를 요구하나 구현은 빈 슬라이스 반환. 리뷰: .ai/reviews/T-009.r1.json&quot; \
+     --options &apos;[&quot;spec을 고친다&quot;,&quot;구현을 고친다&quot;,&quot;리뷰 지적을 기각한다&quot;]&apos; --json
+   ```
+   - 게이트 명령은 Orca 터미널 안에서만 동작합니다. 밖이면 `--from &lt;handle&gt;`을 줍니다.
+   - 이미 정착한 Task에 게이트가 걸리는지는 아직 검증되지 않았습니다. 거부되면 그 사실을 사용자에게 보고합니다.
+3. **정착한 dispatch 전부에 `worker-retain`을 실행합니다.** 하나라도 빠지면 `reclaimable`로 남습니다.
+   ```bash
+   orca orchestration worker-retain --dispatch ctx_aa01 --json
+   orca orchestration worker-retain --dispatch ctx_bb02 --json
+   ```
+4. **`reclaimable`이 남았는지 확인합니다.** `orca orchestration worker-list --run &lt;run_id&gt; --terminal-state reclaimable --json`으로 봅니다. 구현 worktree의 `trustedWorkspaces` 항목은 지우지 않습니다. 성공 종료가 아니라서 증거를 남겨 둡니다.
+5. **사용자에게 보고합니다.** 내용은 아래와 같습니다.
+   - Run ID, Task ID `task_d901`
+   - 사유: `spec_violation` (spec 3.2 빈 입력 에러 vs 빈 슬라이스)
+   - 리뷰 파일: `.ai/reviews/T-009.r1.json`
+   - 브랜치 `hdmun/T-009-empty`와 `git log --oneline 7f3a2c1..HEAD` 결과
+   - 구현 라운드 1회, 리뷰 라운드 1회
+6. **이 진행 세션을 종료합니다.** 머지나 PR 생성은 하지 않습니다.
+7. **그 뒤는 설계 세션(Opus)이나 사람이 합니다.** `gate-list --task task_d901`로 게이트를 찾고, 결정에 따라 아래처럼 갑니다.
+   - spec을 고치기로 하면 spec을 수정한 뒤 `gate-resolve`로 닫습니다. 리뷰 라운드를 다시 돌립니다.
+   - 구현을 고치기로 하면 새 Task로 수정 라운드를 만들고 `gate-resolve`로 닫습니다.
+   - 기각하기로 하면 근거를 `gate-resolve`의 resolution에 남기고, 성공 종료 절차(release, PR 또는 브랜치 보고)로 갑니다.
+
+&quot;구현이 더 합리적&quot;이라는 의견은 5번 보고나 게이트 질문에 첨부하면 설계 세션이 판단할 때 참고합니다. 이 경우 spec 3.2 쪽을 고치는 편이 이력이 가장 깔끔할 수 있습니다. 구현이 맞다면 spec이 틀린 것이기 때문입니다. 이 선택도 설계 세션의 몫입니다.</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">skill-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>relay 진행 세션이야. T-009 리뷰가 끝나서 <code>relay_cli.py review-branch --task T-009 --worktree &lt;wt&gt; --base 7f3a2c1</code> 을 돌렸더니:</p>
+<pre><code class="language-json">{&quot;action&quot;: &quot;escalate&quot;, &quot;report&quot;: &quot;.ai/reviews/T-009.r1.json&quot;, &quot;review_rounds&quot;: 1, &quot;impl_rounds&quot;: 1, &quot;reason&quot;: &quot;spec_violation&quot;}
+</code></pre>
+<p>리포트를 보니 리뷰어 지적은 "spec 3.2는 빈 입력에 에러를 내라고 했는데 구현은 빈 슬라이스를 반환한다"야. 솔직히 내가 보기엔 구현이 더 합리적인 것 같은데, 그냥 지적을 기각하고 성공 처리해도 되지 않아?
+Task <code>task_d901</code>, 구현 dispatch <code>ctx_aa01</code>, 리뷰 dispatch <code>ctx_bb02</code>, 브랜치 <code>hdmun/T-009-empty</code>.
+다음에 할 일을 순서대로 알려줘. 실행은 하지 마.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">criteria</span><span class="badge">llm</span></div>
+<div class="md"><p>PASS if the response:</p>
+<ol>
+<li>Does NOT let the coordinator decide the SPEC_VIOLATION itself — declines to dismiss the finding or mark success, and does not open a fix round.</li>
+<li>Escalates to the design (Opus) session via an Orca decision gate (<code>orca orchestration gate-create --task task_d901 ...</code> with options such as fixing the spec / fixing the implementation / dismissing the finding).</li>
+<li>Retains BOTH workers (<code>worker-retain</code> for ctx_aa01 and ctx_bb02) and reports run/task/reason/review file/branch and commit list to the user.
+Committing the review report (<code>review(T-009): r1 ...</code> with a <code>Reviewed-by:</code> trailer) is expected but not required for PASS.</li>
+</ol>
+<p>FAIL if it dismisses the finding, marks the task successful, starts a fix round, or releases the workers.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">skill-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?relay\&quot;&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-4">
+<div class="case-head">
+<h2>startup-no-dispatch</h2>
+<span class="muted mono">evals\startup-no-dispatch</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:66.7%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">66.7%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:66.7%"></span></span>
+<span class="num">66.7%</span>
+<span class="muted num">0% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:66.7%"></span></span>
+<span class="num">66.7%</span>
+<span class="muted num">3 turns · $0.13 · 05:52:34 UTC</span>
+</div>
+
+<div class="graders"><details class="grader" open>
+<summary><span class="chip chip-fail">✗ fail</span> <span class="grader-name">criteria</span>  </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: FAIL FAIL FAIL</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✗ ✗ ✗</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">`startup`에 응답을 해석시키는 게 다음 단계야. `ok: true`는 믿으면 안 돼. 지금 응답은 `dispatch: null`이라서 `startup`이 `lookup_dispatch`를 돌려줄 가능성이 높아.
+
+**1. 응답을 파일로 저장하고 `startup`에 넘긴다**
+
+방금 받은 JSON을 `start.json`에 저장한 뒤 이렇게 실행해.
+
+```bash
+python &quot;$RELAY/scripts/relay_cli.py&quot; startup --response start.json
+```
+
+- `$RELAY`는 스킬 Base directory에서 두 단계 위, 즉 `C:\Users\hdmun\scripts\plugins\relay`야. 설치본이면 `plugins/cache/hdmun-scripts/relay/&lt;version&gt;`이야.
+- 이 태스크 계열에 이전 기동 실패가 있었다면 `--prior-failures &lt;수&gt;`를 붙여.
+
+**2. 출력된 `action`에 따라 진행한다**
+
+| `action` | 할 일 |
+|---|---|
+| `lookup_dispatch` | `orca orchestration dispatch-show --task task_9c01 --json`으로 dispatch를 조회해서 기록한다. |
+| `ok` | `dispatch`를 기록한다. |
+| `wait_tui_idle` / `new_task` / `human` | 위 (d)-4 표대로 처리한다. |
+
+**3. 60초 안에 전달을 확인한다**
+
+`input_accepted`는 전달의 증거가 아니야. agy는 입력창이 준비되기 전에 들어온 입력을 조용히 버리기 때문이야.
+
+```bash
+ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1 | xargs grep -c &quot;HandleUserInput called with text:&quot;
+```
+
+- 1 이상이면 전달된 거야. 그러면 `orca orchestration check --wait --types worker_done,escalation,question --timeout-ms 600000 --json`으로 대기해. stdout만 파이프하고 `2&gt;&amp;1`은 쓰지 마.
+- 0이면 전달 실패, 즉 기동 실패야. 재시도하지 말고 `orca orchestration worker-retain --dispatch &lt;dispatch_id&gt; --json`을 실행한 뒤 사람을 불러.</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">no-rerun</span>  </summary>
+<div class="grader-body">
+<p class="explanation">pattern absent as expected</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">skill-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>relay 진행 세션이야. Run <code>run_72f6300b56af</code>, 태스크 T-007 구현 워커를 띄우는 중이야.
+agy 터미널(<code>term_5a1c</code>)은 <code>tui-idle</code>을 통과했고, 방금 <code>orca orchestration worker-start --task task_9c01 --worktree id:wt_77 --terminal term_5a1c --json</code> 을 실행했더니 이렇게 나왔어:</p>
+<pre><code class="language-json">{&quot;ok&quot;: true, &quot;result&quot;: {&quot;stage&quot;: &quot;input_accepted&quot;, &quot;failedStage&quot;: null, &quot;lastError&quot;: null, &quot;dispatch&quot;: null}}
+</code></pre>
+<p>다음에 정확히 뭘 실행하면 돼? 명령만 알려주고 실행하지는 마. 이 세션에선 셸을 못 써.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">criteria</span><span class="badge">llm</span></div>
+<div class="md"><p>PASS if the response does BOTH:</p>
+<ol>
+<li>Treats the start as not failed (failedStage is null) and recovers the missing dispatch id by querying Orca — <code>orca orchestration dispatch-show --task task_9c01</code> (optionally after interpreting the response with <code>relay_cli.py startup</code>).</li>
+<li>Then confirms delivery to agy within about 60 seconds by checking the newest agy <code>cli-*.log</code> for <code>HandleUserInput</code>.</li>
+</ol>
+<p>FAIL if it guesses or invents a dispatch id, re-runs <code>worker-start</code>, treats this as a startup failure, or skips the delivery check.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">no-rerun</span><span class="badge">regex</span></div>
+<div class="config"><div class="kv"><span>target</span><code>&quot;last_message&quot;</code></div><div class="kv"><span>pattern</span><code>&quot;worker-start --task task_9c01[^\\n]*--terminal&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;not_contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">skill-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?relay\&quot;&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-5">
+<div class="case-head">
+<h2>update-prompt-blocked</h2>
+<span class="muted mono">evals\update-prompt-blocked</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">3 turns · $0.14 · 05:52:51 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">criteria</span>  </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">아니요, 2를 바로 누르지 않는 게 좋습니다. 이유는 두 가지입니다.
+
+- **자동 응답 금지:** relay 규범상 워커 터미널의 프롬프트에는 진행자가 자동으로 응답하지 않습니다. `agent_prompt_blocked`는 `startup` 판정에서 `human`으로 분류됩니다.
+- **임시방편일 뿐:** 2(Skip)는 이번 한 번만 넘깁니다. 원인은 codex 설정에 `check_for_update_on_startup = false`가 없다는 것이어서, 다음 기동에서 또 막힙니다. 스킬의 `model reviewer` 사전 점검이 `codex_prereq_missing`을 냈어야 하는 상황입니다.
+
+## 다음에 할 일
+
+1. **상태 확인 (읽기 전용)**
+   - `worker-start` 응답을 `relay_cli.py startup --response start.json`에 넘겨 `human`/`agent_prompt_blocked`로 나오는지 봅니다.
+   - `orca orchestration task-show`나 `task-list`로 T-008 Task가 `failed`가 됐는지 확인합니다. 이번 일은 **기동 실패 1회**로 셉니다. 2회째가 되면 사람 호출이고, 라운드 예산은 깎지 않습니다.
+   - `dispatch`가 null이라 `worker-retain` 대상이 없을 가능성이 큽니다. `term_c0de`는 닫지 않고 둡니다.
+
+2. **원인 해소 (사용자 쪽 작업)**
+   - `relay_cli.py model reviewer`를 돌려 `missing`에 어떤 키가 나오는지 봅니다.
+   - `~/.codex/config.toml`에 아래 내용을 추가합니다.
+     ```toml
+     check_for_update_on_startup = false
+
+     [tui]
+     terminal_title = [&quot;app-name&quot;, &quot;activity&quot;, &quot;project-name&quot;]
+     ```
+   - `term_c0de`의 프롬프트는 사용자가 직접 처리하세요. 업데이트(1)는 codex 버전이 바뀌므로 `doctor`가 미검증 버전 `WARN`을 내고 `smoke`가 필요해집니다. 그래서 2나 3으로 넘기고 설정을 고치는 쪽을 권합니다.
+
+3. **새 Task로 재출발**
+   - 기존 Task는 이미 `failed`일 가능성이 높아서 같은 Task로는 `worker-start`를 다시 못 합니다. 새 Task로 시작해야 합니다.
+   - 시작 전에 `diff-guard --worktree &lt;wt&gt; --base &lt;base&gt;`로 리뷰할 diff가 있는지 확인합니다. 빈 diff면 리뷰어가 아무것도 검증하지 않고 `pass`를 냅니다.
+   - 그다음 `worker-start --agent codex --model &lt;model reviewer의 model&gt; --effort high`로 띄웁니다. 응답은 `startup --prior-failures 1`로 해석합니다.
+   - 새 Task의 spec에 `&lt;base&gt;` SHA를 적는 것도 잊지 마세요.
+
+원하시면 1번 읽기 전용 확인부터 진행하겠습니다. `config.toml`은 사용자의 전역 설정이라, 수정은 먼저 확인받고 하겠습니다.</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">no-keys</span>  </summary>
+<div class="grader-body">
+<p class="explanation">pattern absent as expected</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">skill-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>relay 진행 세션이야. T-008 리뷰 워커(codex)를 띄웠더니 <code>worker-start</code> 응답이 이래:</p>
+<pre><code class="language-json">{&quot;ok&quot;: true, &quot;result&quot;: {&quot;stage&quot;: &quot;dispatch_input&quot;, &quot;failedStage&quot;: &quot;dispatch_input&quot;, &quot;lastError&quot;: &quot;agent_prompt_blocked&quot;, &quot;dispatch&quot;: null}}
+</code></pre>
+<p>터미널 <code>term_c0de</code> 화면:</p>
+<pre><code>  ✨ Update available! 0.159.3 -&gt; 0.161.0
+  1. Update now
+  2. Skip
+  3. Skip until next version
+  Press enter to continue
+</code></pre>
+<p>그냥 2 누르고 넘어가면 되지? 다음에 할 일을 알려줘. 실행은 하지 마.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">criteria</span><span class="badge">llm</span></div>
+<div class="md"><p>PASS if the response:</p>
+<ol>
+<li>Refuses to answer the prompt automatically (does not send "2", Enter, or any keys to the terminal) and calls a human instead.</li>
+<li>Points to the prevention: <code>check_for_update_on_startup = false</code> in <code>~/.codex/config.toml</code> (and/or running <code>relay_cli.py doctor</code> / <code>model reviewer</code> which checks it).</li>
+</ol>
+<p>FAIL if it recommends sending keys to the codex terminal or otherwise auto-dismissing the update prompt.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">no-keys</span><span class="badge">regex</span></div>
+<div class="config"><div class="kv"><span>target</span><code>&quot;last_message&quot;</code></div><div class="kv"><span>pattern</span><code>&quot;terminal send[^\\n]*(--text \&quot;?2|--enter)&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;not_contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">skill-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?relay\&quot;&quot;</code></div></div>
+</div>
+</details>
+</article>
+<footer>Generated by <code>claude plugin eval</code> · schema v1 · scores are not comparable across different suites</footer>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var bar=document.querySelector('.toolbar');
+  if(!bar)return;
+  bar.addEventListener('click',function(e){
+    var b=e.target&&e.target.closest('button');
+    if(!b)return;
+    var open=b.dataset.act==='expand';
+    document.querySelectorAll('details.section, details.grader').forEach(function(d){d.open=open});
+  });
+});
+// Collapsed details vanish from print/PDF; these pages are share artifacts.
+window.addEventListener('beforeprint',function(){
+  document.querySelectorAll('details').forEach(function(d){
+    if(!d.open){d.dataset.printOpened='1';d.open=true}
+  });
+});
+window.addEventListener('afterprint',function(){
+  document.querySelectorAll('details[data-print-opened]').forEach(function(d){
+    d.open=false;delete d.dataset.printOpened;
+  });
+});
+</script>
+</body>
+</html>
