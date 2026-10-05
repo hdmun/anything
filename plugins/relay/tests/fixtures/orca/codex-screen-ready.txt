@@ -1,0 +1,6 @@
+  >_ OpenAI Codex (v0.159.3)
+     ~\scripts
+  permissions: YOLO mode
+› Ask Codex to do anything
+  GPT-6-Luna medium · ~\scripts · Ready · Context 100% left
+  ← for agents · ? for shortcuts

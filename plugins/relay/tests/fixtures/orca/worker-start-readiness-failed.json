@@ -1,0 +1,1 @@
+{"ok": true, "result": {"stage": "agent_readiness", "failedStage": "agent_readiness", "lastError": "timeout", "dispatch": null}}

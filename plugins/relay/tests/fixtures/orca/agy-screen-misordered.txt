@@ -1,0 +1,14 @@
+     ▄▀▀▄
+    ▀▀▀▀▀▀
+ Welcome to the Antigravity CLI. You are currently not signed in.
+
+ ⣷  Signing in...
+Gemini 3.8 Flash (Medium) │ Idle │ Context 100% left │ ~\orca\workspaces\poker-server\T-004-outs │ ⬡ Quota: sync /usage
+      ▄▀▀▄        Antigravity CLI 1.2.14
+ ▀▀▀▀▀▀       x@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 3.8 Flash (Medium)
+   ▄▀▀    ▀▀▄     ~/orca/workspaces/poker-server/T-004-outs
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────
+>

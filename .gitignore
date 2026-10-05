@@ -5,3 +5,9 @@ notion/notion_sync.env
 # Logs
 *.log
 notion/logs/
+
+# Python
+__pycache__/
+
+# claude plugin eval 실행 산출물 (리포트·트레이스)
+plugins/*/evals/results/

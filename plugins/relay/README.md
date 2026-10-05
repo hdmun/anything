@@ -91,8 +91,12 @@ plugins/relay/
   skills/relay/SKILL.md           설계·진행 세션 절차 (정본)
   skills/relay/references/        spec 템플릿, 리뷰 JSON 스키마
   commands/init.md                /relay:init
-  scripts/render_roles.py         역할 파일 렌더러
+  scripts/relay_cli.py            단일 진입점 (relay_cli.py <sub>)
+  scripts/relaylib/               relay 정책 — 정본은 이 코드와 tests/ (ADR 0001)
+  scripts/render_roles.py         하위 호환 진입점 (= relay_cli.py roles)
   templates/*.md.tmpl             역할 파일 템플릿
+  tests/                          단위 테스트 (unittest, 표준 라이브러리만)
+  evals/                          판단형 평가 (claude plugin eval) — SKILL.md 산문이 옳은 행동을 끌어내는가
   CONTEXT.md                      용어집 (기동 실패, 라운드, 모델 계열 …)
   docs/adr/                       구조 결정 기록
   docs/plan.md                    진행 중인 작업 계획
@@ -101,10 +105,25 @@ plugins/relay/
 ## 플러그인 고치기
 
 1. 이 폴더의 소스를 고친다. 설치본(`~/.claude*/plugins/cache/hdmun-scripts/relay/<version>/`)은 관리 복사본이라 직접 고치지 않는다.
-2. `.claude-plugin/plugin.json`의 `version`을 올린다.
-3. 머지한 뒤 **main이 체크아웃된 상태에서** 설정 디렉터리마다 `claude plugin update relay`를 실행한다. 마켓플레이스 소스가 로컬 폴더라 체크아웃된 내용이 그대로 설치된다.
-4. 진행 중인 relay 세션은 재시작해야 새 스킬을 읽는다.
-5. 템플릿(`templates/`)이 바뀐 버전이면 relay를 쓰는 저장소마다 역할 파일을 갱신한다 — 아래 「사용 중인 저장소 갱신」.
+   정책(분기·판정)을 바꾸면 `scripts/relaylib/` 과 `tests/` 를 함께 고친다. 테스트는 커밋 때 pre-commit hook이 돌린다(최초 1회 `git config core.hooksPath .githooks`). 직접 돌리려면:
+
+   ```bash
+   python -m unittest discover -s plugins/relay/tests
+   ```
+
+2. `SKILL.md`나 `templates/`를 바꿨으면 버전을 올리기 전에 평가를 돌린다. 케이스당 3회 × 플러그인 있음/없음 = 30회 실행이라 비용이 든다.
+
+   ```bash
+   cd plugins/relay
+   claude plugin eval . --no-publish            # 기본 threshold 1.0 — 한 번이라도 어기면 종료코드 1
+   ```
+
+   실제 장애가 하나 생기면 `evals/`에 케이스를 하나 더한다. 테스트 3층의 분담: 정책 코드는 `tests/`, 산문(명령 대응·금지 행동·발동 조건)은 `evals/`, 실제 CLI 경계는 `relay_cli.py smoke`.
+
+3. `.claude-plugin/plugin.json`의 `version`을 올린다.
+4. 머지한 뒤 **main이 체크아웃된 상태에서** 설정 디렉터리마다 `claude plugin update relay`를 실행한다. 마켓플레이스 소스가 로컬 폴더라 체크아웃된 내용이 그대로 설치된다.
+5. 진행 중인 relay 세션은 재시작해야 새 스킬을 읽는다.
+6. 템플릿(`templates/`)이 바뀐 버전이면 relay를 쓰는 저장소마다 역할 파일을 갱신한다 — 아래 「사용 중인 저장소 갱신」.
 
 ## 사용 중인 저장소 갱신
 
@@ -132,11 +151,11 @@ plugins/relay/
    ```bash
    P=$(ls -d ~/.claude/plugins/cache/hdmun-scripts/relay/*/ | sort -V | tail -1)   # 설치된 최신 버전
    cd <repo>
-   python -X utf8 "$P/scripts/render_roles.py" --plugin-root "$P" --repo . --check ; echo "exit=$?"
+   python "$P/scripts/relay_cli.py" roles --plugin-root "$P" --repo . --check ; echo "exit=$?"
    ```
 
    Claude 세션 안이라면 `/relay:init --check` 와 같다.
-   `-X utf8` 을 빼지 않는다 — Windows에서 출력을 파이프로 받으면 cp949로 인코딩하다 `UnicodeEncodeError`로 죽는다.
+   1.1.x 설치본에는 `relay_cli.py`가 없다 — 그때는 `python -X utf8 "$P/scripts/render_roles.py" …`(같은 인자)를 쓴다. `-X utf8`이 없으면 Windows 파이프 출력에서 cp949 `UnicodeEncodeError`로 죽는다.
 
 3. **결과를 읽는다.**
 
@@ -145,12 +164,13 @@ plugins/relay/
    | `OK 드리프트 없음` (exit 0) | 이미 최신 | 끝 |
    | `OK 내용 동일. 스탬프만 낡음` (exit 0) | 버전 스탬프만 다름 | 선택. 맞추려면 4번 |
    | `DRIFT ...` (exit 1) | 템플릿이 바뀌었다 | diff를 읽고, 템플릿 쪽이 맞으면 4번. 저장소 쪽이 맞으면 **템플릿을 고친다**(저장소 파일을 손으로 고치지 않는다) |
-   | `치환되지 않은 자리표시자: [...]` | 새 버전이 변수를 추가했다 | 그 키를 `.ai/relay-roles.json`에 넣고 2번부터 다시 |
+   | `치환되지 않은 자리표시자: [...]` (exit 2) | 새 버전이 변수를 추가했다 | 그 키를 `.ai/relay-roles.json`에 넣고 2번부터 다시 |
+   | `필수 키가 없거나 비어 있습니다: ...` (exit 2) | 변수 파일이 불완전하다 | 그 키를 채우고 2번부터 다시 |
 
 4. **덮어쓰고 커밋한다.**
 
    ```bash
-   python -X utf8 "$P/scripts/render_roles.py" --plugin-root "$P" --repo . --force
+   python "$P/scripts/relay_cli.py" roles --plugin-root "$P" --repo . --force
    git diff --stat                      # .ai/roles/*.md 와 .gitignore 만 바뀌어야 한다
    git add .ai/roles .gitignore
    git commit -m "chore(relay): 역할 파일 relay-roles v<버전> 반영"
