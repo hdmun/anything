@@ -96,6 +96,7 @@ plugins/relay/
   scripts/render_roles.py         하위 호환 진입점 (= relay_cli.py roles)
   templates/*.md.tmpl             역할 파일 템플릿
   tests/                          단위 테스트 (unittest, 표준 라이브러리만)
+  evals/                          판단형 평가 (claude plugin eval) — SKILL.md 산문이 옳은 행동을 끌어내는가
   CONTEXT.md                      용어집 (기동 실패, 라운드, 모델 계열 …)
   docs/adr/                       구조 결정 기록
   docs/plan.md                    진행 중인 작업 계획
@@ -110,10 +111,19 @@ plugins/relay/
    python -m unittest discover -s plugins/relay/tests
    ```
 
-2. `.claude-plugin/plugin.json`의 `version`을 올린다.
-3. 머지한 뒤 **main이 체크아웃된 상태에서** 설정 디렉터리마다 `claude plugin update relay`를 실행한다. 마켓플레이스 소스가 로컬 폴더라 체크아웃된 내용이 그대로 설치된다.
-4. 진행 중인 relay 세션은 재시작해야 새 스킬을 읽는다.
-5. 템플릿(`templates/`)이 바뀐 버전이면 relay를 쓰는 저장소마다 역할 파일을 갱신한다 — 아래 「사용 중인 저장소 갱신」.
+2. `SKILL.md`나 `templates/`를 바꿨으면 버전을 올리기 전에 평가를 돌린다. 케이스당 3회 × 플러그인 있음/없음 = 30회 실행이라 비용이 든다.
+
+   ```bash
+   cd plugins/relay
+   claude plugin eval . --no-publish            # 기본 threshold 1.0 — 한 번이라도 어기면 종료코드 1
+   ```
+
+   실제 장애가 하나 생기면 `evals/`에 케이스를 하나 더한다. 테스트 3층의 분담: 정책 코드는 `tests/`, 산문(명령 대응·금지 행동·발동 조건)은 `evals/`, 실제 CLI 경계는 `relay_cli.py smoke`.
+
+3. `.claude-plugin/plugin.json`의 `version`을 올린다.
+4. 머지한 뒤 **main이 체크아웃된 상태에서** 설정 디렉터리마다 `claude plugin update relay`를 실행한다. 마켓플레이스 소스가 로컬 폴더라 체크아웃된 내용이 그대로 설치된다.
+5. 진행 중인 relay 세션은 재시작해야 새 스킬을 읽는다.
+6. 템플릿(`templates/`)이 바뀐 버전이면 relay를 쓰는 저장소마다 역할 파일을 갱신한다 — 아래 「사용 중인 저장소 갱신」.
 
 ## 사용 중인 저장소 갱신
 
