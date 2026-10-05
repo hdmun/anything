@@ -21,8 +21,23 @@ def _json(out):
         return {}
 
 
-def run_agent(agent, workdir, run, read_log, sleep=time.sleep, version=None,
-              idle_timeout_ms=60_000, delivery_timeout_s=60, poll_s=3):
+ATTEMPTS = 3   # 준비 감지 경합은 시간대에 몰려 간헐적이다(2026-10-05: 연속 8회 실패 뒤 13회 중 12회 통과)
+
+
+def run_agent(agent, workdir, run, read_log, sleep=time.sleep, version=None, attempts=ATTEMPTS, **kw):
+    """터미널을 새로 만들며 최대 attempts 번 시도한다. 한 번이라도 통과하면 통과 — 실패 이력은 남긴다."""
+    tries = []
+    for _ in range(attempts):
+        r = _attempt(agent, workdir, run, read_log, sleep=sleep, version=version, **kw)
+        tries.append(r["failed_at"] or "passed")
+        if r["passed"]:
+            break
+    r["attempts"] = tries
+    return r
+
+
+def _attempt(agent, workdir, run, read_log, sleep, version,
+             idle_timeout_ms=60_000, delivery_timeout_s=60, poll_s=3):
     """agent: antigravity | codex. run(argv)->(rc, stdout). read_log()->agy 최신 로그 내용."""
     command = "agy" if agent == "antigravity" else "codex"
     result = {"agent": agent, "version": version, "passed": False, "failed_at": None}
