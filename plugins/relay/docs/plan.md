@@ -55,7 +55,7 @@
    - 근거: agy 업데이트는 백그라운드 프로세스로 돌고 실행 중인 세션을 막지 않으며 다음 실행부터 적용된다(로그 `auto_updater.go:334`, 15분 fast path).
      위험은 업데이트 자체가 아니라 **Task 도중 버전이 바뀌어** 새 TUI 가 Orca 준비 감지를 깨는 것이다. 예열은 그 실패를 Task 예산 밖으로 옮긴다.
    - SKILL.md (d) 3번 앞에 "예열" 단계를 넣는다.
-5. [ ] evals (45분) — 판단형 5케이스, `--model sonnet`, threshold 1.0, `--no-publish` → 통과 시 1.2.0
+5. [x] evals (45분) — 판단형 5케이스, `--model sonnet`, threshold 1.0, `--no-publish` → 통과 시 1.2.0
 
 ### 규약
 
@@ -73,6 +73,20 @@
 - 결론: 되돌리기·업데이트 차단은 하지 않는다(효과 없음). smoke 는 재생성하며 최대 3회 시도하고 이력(`attempts`)을 남긴다.
   `readiness` 사다리(재시도 3 → 재생성 1)는 몰린 시간대엔 모자랄 수 있다 — 실전 데이터가 더 쌓이면 재생성 횟수를 조정한다.
 - 확인한 부수 사실: 1.2.14 실행 파일이 `agy.exe.<숫자>.old` 로 남아 있다. 자동 업데이트를 끄는 환경 변수 `AGY_CLI_DISABLE_AUTO_UPDATE` 가 있다.
+
+## 평가 결과 (2026-10-05, v1.2.0 릴리스 기준)
+
+`claude plugin eval . --judge-model sonnet` — 5케이스 × 3회 × 2팔, $2.65, 10분 37초.
+
+| 케이스 | 플러그인 있음 | 없음(기준선) |
+|---|---|---|
+| delivery-failed | 1.0 ×3 | 0 ×3 |
+| spec-violation-escalate | 1.0 ×3 | 0 ×3 |
+| startup-no-dispatch | 1.0 ×3 | 0.5 ×3 |
+| update-prompt-blocked | 1.0 ×3 | 0.5 ×3 |
+| handoff-not-relay | 1.0 ×3 | 1.0 ×3 (발동하지 않아야 하는 케이스) |
+
+평균 Δ 0.6. dry-run 에서 relay 가 단순 위임에 발동하던 문제를 description 으로 고쳤다.
 
 ## 결정됨
 
