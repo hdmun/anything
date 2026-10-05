@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.289",
+  "startedAt": "2026-10-05T05:54:20.641Z",
+  "durationSeconds": 15,
+  "costUsd": 0.045399,
+  "partial": false,
+  "suite": {
+    "root": "C:\\Users\\hdmun\\scripts\\plugins\\relay",
+    "ablation": "none",
+    "judgeModel": "sonnet",
+    "caseFilter": "handoff-not-relay",
+    "threshold": 0,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "relay",
+        "version": "1.1.2",
+        "path": "C:\\Users\\hdmun\\scripts\\plugins\\relay"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "handoff-not-relay",
+      "dir": "evals\\handoff-not-relay",
+      "source": "prose",
+      "promptMarkdown": "지금 하던 로그인 버그 수정 작업, 다른 워크트리 만들어서 codex한테 통째로 넘겨줘. 나는 결과 감독 안 할 거고 그쪽에서 알아서 끝내면 돼.",
+      "model": "sonnet",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 10,
+      "graders": [
+        {
+          "name": "criteria",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the response treats this as a plain ownership handoff (create a worktree / start codex there, e.g. via orca-cli or orca worktree/terminal commands) without setting up the relay 4-role pipeline.\nFAIL if it starts relay-specific steps: writing a `.ai/specs/T-NNN` spec, `run-create`/`task-create`, gate re-verification, codex review JSON, or decision gates.",
+          "config": {
+            "criteria": "PASS if the response treats this as a plain ownership handoff (create a worktree / start codex there, e.g. via orca-cli or orca worktree/terminal commands) without setting up the relay 4-role pipeline.\nFAIL if it starts relay-specific steps: writing a `.ai/specs/T-NNN` spec, `run-create`/`task-create`, gate re-verification, codex review JSON, or decision gates.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "relay-not-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?relay\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.045399,
+            "judgeCostUsd": 0.006288,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-05T05:54:20.897Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-2bl9Oq\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "넘길 작업을 찾지 못했고, 지금 제 환경에서는 워크트리를 만들거나 codex를 실행할 수도 없습니다.\n\n- **작업 내용이 없습니다.** 작업 디렉터리(`...\\home\\cwd`)가 비어 있습니다. 파일도 없고 \"login\"이 들어간 내용도 없습니다. git 커밋도 없고, 상태에는 `.gitconfig`만 untracked로 보입니다. 이 대화에도 로그인 버그에 대한 이전 맥락이 없어서, codex에게 전달할 코드나 변경 사항, 버그 설명이 없습니다.\n- **실행 수단이 없습니다.** 이 세션에서 쓸 수 있는 도구는 파일 검색·읽기, 서브에이전트 실행, 스킬 호출뿐입니다. `git worktree add`나 `codex` CLI를 돌릴 셸이 없습니다. 서브에이전트 종류에도 codex는 없습니다. `relay` 스킬은 감독 없이 통째로 맡기는 단순 위임에는 쓰지 말라고 되어 있어서 쓰지 않았습니다.\n\n감독 없이 끝까지 맡기는 작업이라, 빈 저장소에서 추측으로 넘기지는 않았습니다. 아래 중 하나를 알려주시면 이어가겠습니다.\n\n1. 작업하던 저장소 경로가 따로 있다면 알려주세요. 지금 세션이 엉뚱한 디렉터리에서 열린 것일 수 있습니다.\n2. 버그 증상, 재현 방법, 관련 파일, 지금까지 시도한 것을 알려주세요. 그러면 codex에게 줄 위임 프롬프트(완료 조건 포함)를 정리해 드릴 수 있습니다.\n3. 셸 권한이 있는 세션에서 실행하실 거라면, 아래 형태의 명령을 쓰시면 됩니다. 경로와 브랜치명은 예시입니다.\n   ```\n   git worktree add ../login-fix -b fix/login-bug\n   cd ../login-fix && codex exec \"<위임 프롬프트>\"\n   ```"
+              },
+              {
+                "name": "relay-not-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}
