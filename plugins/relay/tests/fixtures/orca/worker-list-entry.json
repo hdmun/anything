@@ -1,0 +1,5 @@
+{"dispatchId": "ctx_3cd95f9cae2c", "taskId": "task_324f6f651006", "workerState": "running", "agentTerminalHandle": "term_2d034112",
+ "projection": {"provider": {"id": "codex", "model": "gpt-6-luna"},
+  "liveness": {"verdict": "live", "source": "agent_status"},
+  "nextAction": {"kind": "release", "argv": ["orchestration", "worker-release", "--dispatch", "ctx_3cd95f9cae2c"]},
+  "attention": {"categories": [], "requiresAction": false}}}

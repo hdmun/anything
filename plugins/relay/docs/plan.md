@@ -26,11 +26,11 @@
 
 ## 트랙 2 — 구조 개편 v1.2.0 (`hdmun/relay-v1.2.0-testable`, 직접 구현)
 
-1. [ ] 골격 + roles (40분) — `tests/`(unittest), `scripts/relaylib/`, `scripts/relay_cli.py`, `.githooks/pre-commit`.
+1. [x] 골격 + roles (40분) — `tests/`(unittest), `scripts/relaylib/`, `scripts/relay_cli.py`, `.githooks/pre-commit`.
        TDD로: `.gitignore` 블록 없을 때 init 거부 버그, CRLF, 필수 키 검증, 미치환 자리표시자 정규식,
        Windows 파이프 출력 시 cp949 `UnicodeEncodeError` (stdout 을 UTF-8 로 재설정 — 지금은 `python -X utf8` 로 우회)
-2. [ ] trust + review (60분) — `trust add/remove/prune`, `validate-review`, `review-branch`, 라운드 수, `r(N-1)`/`rN` 반복 판정, `changes_requested` 정합 → SKILL.md 분기 표 대체
-3. [ ] orca + model (45분) — `startup`, `liveness`, `model reviewer` + T-004 픽스처 → SKILL.md (d)(e) 대체
+2. [x] trust + review (60분) — `trust add/remove/prune`, `validate-review`, `review-branch`, 라운드 수, `r(N-1)`/`rN` 반복 판정, `changes_requested` 정합 → SKILL.md 분기 표 대체
+3. [x] orca + model (45분) — `startup`, `liveness`, `model reviewer` + T-004 픽스처 → SKILL.md (d)(e) 대체
    - `startup` 에 **준비 감지 오판 → 1회 재생성** 분기: `tui-idle` timeout 인데 화면(`terminal read --screen`)에 입력창(`>` 단독 줄)이
      보이고 차단 문구(trust/update/permission)가 없으면 `{"action":"recreate_terminal"}` — 터미널을 닫고 새로 만든다. Task 밖이라 예산 무관.
      재생성 후에도 timeout 이면 `{"action":"human"}`. 한 번만 허용한다(무한 재생성 방지).
@@ -38,7 +38,12 @@
      `Antigravity CLI` 머리글보다 **먼저** 스트림에 찍혔다. Orca 는 머리글 뒤의 `gemini…` 줄 + `>` 줄로 준비를 판정하므로
      화면은 정상인데 영원히 timeout. 새 터미널은 2초 만에 통과했다 — 그리기 순서 경합이다.
    - 픽스처: 위 스트림 순서(상태줄 → 머리글 → 로고 줄 → `>`)와 정상 순서 둘 다.
-4. [ ] doctor + smoke + 예열 (75분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
+   - **재생성이 항상 듣지는 않는다**(poker-server T-005, 2026-10-03~04): 새 터미널 2개 모두 30초 timeout, `worker-start` 준비 대기도 실패 → Task `failed`.
+     같은 터미널이 약 18시간 뒤 `tui-idle` 0.5초 통과(그 사이 확인용 입력 1회). 입력이 풀었는지 시간이 풀었는지 미확인 — `startup` 은 재생성 1회 전에
+     `tui-idle` 재시도 3회(30초 간격)와 로그인 로그(`OAuth: authenticated successfully`) 확인을 먼저 한다. Orca 쪽 판정 함수는 마지막 `antigravity cli`
+     머리글 뒤의 `>` 단독 줄과 `do you trust|sign in|…` 부재를 본다(app.asar 에서 확인) — 픽스처에 "머리글 뒤에 `>` 가 아직 없는 화면"을 추가한다.
+   - `worker-start` 는 준비 감지에 실패해도 `ok: true` 를 돌려주고 Task 를 `failed` 로 만든다 → `startup` 이 `result.failedStage` 로 판정하게 한다.
+4. [x] doctor + smoke + 예열 (75분) — codex 키 2개, 리뷰어 모델(models_cache 대조), 검증된 버전(`references/verified-cli.json`), 죽은 trust 정리(`--fix`) / smoke 는 `relay-smoke` 고정 워크트리
    - **agy 예열(`relay_cli.py warmup agy`)** — 자동 업데이트를 막지 않고, Task 밖에서 버전을 고정한 뒤 워커를 띄운다.
      워커 터미널을 만들기 전에(구현 기동, 수정 라운드 재기동 모두) 실행한다:
      1. agy 를 한 번 띄운다 → 최신 `cli-*.log` 에 `auto_updater` 줄을 기다린다
@@ -50,7 +55,7 @@
    - 근거: agy 업데이트는 백그라운드 프로세스로 돌고 실행 중인 세션을 막지 않으며 다음 실행부터 적용된다(로그 `auto_updater.go:334`, 15분 fast path).
      위험은 업데이트 자체가 아니라 **Task 도중 버전이 바뀌어** 새 TUI 가 Orca 준비 감지를 깨는 것이다. 예열은 그 실패를 Task 예산 밖으로 옮긴다.
    - SKILL.md (d) 3번 앞에 "예열" 단계를 넣는다.
-5. [ ] evals (45분) — 판단형 5케이스, `--model sonnet`, threshold 1.0, `--no-publish` → 통과 시 1.2.0
+5. [x] evals (45분) — 판단형 5케이스, `--model sonnet`, threshold 1.0, `--no-publish` → 통과 시 1.2.0
 
 ### 규약
 
@@ -58,6 +63,36 @@
 - 검사기(`validate-review`, `diff-guard`, `doctor`)는 종료코드 0/1, 사유는 stderr 한 줄.
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
+
+## 측정 — agy 준비 감지 실패는 버전이 아니라 시간대에 몰리는 경합이다 (2026-10-04~05)
+
+- 처음엔 agy 1.2.16 smoke 가 `tui-idle` 3/3 실패해 버전 문제로 보였다. 이어서 **1.2.14(.old 실행 파일)도 3/3 실패**, 워크트리에서도 실패 — 연속 8회.
+  그 뒤 같은 조건에서 **13회 중 12회 통과(약 2.3초)**, smoke 3/3 통과(전달 확인 포함). 실행 방식(PowerShell 직접 / smoke)과도 무관했다.
+- 실패한 회차는 모두 Orca 가 판정에 쓰는 스트림(제어 문자를 지운 PTY 줄 목록)에 `>` 줄이 없었다. 화면에는 입력창이 있다 — 커서 이동으로 다시 그린 줄이 목록에 남지 않는다.
+- agy `/config` 의 `Rendering Mode` 는 이미 `Native Terminal experience (inline)` 이었다 — 원인 아님.
+- 결론: 되돌리기·업데이트 차단은 하지 않는다(효과 없음). smoke 는 재생성하며 최대 3회 시도하고 이력(`attempts`)을 남긴다.
+  `readiness` 사다리(재시도 3 → 재생성 1)는 몰린 시간대엔 모자랄 수 있다 — 실전 데이터가 더 쌓이면 재생성 횟수를 조정한다.
+- 확인한 부수 사실: 1.2.14 실행 파일이 `agy.exe.<숫자>.old` 로 남아 있다. 자동 업데이트를 끄는 환경 변수 `AGY_CLI_DISABLE_AUTO_UPDATE` 가 있다.
+
+## 평가 결과 (2026-10-05, v1.2.0 릴리스 기준)
+
+`claude plugin eval . --judge-model sonnet` — 5케이스 × 3회 × 2팔, $2.65, 10분 37초.
+
+| 케이스 | 플러그인 있음 | 없음(기준선) |
+|---|---|---|
+| delivery-failed | 1.0 ×3 | 0 ×3 |
+| spec-violation-escalate | 1.0 ×3 | 0 ×3 |
+| startup-no-dispatch | 1.0 ×3 | 0.5 ×3 |
+| update-prompt-blocked | 1.0 ×3 | 0.5 ×3 |
+| handoff-not-relay | 1.0 ×3 | 1.0 ×3 (발동하지 않아야 하는 케이스) |
+
+평균 Δ 0.6. dry-run 에서 relay 가 단순 위임에 발동하던 문제를 description 으로 고쳤다.
+
+## 결정됨
+
+- **구현자 자체 커밋** (2026-10-04, A안) — poker-server T-004 `dd95130` 은 agy 가 `git commit` 권한으로 직접 커밋한 것으로 보인다(트레일러 없음, 구현 라운드 1 적게 셈).
+  (a) agy `permissions.allow` 에서 `command(git commit)` 제거 — 사용자가 직접. 단 `command(powershell)` 이 남아 있으면 우회 가능하므로 검사기가 실제 방어선이다.
+  (b) `relay_cli.py commit-guard` — `worker_done` 뒤 `base..HEAD` 에 귀속 트레일러 없는 커밋이 있으면 사람 호출. 구현 템플릿에 "권한이 있어도 커밋하지 않는다" 추가.
 
 ## 별도 과제
 
@@ -67,7 +102,7 @@
 
 ## 미검증 (smoke·실전에서 확인)
 
-- `--command agy` 로 모델 핀 가능 여부 / codex `--terminal` 경로
+- `--command agy` 로 모델 핀 가능 여부 — agy 에 `--model`·`--effort` 플래그가 있음(1.2.16 `--help`). 실측 전 / codex `--terminal` 경로
 - `worker-release` 가 수동 생성 터미널을 닫는가
 - 정착한 Task 에 decision gate 가 걸리는가
-- ~~agy `auto_updater` 차단~~ → 차단하지 않고 예열로 대응하기로 결정(2026-10-02, 트랙 2 4단계). 남은 미검증: Windows 에서 실행 중인 `agy.exe` 를 업데이트가 어떻게 교체하는지 — 예열 구현 중 확인
+- ~~agy `auto_updater` 차단~~ → 예열로 대응(2026-10-02). 실행 중 교체는 확인됨: 기존 파일을 `agy.exe.<숫자>.old` 로 옮기고 새 파일을 놓는다(1.2.14 세션이 떠 있는 동안 1.2.16 설치). 예열은 `agy update`(동기) 사용
