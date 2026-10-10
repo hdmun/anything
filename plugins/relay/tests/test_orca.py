@@ -96,6 +96,28 @@ class Readiness(unittest.TestCase):
         d = orca.readiness(screen, agent="antigravity", log=self.SIGNED, retries=3)
         self.assertEqual(d["action"], "recreate_terminal")
 
+    def test_bare_agy_command_recreates_without_retrying(self):
+        # 실측(T-007): 단독 agy 로 띄운 터미널은 9회 연속 timeout — 기다리는 건 낭비다
+        d = orca.readiness(fx("agy-screen-misordered.txt"), agent="antigravity", log=self.SIGNED, retries=0, command="agy")
+        self.assertEqual((d["action"], d["reason"]), ("recreate_terminal", "bare_launch_command"))
+        self.assertEqual(d["launch_command"], orca.AGY_LAUNCH_COMMAND)
+
+    def test_bare_agy_after_recreate_calls_human(self):
+        d = orca.readiness(fx("agy-screen-misordered.txt"), agent="antigravity", log=self.SIGNED, retries=0,
+                           command="agy", recreated=True)
+        self.assertEqual((d["action"], d["reason"]), ("human", "bare_launch_command"))
+
+    def test_correct_command_keeps_the_ladder(self):
+        d = orca.readiness(fx("agy-screen-misordered.txt"), agent="antigravity", log=self.SIGNED, retries=0,
+                           command=orca.AGY_LAUNCH_COMMAND)
+        self.assertEqual(d["action"], "retry_tui_idle")
+
+    def test_bare_agy_variants(self):
+        for c in ("agy", "agy --model x", "'agy'", r"C:\Users\x\AppData\Local\agy\bin\agy.exe", "AGY"):
+            self.assertTrue(orca.is_bare_agy(c), c)
+        for c in (orca.AGY_LAUNCH_COMMAND, "codex", "$env:X='1'; agy", None, ""):
+            self.assertFalse(orca.is_bare_agy(c), c)
+
     def test_codex_update_prompt_blocks(self):
         d = orca.readiness(fx("codex-screen-update.txt"), agent="codex", retries=0)
         self.assertEqual((d["action"], d["reason"]), ("human", "blocked_prompt"))

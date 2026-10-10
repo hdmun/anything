@@ -83,20 +83,31 @@ def _has_prompt(lines, agent):
     return False
 
 
-def readiness(screen, agent, retries, log=None, recreated=False):
-    """tui-idle timeout 이후의 사다리. retries 는 이미 다시 건 tui-idle 횟수."""
+def is_bare_agy(command):
+    """맨 앞 토큰이 agy 인 시작 명령 — Orca 가 에이전트 시작 경로로 띄워 tui-idle 이 통과하지 못한다."""
+    first = (command or "").strip().strip("'\"").split(" ")[0].lower()
+    return first in ("agy", "agy.exe") or first.endswith(("\\agy", "/agy", "\\agy.exe", "/agy.exe"))
+
+
+def readiness(screen, agent, retries, log=None, recreated=False, command=None):
+    """tui-idle timeout 이후의 사다리. retries 는 이미 다시 건 tui-idle 횟수, command 는 terminal create --command 값."""
     tail = _tail(screen)
     if BLOCKED_RE.search("\n".join(tail)):
         return _d("human", reason="blocked_prompt")
     if agent == "antigravity" and log is not None and AGY_SIGNED_IN not in log:
         return _d("human", reason="not_signed_in")
+    if agent == "antigravity" and is_bare_agy(command):
+        # 기다려도 풀리지 않는다(실측 T-007: 9회 연속 timeout) — 재시도 없이 올바른 명령으로 다시 만든다
+        if recreated:
+            return _d("human", reason="bare_launch_command", launch_command=AGY_LAUNCH_COMMAND)
+        return _d("recreate_terminal", reason="bare_launch_command", launch_command=AGY_LAUNCH_COMMAND)
     if retries < TUI_IDLE_RETRIES:
         return _d("retry_tui_idle", wait_seconds=TUI_IDLE_RETRY_SECONDS, attempt=retries + 1)
     if not _has_prompt(tail, agent):
         return _d("human", reason="no_prompt")
     if recreated:
         return _d("human", reason="recreate_failed")
-    # 화면엔 입력창이 있는데 Orca 가 못 알아본다 — 그리기 순서 경합(T-004). 한 번만 새로 만든다
+    # 올바른 명령인데도 화면엔 입력창이 있고 Orca 가 못 알아본다 — 드문 경우다. 한 번만 새로 만든다
     return _d("recreate_terminal")
 
 

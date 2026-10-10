@@ -24,6 +24,7 @@
 """
 import argparse
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -170,8 +171,10 @@ def cmd_readiness(a):
         screen = raw
     if a.agent == "antigravity" and not a.agy_log:
         raise InputError("antigravity 는 --agy-log(최신 cli-*.log)가 필요하다 — 로그인 여부를 거기서 본다")
+    if a.agent == "antigravity" and a.command is None:
+        raise InputError("antigravity 는 --command(terminal create 에 준 --command 값)가 필요하다 — 단독 agy 면 기다려도 안 풀린다")
     log = pathlib.Path(a.agy_log).read_text(encoding="utf-8", errors="replace") if a.agy_log else None
-    return _emit(orca.readiness(screen, a.agent, a.retries, log=log, recreated=a.recreated))
+    return _emit(orca.readiness(screen, a.agent, a.retries, log=log, recreated=a.recreated, command=a.command))
 
 
 def cmd_liveness(a):
@@ -218,6 +221,24 @@ def _newest_agy_log():
     return logs[-1].read_text(encoding="utf-8", errors="replace") if logs else ""
 
 
+def _plugin_version():
+    """이 스크립트가 들어 있는 플러그인 사본의 버전 — 세션이 실제로 읽고 있는 버전이다."""
+    p = pathlib.Path(__file__).resolve().parents[1] / ".claude-plugin" / "plugin.json"
+    return json.loads(p.read_text(encoding="utf-8")).get("version") if p.exists() else None
+
+
+def _installed_versions():
+    """이 세션의 설정 디렉터리(CLAUDE_CONFIG_DIR, 없으면 ~/.claude)에 설치 기록된 relay 버전들."""
+    cfg = pathlib.Path(os.environ.get("CLAUDE_CONFIG_DIR") or pathlib.Path.home() / ".claude")
+    p = cfg / "plugins" / "installed_plugins.json"
+    if not p.exists():
+        return []
+    d = json.loads(p.read_text(encoding="utf-8"))
+    entries = [e for k, v in (d.get("plugins") or {}).items() if k.startswith("relay@")
+               for e in (v if isinstance(v, list) else [v])]
+    return [e["version"] for e in entries if e.get("version")]
+
+
 def cmd_doctor(a):
     codex_cfg = pathlib.Path.home() / ".codex" / "config.toml"
     agy = trust.DEFAULT_SETTINGS
@@ -229,6 +250,8 @@ def cmd_doctor(a):
         "agy_settings": settings,
         "trust_root": str(trust.DEFAULT_ROOT),
         "exists": lambda p: pathlib.Path(p).is_dir(),
+        "plugin_version": _plugin_version(),
+        "installed_versions": _installed_versions(),
     }
     checks = doctor.evaluate(facts)
     if a.fix and settings is not None:
@@ -317,6 +340,7 @@ def build_parser():
     rd.add_argument("--agy-log", help="agy 최신 cli-*.log")
     rd.add_argument("--retries", type=int, required=True, help="이미 다시 건 tui-idle 횟수")
     rd.add_argument("--recreated", action="store_true", help="이미 한 번 재생성했다")
+    rd.add_argument("--command", help="terminal create 에 준 --command 값 (antigravity 필수)")
     rd.set_defaults(func=cmd_readiness)
 
     lv = sub.add_parser("liveness", help="빈 대기 3회 뒤 무응답 판정")
