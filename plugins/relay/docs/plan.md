@@ -13,7 +13,7 @@
 ## 트랙 1 — 핫픽스 v1.1.2 (`hdmun/relay-v1.1.2-hotfix`, 문서만)
 
 1. [x] SKILL.md (d) 기동 절차
-   - agy: `terminal create --command agy` → `terminal wait --for tui-idle` → `worker-start --terminal`, 60초 내 전달 확인(`HandleUserInput`)
+   - agy: `terminal create --command '$null=1; agy'` (v1.2.2) → `terminal wait --for tui-idle` → `worker-start --terminal`, 60초 내 전달 확인(`HandleUserInput`)
    - codex: 위 두 키를 사전 조건으로. `--model <config.toml 의 model> --effort high`
    - antigravity `--model` 서술 정정 (Orca 가 이제 지원)
 2. [x] SKILL.md (e)(h)(i)
@@ -64,7 +64,23 @@
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
 
-## 측정 — agy 준비 감지 실패는 버전이 아니라 시간대에 몰리는 경합이다 (2026-10-04~05)
+## 측정 — agy 준비 감지 실패의 원인은 단독 `agy` 실행 경로다 (2026-10-10, v1.2.2)
+
+- agy 1.3.3 smoke 가 `tui-idle` 3/3 실패. Orca 스트림에 `Antigravity CLI 1.3.3` 머리글은 있는데 `>` 줄과 상태줄이 없었다. 화면에는 둘 다 있다.
+- 같은 시각 비교(Orca 1.4.216, PowerShell 터미널):
+
+  | `--command` | 1.2.17 | 1.3.3 |
+  |---|---|---|
+  | `agy` (단독) | 1/2 통과 | 0/11 통과 |
+  | `$null=1; agy`, `$env:...; agy`, 제목 설정 후 `agy` | 2/2 통과 | 7/7 통과 (2~3초) |
+
+- 맨 앞 토큰이 `agy` 면 Orca 가 시작 명령을 에이전트로 인식한다(`recognizeAgentProcessFromCommandLine`). 그 경로에서만 입력창이 스트림에 남지 않는다. 내부 경로는 읽지 않았다.
+- 버리는 Run 으로 `worker-start --terminal` 확인: `failedStage` 없음 → `HandleUserInput` → `worker_done` 13초. 우리 터미널은 `worker-release` 가 닫지 않는다(`retained / external_terminal`).
+- 조치: `AGY_LAUNCH_COMMAND = "$null=1; agy"`(orca.py) — smoke 와 SKILL (d)4 가 쓴다. 회귀 테스트 2개. smoke 3/3 통과 → 1.3.3 등록.
+- 바로 아래 10-05 측정의 "시간대 경합" 결론은 이것으로 대체된다. 1.2.x 의 단독 실행은 간헐 실패라 그때의 '연속 실패 뒤 13회 중 12회 통과'와 모순되지 않는다. 1.3.3 에서 상시 실패로 바뀌어 드러났다.
+- 버린 대안: 제목을 `agy` 로 설정 — 로그인 전에 통과할 수 있고, agy 하위 프로세스(MCP, 상태줄)가 제목을 덮어쓴다. `CLOUD_SHELL=true` — 통과하지만 agy 의 다른 동작(IDE 종류·인증)에 영향을 줄 수 있다.
+
+## 측정 — (대체됨) agy 준비 감지 실패는 버전이 아니라 시간대에 몰리는 경합이다 (2026-10-04~05)
 
 - 처음엔 agy 1.2.16 smoke 가 `tui-idle` 3/3 실패해 버전 문제로 보였다. 이어서 **1.2.14(.old 실행 파일)도 3/3 실패**, 워크트리에서도 실패 — 연속 8회.
   그 뒤 같은 조건에서 **13회 중 12회 통과(약 2.3초)**, smoke 3/3 통과(전달 확인 포함). 실행 방식(PowerShell 직접 / smoke)과도 무관했다.
@@ -103,6 +119,6 @@
 ## 미검증 (smoke·실전에서 확인)
 
 - `--command agy` 로 모델 핀 가능 여부 — agy 에 `--model`·`--effort` 플래그가 있음(1.2.16 `--help`). 실측 전 / codex `--terminal` 경로
-- `worker-release` 가 수동 생성 터미널을 닫는가
+- ~~`worker-release` 가 수동 생성 터미널을 닫는가~~ → 닫지 않는다(`retained / external_terminal`, 2026-10-10). (i) 의 `terminal close` 가 필요하다
 - 정착한 Task 에 decision gate 가 걸리는가
 - ~~agy `auto_updater` 차단~~ → 예열로 대응(2026-10-02). 실행 중 교체는 확인됨: 기존 파일을 `agy.exe.<숫자>.old` 로 옮기고 새 파일을 놓는다(1.2.14 세션이 떠 있는 동안 1.2.16 설치). 예열은 `agy update`(동기) 사용

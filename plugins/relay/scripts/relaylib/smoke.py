@@ -9,6 +9,8 @@
 import json
 import time
 
+from relaylib import orca
+
 PING = "relay-smoke-ping"
 PROMPT = PING + ": reply with the single word OK and do nothing else. Do not use any tools."
 DELIVERY_MARK = "HandleUserInput called with text:"
@@ -21,7 +23,7 @@ def _json(out):
         return {}
 
 
-ATTEMPTS = 3   # 준비 감지 경합은 시간대에 몰려 간헐적이다(2026-10-05: 연속 8회 실패 뒤 13회 중 12회 통과)
+ATTEMPTS = 3   # 남은 간헐 실패 대비. 2026-10-05 의 '시간대 경합'은 단독 `agy` 실행 경로 탓이었다(orca.AGY_LAUNCH_COMMAND)
 
 
 def run_agent(agent, workdir, run, read_log, sleep=time.sleep, version=None, attempts=ATTEMPTS, **kw):
@@ -39,7 +41,7 @@ def run_agent(agent, workdir, run, read_log, sleep=time.sleep, version=None, att
 def _attempt(agent, workdir, run, read_log, sleep, version,
              idle_timeout_ms=60_000, delivery_timeout_s=60, poll_s=3):
     """agent: antigravity | codex. run(argv)->(rc, stdout). read_log()->agy 최신 로그 내용."""
-    command = "agy" if agent == "antigravity" else "codex"
+    command = orca.AGY_LAUNCH_COMMAND if agent == "antigravity" else "codex"
     result = {"agent": agent, "version": version, "passed": False, "failed_at": None}
     rc, out = run(["orca", "terminal", "create", "--worktree", "path:" + workdir,
                    "--title", "relay-smoke " + agent, "--command", command, "--json"])

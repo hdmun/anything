@@ -27,6 +27,12 @@ BLOCKED_RE = re.compile(
 )
 AGY_SIGNED_IN = "OAuth: authenticated successfully"
 
+# agy 를 띄우는 terminal create --command 값. 맨 앞 토큰이 `agy` 면 Orca 가 시작 명령을 에이전트로 인식해
+# 다른 경로로 띄우는데, 그 경로에선 입력창(`>` 줄)이 출력 스트림에 남지 않아 tui-idle 이 영영 통과하지 못한다
+# (1.3.3: 11/11 실패, 1.2.17: 간헐 실패). 아무 일도 안 하는 PowerShell 문장을 앞에 두면 일반 셸 명령으로 실행되어
+# 1.2.17·1.3.3 모두 7/7 통과, worker-start --terminal 도 정상 연결됐다 (2026-10-10). Orca 터미널 셸이 PowerShell 이라는 전제다.
+AGY_LAUNCH_COMMAND = "$null=1; agy"
+
 
 def _d(action, **kw):
     return dict(action=action, **kw)

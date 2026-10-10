@@ -3,7 +3,7 @@ import json
 import unittest
 
 from helpers import PLUGIN_ROOT
-from relaylib import doctor, smoke
+from relaylib import doctor, orca, smoke
 
 GOOD_CODEX = 'model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n[tui]\nterminal_title = ["app-name"]\n'
 ROOT = r"C:\Users\x\orca\workspaces"
@@ -163,6 +163,15 @@ class Smoke(unittest.TestCase):
         o = FakeOrca(log="nothing")
         r = smoke.run_agent("antigravity", "C:/w", o.run, read_log=lambda: o.log, sleep=lambda s: None, version="1.2.16")
         self.assertEqual((r["passed"], r["failed_at"]), (False, "delivery"))
+
+    def test_agy_is_not_launched_as_a_bare_command(self):
+        # 맨 앞 토큰이 agy 면 Orca 가 에이전트 시작 경로로 띄워 입력창이 스트림에 남지 않는다
+        o = FakeOrca(log=smoke.PING + " HandleUserInput called with text:")
+        smoke.run_agent("antigravity", "C:/w", o.run, read_log=lambda: o.log, sleep=lambda s: None, version="1")
+        create = next(c for c in o.calls if c[1:3] == ["terminal", "create"])
+        command = create[create.index("--command") + 1]
+        self.assertEqual(command, orca.AGY_LAUNCH_COMMAND)
+        self.assertNotEqual(command.split()[0], "agy")
 
     def test_commands_start_with_orca(self):
         o = FakeOrca(log=smoke.PING + " HandleUserInput called with text:")
