@@ -64,6 +64,20 @@
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
 
+## 측정 — 리뷰 워커도 터미널 선기동으로, codex 는 `--yolo` 필수 (2026-10-11, v1.2.5)
+
+- 배경: `worker-start --agent codex` 는 시작 직후 확인창(`Hooks need review` 등)이 뜨면 timeout 한 번으로 리뷰 Task 가 `failed` 가 된다(T-006). 구현자처럼 Task 밖에서 `tui-idle` 을 통과시킨다.
+- 버리는 Run(`run_d4c207f2b71c`)에서 codex 0.159.3·Orca 1.4.222 로 측정:
+
+  | `--command` | 결과 |
+  |---|---|
+  | `codex -m … -c model_reasoning_effort=high` | `tui-idle` 7초, 전달 정상, 그런데 워커의 `orca orchestration send … worker_done` 이 3분간 응답 없음 → codex 가 끊음, Task `dispatched` 잔류 |
+  | `codex --yolo -m … -c …` | 5회 중 4회 `worker_done` 14초 안팎. 1회는 `turn_start_unobserved`(입력창 비어 있음, Dispatch `pending`) |
+
+- 원인: Orca 는 codex 를 직접 띄울 때 `--dangerously-bypass-approvals-and-sandbox` 를 기본으로 붙인다(`src/shared/tui-agent-permissions.ts`, 사용자 설정 덮어쓰기 없음). 우리가 띄우면 빠지고, `config.toml` 의 `sandbox = "elevated"` 안에서 `orca` CLI 가 Orca 와 통신하지 못하는 것으로 보인다. `--yolo` 는 같은 인자의 숨은 별칭이다(`--help` 엔 없음, 0.159.3 이 받음).
+- `startup` 결정기: `state: outcome_unknown`/`turnStart: unobserved` → `confirm_delivery`(실패로 단정하지 않고 `dispatch-show` 의 `status` 로 확인, `pending` 이면 기동 실패). 1.4.222 의 최상위 `dispatchId` 도 읽는다.
+- 이 경로는 `launch.effective` 가 비어 온다 — `Reviewed-by` 트레일러의 모델은 명령줄의 `-m` 값.
+
 ## 측정 — agy 준비 감지 실패의 원인은 단독 `agy` 실행 경로다 (2026-10-10, v1.2.2)
 
 - agy 1.3.3 smoke 가 `tui-idle` 3/3 실패. Orca 스트림에 `Antigravity CLI 1.3.3` 머리글은 있는데 `>` 줄과 상태줄이 없었다. 화면에는 둘 다 있다.

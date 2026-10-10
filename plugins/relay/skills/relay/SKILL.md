@@ -201,7 +201,8 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
      | `action` | 할 일 |
      |---|---|
      | `ok` | `dispatch`를 기록하고 5번(전달 확인)으로 |
-     | `lookup_dispatch` | 이 경로에선 보통 이렇다. `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것 |
+     | `lookup_dispatch` | `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것 |
+     | `confirm_delivery` | (`turn_start_unobserved`) 입력은 썼는데 에이전트가 턴을 시작했는지 Orca가 못 봤다. 실패로 단정하지 않고 **전달부터 확인한다** — agy는 5번 로그 확인, codex는 60초 뒤 `dispatch-show`의 `status`. `pending`이면 전달 실패 = 기동 실패다(실측: 입력창이 비어 있었다) — 재전송하지 말고 `worker-retain` 후 (h). `dispatched`/`completed`면 정상 |
      | `wait_tui_idle` | (`agent_unconfigured`) 터미널이 아직 에이전트로 태깅되지 않았다. Task는 멀쩡하다 — `tui-idle`부터 다시 |
      | `new_task` | 기동 실패 1회. **그 Task는 이미 `failed`다.** Task 밖에서 `tui-idle`을 통과시킨 뒤 **새 Task**로 재출발한다(통과하는 터미널이 있으면 그대로 `--terminal`로 재사용해도 된다) |
      | `human` | `startup_budget`(기동 실패 2회), `agent_prompt_blocked`(자동 응답 금지) 등 — (h) |
@@ -249,11 +250,35 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
   알아낼 수 없으면 사람을 부른다. 이 확인은 셸 명령이라 비용이 0이다.
 - 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
 
-- `orca orchestration worker-start --task <id> --worktree id:<구현과 같은 worktree> --agent codex --model <model reviewer 의 model> --effort high --json` — 응답은 구현 워커와 같이 `startup`에 해석시킨다
+- **터미널을 먼저 띄우고 `tui-idle`을 Task 밖에서 통과시킨 뒤 `worker-start --terminal`을 건다.** `worker-start --agent codex`로 한 번에 띄우지 않는다. codex 시작 직후 확인창(`Hooks need review`, update, trust)이 뜨면 Orca가 입력창을 못 알아봐 `agent_readiness` timeout이 나고, **그 한 번으로 리뷰 Task가 `failed`가 된다**(실측: poker-server T-006 — ponytail 플러그인 갱신으로 hook 신뢰 해시가 어긋나 `Hooks need review`가 떴다). 사다리는 구현자 4번과 같다.
+
+  ```bash
+  orca terminal create --worktree id:<wt> --title "T-NNN codex" --command 'codex --yolo -m <model reviewer 의 model> -c model_reasoning_effort=high' --json
+  orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
+  orca orchestration worker-start --task <id> --worktree id:<wt> --terminal <h> --json
+  ```
+
+  - **`tui-idle`이 timeout이면 `worker-start`를 걸지 않는다.** 화면을 받아 `readiness`에 묻는다. 확인창이면 `human / blocked_prompt`가 나온다 — **키 입력으로 응답하지 말고 사람을 부른다.** 특히 `Hooks need review`는 hook 신뢰가 코드 실행 권한이라 사용자만 결정한다.
+
+    ```bash
+    orca terminal read --terminal <h> --screen --json > screen.json
+    python "$RELAY/scripts/relay_cli.py" readiness --agent codex --screen screen.json --retries <이미 다시 건 횟수> [--recreated]
+    ```
+
+    `action` 표는 구현자 4번과 같다(`--agy-log`는 codex에 쓰지 않는다).
+
+    **`human / blocked_prompt` 뒤에는 사람이 처리하고 나서 같은 자리에서 이어간다.** `worker-start`를 아직 걸지 않았으니 Task는 멀쩡하다.
+    1. 사람이 그 터미널에서 직접 응답한다(hook 신뢰는 `config.toml`에 저장되어 플러그인이 다시 갱신되기 전까진 다시 뜨지 않는다).
+    2. 사람이 끝났다고 알리면 **같은 터미널**에 `tui-idle`을 다시 건다. 새 터미널이나 새 Task를 만들지 않는다.
+    3. 통과하면 **같은 Task**로 `worker-start --terminal <h>`를 건다. 다시 timeout이면 `readiness`부터 다시 — 확인창이 연달아 뜰 수 있다.
+  - **`--yolo`(= `--dangerously-bypass-approvals-and-sandbox`)를 빼지 않는다.** `worker-start --agent codex`로 띄울 때 Orca가 기본으로 붙이는 인자다(Orca `tui-agent-permissions.ts`). 직접 띄우면 이 인자가 빠지고, `config.toml`의 샌드박스 안에서 워커의 `orca orchestration send … worker_done`이 응답 없이 멈춘다(실측: 3분 뒤 codex가 스스로 끊고 "can't confirm delivery", Task는 `dispatched`에 남음).
+  - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다(`worker-start --help`). 그래서 모델·effort는 위처럼 **codex 명령줄**로 준다. 이 경로는 응답의 `launch.effective`가 비어 온다 — `model`은 명령줄에 준 값을 기록한다(화면 상태줄에 `<Model> high`로 보인다).
+  - 실측(2026-10-11, codex 0.159.3·Orca 1.4.222, 버리는 Task): `--yolo` 로 5회 — `tui-idle` 7~11초 통과, 4회는 `worker_done`까지 14초 안팎, 1회는 `turn_start_unobserved`로 입력이 유실됐다(아래 `confirm_delivery`). 2026-10-06(Orca 1.4.200)엔 `Hooks need review` 화면에서 `tui-idle` timeout → `readiness --agent codex`가 `human / blocked_prompt`를 돌려줬다.
+  - 응답은 구현 워커와 같이 `startup`에 해석시킨다. `confirm_delivery`면 4번 표대로 `dispatch-show`의 `status`로 전달을 확인한다
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
 - **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. 1번에서 적어둔 커밋 SHA를 그대로 넣는다.
 - 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다** — 실측으로 드리프트가 발생했던 지점이다. `/relay:init --check`로 확인한다.
-- **codex는 `--model`/`--effort`가 정상 전달된다.** 응답의 `launch.effective`(예: `{"agent":"codex","model":"<model>","effort":"high"}`)로 확인하고 `model`을 기록한다 — 리뷰 리포트 커밋의 트레일러에 쓴다.
+- **기록하는 `model`은 codex 명령줄에 준 값이다** — 리뷰 리포트 커밋의 트레일러에 쓴다.
 
 **Git Bash 주의** — `terminal send --text "/clear"` 처럼 `/`로 시작하는 인자는 Git Bash가 `C:/Program Files/Git/clear`로 경로 변환한다. `MSYS_NO_PATHCONV=1`을 앞에 붙인다.
 
@@ -415,7 +440,7 @@ python "$RELAY/scripts/relay_cli.py" review-branch --task T-NNN --worktree <work
 ```
 review(T-NNN): rN <verdict>
 
-Reviewed-by: codex/<리뷰 워커 worker-start 응답의 launch.effective.model>
+Reviewed-by: codex/<리뷰 워커 codex 명령줄에 준 -m 값>
 ```
 
 ### 수정 라운드는 새 Task + 새 Dispatch로 만든다
