@@ -61,8 +61,12 @@ def startup(resp, prior_failures=0):
         return _d("new_task", stage=failed, error=err, task_failed=True)
 
     dispatch = r.get("dispatch") or {}
-    did = dispatch.get("id") if isinstance(dispatch, dict) else None
+    did = (dispatch.get("id") if isinstance(dispatch, dict) else None) or r.get("dispatchId")   # 1.4.222 는 최상위 dispatchId
     model = ((r.get("launch") or {}).get("effective") or {}).get("model")
+    if r.get("state") == "outcome_unknown" or r.get("turnStart") == "unobserved":
+        # 실측(2026-10-11, codex --terminal 5회 중 1회): 입력을 썼다는데 입력창은 비어 있고 Dispatch 는 pending 에 머물렀다.
+        # Orca 말대로 늦게 시작할 수도 있으니 실패로 단정하지 않고 전달부터 확인한다
+        return _d("confirm_delivery", dispatch=did, model=model, reason=r.get("stage") or "turn_start_unobserved")
     if did:
         return _d("ok", dispatch=did, model=model)
     return _d("lookup_dispatch", model=model)

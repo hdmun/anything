@@ -32,6 +32,18 @@ class Startup(unittest.TestCase):
         self.assertEqual(d["stage"], "agent_readiness")
         self.assertTrue(d["task_failed"])
 
+    def test_terminal_path_top_level_dispatch_id(self):
+        # 실측(Orca 1.4.222, codex --terminal): dispatch 객체 대신 최상위 dispatchId 로 온다
+        d = orca.startup(fx("worker-start-terminal-ok.json"))
+        self.assertEqual((d["action"], d["dispatch"]), ("ok", "ctx_3f1768a41745"))
+
+    def test_turn_start_unobserved_needs_delivery_check(self):
+        # 실측: ok:true·dispatchId 가 있어도 입력이 유실됐다 — ok 로 넘기면 빈 대기 30분을 쓴다
+        d = orca.startup(fx("worker-start-turn-unobserved.json"))
+        self.assertEqual(d["action"], "confirm_delivery")
+        self.assertEqual(d["dispatch"], "ctx_47c1c2d81a60")
+        self.assertNotIn("task_failed", d)
+
     def test_second_startup_failure_calls_human(self):
         d = orca.startup(fx("worker-start-readiness-failed.json"), prior_failures=1)
         self.assertEqual((d["action"], d["reason"]), ("human", "startup_budget"))

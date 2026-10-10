@@ -34,6 +34,14 @@ class SkillCallsExistingCommands(unittest.TestCase):
         self.assertIn("--command '%s'" % orca.AGY_LAUNCH_COMMAND, SKILL)
         self.assertNotRegex(SKILL, r"--command\s+['\"]?agy\b")
 
+    def test_codex_terminal_launch_bypasses_sandbox(self):
+        # 회귀: --yolo 없이 직접 띄운 codex 는 샌드박스 안에서 worker_done 보고가 멈춘다 (2026-10-11 실측)
+        launches = re.findall(r"--command\s+'(codex[^']*)'", SKILL)
+        self.assertTrue(launches)
+        for c in launches:
+            self.assertIn("--yolo", c.split())
+        self.assertNotIn("worker-start 응답의 launch.effective.model", SKILL)
+
     def test_severity_table_not_reintroduced(self):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
