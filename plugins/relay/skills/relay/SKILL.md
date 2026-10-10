@@ -167,7 +167,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
    ```
 
    - **`--command`는 `'$null=1; agy'` 그대로 쓴다 — 단독 `agy`로 바꾸지 않는다.** 맨 앞 토큰이 `agy`면 Orca가 시작 명령을 에이전트로 인식해 다른 경로로 띄우는데, 그 경로에선 입력창(`>` 줄)이 Orca가 보는 출력 스트림에 남지 않아 화면은 멀쩡해도 `tui-idle`이 영영 통과하지 못한다. 앞의 문장은 아무 일도 하지 않는 PowerShell 문장으로, 일반 셸 명령으로 실행되게 할 뿐이다. 작은따옴표는 bash가 `$null`을 펼치지 않게 하려는 것이다. 정본: `scripts/relaylib/orca.py`의 `AGY_LAUNCH_COMMAND`.
-     실측(2026-10-10, Orca 1.4.216): 단독 `agy` — 1.3.3 11/11 실패, 1.2.17 간헐 실패. 위 명령 — 1.2.17·1.3.3 7/7 통과(2~3초), `worker-start --terminal` 연결과 `worker_done`까지 정상.
+     실측(2026-10-10, Orca 1.4.222): 단독 `agy` — 1.3.3 11/11 실패, 1.2.17 간헐 실패. 위 명령 — 1.2.17·1.3.3 7/7 통과(2~3초), `worker-start --terminal` 연결과 `worker_done`까지 정상.
    - **이유**: agy는 입력창이 준비되기 전에 들어온 입력을 **조용히 버린다.** Orca는 antigravity의 전달 여부를 관측하지 못해(`provider: unsupported`) 경고도 없다.
      실측(poker-server T-004): `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다 — 2회 연속.
    - `tui-idle`을 건너뛰고 바로 `worker-start --terminal`을 걸면 `agent_unconfigured`로 거부된다. Orca가 터미널에 `agentIdentity: antigravity`를 태깅하기 전이기 때문이다.
