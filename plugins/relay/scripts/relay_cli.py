@@ -12,7 +12,8 @@
   python relay_cli.py startup --response <file|-> [--prior-failures N]  (결정기)
   python relay_cli.py readiness --agent antigravity|codex --screen <file> [--agy-log <file>] --retries N [--recreated]   (결정기)
   python relay_cli.py liveness --worker <file> [--terminal <file>] --role implementer|reviewer [--now <ms>]   (결정기)
-  python relay_cli.py model reviewer [--config <file>]                  (결정기)
+  python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
+  python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
   python relay_cli.py smoke --dir <trusted dir> [--agent antigravity|codex|all]   (검사기 — 실제 CLI 리허설, 수동)
@@ -31,7 +32,7 @@ import sys
 
 import time
 
-from relaylib import doctor, orca, review, roles, smoke, trust
+from relaylib import doctor, models, orca, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -174,7 +175,13 @@ def cmd_readiness(a):
     if a.agent == "antigravity" and a.command is None:
         raise InputError("antigravity 는 --command(terminal create 에 준 --command 값)가 필요하다 — 단독 agy 면 기다려도 안 풀린다")
     log = pathlib.Path(a.agy_log).read_text(encoding="utf-8", errors="replace") if a.agy_log else None
-    return _emit(orca.readiness(screen, a.agent, a.retries, log=log, recreated=a.recreated, command=a.command))
+    launch = None
+    if a.agent == "antigravity":
+        cfg, _used = _models_cfg(a)
+        r = models.resolve("implementer", cfg)
+        launch = orca.agy_launch_command(r["model"], r["effort"])
+    return _emit(orca.readiness(screen, a.agent, a.retries, log=log, recreated=a.recreated, command=a.command,
+                                launch_command=launch))
 
 
 def cmd_liveness(a):
@@ -188,9 +195,41 @@ def cmd_liveness(a):
     return _emit(orca.liveness(worker, term, a.role, now))
 
 
+def _models_cfg(a):
+    try:
+        return models.load_all(repo=a.repo, user_path=a.user_config)
+    except models.ModelsError as e:
+        raise InputError(str(e))
+
+
+def _agy_models_text():
+    rc, out = _run(["agy", "models"], timeout=60)
+    return out if rc == 0 else None
+
+
+def _decide_model(role, cfg, codex_config=None):
+    if role == "reviewer":
+        path = pathlib.Path(codex_config) if codex_config else pathlib.Path.home() / ".codex" / "config.toml"
+        return orca.reviewer_model(path.read_text(encoding="utf-8"), cfg)
+    if role == "implementer":
+        return orca.implementer_model(cfg, _agy_models_text())
+    return orca.session_model(role, cfg)
+
+
 def cmd_model(a):
-    path = pathlib.Path(a.config) if a.config else pathlib.Path.home() / ".codex" / "config.toml"
-    return _emit(orca.reviewer_model(path.read_text(encoding="utf-8")))
+    cfg, _used = _models_cfg(a)
+    return _emit(_decide_model(a.role, cfg, a.config))
+
+
+def cmd_models(a):
+    cfg, used = _models_cfg(a)
+    out = {"files": used}
+    for role in models.ROLES:
+        try:
+            out[role] = _decide_model(role, cfg)
+        except OSError as e:     # codex config.toml 이 없는 등 — 한 역할이 막아도 나머지는 보여 준다
+            out[role] = {"action": "human", "reason": "unreadable", "detail": str(e)}
+    return _emit(out)
 
 
 AGY_LOG_DIR = pathlib.Path.home() / ".gemini" / "antigravity-cli" / "log"
@@ -243,7 +282,14 @@ def cmd_doctor(a):
     codex_cfg = pathlib.Path.home() / ".codex" / "config.toml"
     agy = trust.DEFAULT_SETTINGS
     settings = trust.load(agy) if agy.exists() else None
+    models_error, models_cfg, models_files = None, {}, []
+    try:
+        models_cfg, models_files = models.load_all(repo=a.repo, user_path=a.user_config)
+    except models.ModelsError as e:
+        models_error = str(e)
     facts = {
+        "models_error": models_error, "models_cfg": models_cfg, "models_files": models_files,
+        "agy_models": _agy_models_text() if models_files else None,
         "codex_config": codex_cfg.read_text(encoding="utf-8") if codex_cfg.exists() else None,
         "versions": {k: _cli_version(k) for k in doctor.AGENTS},
         "verified": _verified(),
@@ -279,13 +325,24 @@ def cmd_warmup(a):
 
 def cmd_smoke(a):
     agents = ("antigravity", "codex") if a.agent == "all" else (a.agent,)
+    cfg, _used = _models_cfg(a)
+    impl = models.resolve("implementer", cfg)
+    cmds = {"antigravity": orca.agy_launch_command(impl["model"], impl["effort"])}   # 설정이 있으면 그 model·effort 로 리허설한다
+    rev = _decide_model("reviewer", cfg)
+    if rev["action"] == "launch":
+        cmds["codex"] = orca.codex_launch_command(rev["model"], rev["effort"])
     results = [smoke.run_agent(ag, a.dir.replace("\\", "/"), lambda argv: _run(argv, timeout=180),
-                               read_log=_newest_agy_log, version=_cli_version(ag)) for ag in agents]
+                               read_log=_newest_agy_log, version=_cli_version(ag), command=cmds.get(ag)) for ag in agents]
     verified = _verified()
     for r in results:
         r["verified"] = r["version"] in verified.get(r["agent"], [])
         print(json.dumps(r, ensure_ascii=False))
     return 0 if all(r["passed"] for r in results) else 1
+
+
+def _add_models_args(p):
+    p.add_argument("--repo", default=".", help="저장소별 설정(.ai/relay-models.json)을 찾을 저장소. 기본: 현재 디렉터리")
+    p.add_argument("--user-config", help="사용자 전역 설정. 기본: ~/.relay/models.json")
 
 
 def build_parser():
@@ -341,6 +398,7 @@ def build_parser():
     rd.add_argument("--retries", type=int, required=True, help="이미 다시 건 tui-idle 횟수")
     rd.add_argument("--recreated", action="store_true", help="이미 한 번 재생성했다")
     rd.add_argument("--command", help="terminal create 에 준 --command 값 (antigravity 필수)")
+    _add_models_args(rd)
     rd.set_defaults(func=cmd_readiness)
 
     lv = sub.add_parser("liveness", help="빈 대기 3회 뒤 무응답 판정")
@@ -350,14 +408,20 @@ def build_parser():
     lv.add_argument("--now", type=int, help="epoch ms (테스트용)")
     lv.set_defaults(func=cmd_liveness)
 
-    m = sub.add_parser("model", help="역할별 모델 (모델 계열 → 실제 인자)")
-    m.add_argument("role", choices=("reviewer",))
-    m.add_argument("--config", help="기본: ~/.codex/config.toml")
+    m = sub.add_parser("model", help="역할별 모델·effort (설정 파일 → 실제 인자)")
+    m.add_argument("role", choices=models.ROLES)
+    m.add_argument("--config", help="reviewer 의 codex 설정. 기본: ~/.codex/config.toml")
+    _add_models_args(m)
     m.set_defaults(func=cmd_model)
+
+    ms = sub.add_parser("models", help="4역할의 model·effort 를 한 번에")
+    _add_models_args(ms)
+    ms.set_defaults(func=cmd_models)
 
     dr = sub.add_parser("doctor", help="머신 점검: codex 설정·CLI 버전·trust·agy 권한")
     dr.add_argument("--fix", action="store_true", help="relay 워크트리 루트 아래 죽은 trust 항목만 정리")
     dr.add_argument("--json", action="store_true")
+    _add_models_args(dr)
     dr.set_defaults(func=cmd_doctor)
 
     w = sub.add_parser("warmup", help="에이전트 CLI 업데이트를 Task 밖에서 끝낸다")
@@ -367,6 +431,7 @@ def build_parser():
     sm = sub.add_parser("smoke", help="Task 없이 실제 기동·전달 확인 (수동)")
     sm.add_argument("--dir", required=True, help="agy trustedWorkspaces 에 등록된 디렉터리")
     sm.add_argument("--agent", default="all", choices=("antigravity", "codex", "all"))
+    _add_models_args(sm)
     sm.set_defaults(func=cmd_smoke)
     return ap
 

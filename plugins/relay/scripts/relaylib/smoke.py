@@ -38,11 +38,11 @@ def run_agent(agent, workdir, run, read_log, sleep=time.sleep, version=None, att
     return r
 
 
-def _attempt(agent, workdir, run, read_log, sleep, version,
+def _attempt(agent, workdir, run, read_log, sleep, version, command=None,
              idle_timeout_ms=60_000, delivery_timeout_s=60, poll_s=3):
     """agent: antigravity | codex. run(argv)->(rc, stdout). read_log()->agy 최신 로그 내용."""
-    command = orca.AGY_LAUNCH_COMMAND if agent == "antigravity" else "codex"
-    result = {"agent": agent, "version": version, "passed": False, "failed_at": None}
+    command = command or (orca.AGY_LAUNCH_COMMAND if agent == "antigravity" else "codex")   # 설정 파일의 model·effort 를 실은 명령도 리허설한다
+    result = {"agent": agent, "version": version, "command": command, "passed": False, "failed_at": None}
     rc, out = run(["orca", "terminal", "create", "--worktree", "path:" + workdir,
                    "--title", "relay-smoke " + agent, "--command", command, "--json"])
     handle = ((_json(out).get("result") or {}).get("terminal") or {}).get("handle")

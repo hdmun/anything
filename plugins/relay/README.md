@@ -190,7 +190,36 @@ for r in ~/repo/*/; do
 done
 ```
 
-**모델 버전은 적지 않는다.** 역할에는 계열(Opus, Sonnet, codex·agy 기본 모델)만 배정하고, 실제 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)로 남는다. 새 모델이 나와도 고칠 곳이 없다.
+**모델 버전은 플러그인에 적지 않는다.** 기본값은 계열(Opus, Sonnet, agy 기본 모델)이고, 실제 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)로 남는다. 새 모델이 나와도 플러그인을 고칠 필요가 없다.
+
+## 모델·effort 설정
+
+역할별 model·effort 는 설정 파일로 정한다. 파일은 둘이고 필드 단위로 겹친다(저장소 파일이 사용자 파일을 덮는다). 둘 다 없으면 기본 동작이다.
+
+| 파일 | 용도 |
+|---|---|
+| `~/.relay/models.json` | 사용자 전역 — 계정·쿼터에 따른 개인 선호 |
+| `<저장소>/.ai/relay-models.json` | 저장소별 — 팀 통일, 또는 이 저장소만 다르게 |
+
+```json
+{
+  "designer":    { "model": "opus",   "effort": "high" },
+  "coordinator": { "model": "sonnet", "effort": "medium" },
+  "implementer": { "model": "gemini-3.8-flash", "effort": "low" },
+  "reviewer":    { "model": "gpt-6-luna", "effort": "high" }
+}
+```
+
+| 역할 | 적용 방식 | 생략하면 |
+|---|---|---|
+| designer · coordinator | 강제하지 못한다. `relay_cli.py model <역할>` 이 `claude --model … --effort …` 를 알려 주고, 진행 세션이 현재 세션과 다르면 사용자에게 안내한다 | 사용자가 고른 세션 그대로 |
+| implementer (agy) | `agy --model … --effort …` 로 기동 | agy 기본 모델 |
+| reviewer (codex) | `codex --yolo -m … -c model_reasoning_effort=…` 로 기동 | `model` 은 **필수**(없으면 기동 거부), `effort` 는 `high` |
+
+- **리뷰어 모델은 codex 의 `~/.codex/config.toml` 과 분리돼 있다.** `config.toml` 의 `model`(평소 용도)은 읽지 않고, 사전 조건 키(`check_for_update_on_startup`, `tui.terminal_title`)만 확인한다.
+- 구현자 `model` 은 `agy models` 의 기본 이름(`gemini-3.8-flash`)이다. `gemini-3.8-flash-low` 처럼 effort 가 이름에 든 모델에 `effort` 를 같이 주면 agy 가 거부하므로 doctor 와 결정기가 미리 막는다.
+- 모르는 역할·필드, 허용 문자(영문·숫자·`._:/-`) 밖의 model 값, 역할별 허용 목록 밖의 effort 는 거부한다. 값이 셸 명령줄에 들어가기 때문이다.
+- 확인: `python scripts/relay_cli.py models` (4역할 한눈에) / `python scripts/relay_cli.py doctor` (`models` 줄).
 
 ## 알려진 한계
 

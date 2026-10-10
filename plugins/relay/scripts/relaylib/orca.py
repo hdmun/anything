@@ -6,6 +6,8 @@
 """
 import re
 
+from relaylib import models
+
 try:
     import tomllib
 except ImportError:  # pragma: no cover — Python < 3.11
@@ -32,6 +34,21 @@ AGY_SIGNED_IN = "OAuth: authenticated successfully"
 # (1.3.3: 11/11 실패, 1.2.17: 간헐 실패). 아무 일도 안 하는 PowerShell 문장을 앞에 두면 일반 셸 명령으로 실행되어
 # 1.2.17·1.3.3 모두 7/7 통과, worker-start --terminal 도 정상 연결됐다 (2026-10-10, Orca 1.4.222). Orca 터미널 셸이 PowerShell 이라는 전제다.
 AGY_LAUNCH_COMMAND = "$null=1; agy"
+
+
+def agy_launch_command(model=None, effort=None):
+    """AGY_LAUNCH_COMMAND 뒤에 설정 파일의 model·effort 를 붙인다. 값은 models.check_value 를 통과한 것만 받는다.
+
+    앞의 `$null=1;` 는 그대로 둔다 — 뒤에 인자가 붙어도 맨 앞 토큰은 `$null=1;` 라 Orca 가 에이전트 시작 경로로 가로채지 않는다.
+    """
+    cmd = AGY_LAUNCH_COMMAND
+    if model:
+        models.check_value("implementer", "model", model)
+        cmd += " --model " + model
+    if effort:
+        models.check_value("implementer", "effort", effort)
+        cmd += " --effort " + effort
+    return cmd
 
 
 def _d(action, **kw):
@@ -93,8 +110,12 @@ def is_bare_agy(command):
     return first in ("agy", "agy.exe") or first.endswith(("\\agy", "/agy", "\\agy.exe", "/agy.exe"))
 
 
-def readiness(screen, agent, retries, log=None, recreated=False, command=None):
-    """tui-idle timeout 이후의 사다리. retries 는 이미 다시 건 tui-idle 횟수, command 는 terminal create --command 값."""
+def readiness(screen, agent, retries, log=None, recreated=False, command=None, launch_command=None):
+    """tui-idle timeout 이후의 사다리. retries 는 이미 다시 건 tui-idle 횟수, command 는 terminal create --command 값.
+
+    launch_command 는 재생성할 때 권하는 명령(설정 파일의 model·effort 를 반영). 없으면 AGY_LAUNCH_COMMAND.
+    """
+    launch_command = launch_command or AGY_LAUNCH_COMMAND
     tail = _tail(screen)
     if BLOCKED_RE.search("\n".join(tail)):
         return _d("human", reason="blocked_prompt")
@@ -103,8 +124,8 @@ def readiness(screen, agent, retries, log=None, recreated=False, command=None):
     if agent == "antigravity" and is_bare_agy(command):
         # 기다려도 풀리지 않는다(실측 T-007: 9회 연속 timeout) — 재시도 없이 올바른 명령으로 다시 만든다
         if recreated:
-            return _d("human", reason="bare_launch_command", launch_command=AGY_LAUNCH_COMMAND)
-        return _d("recreate_terminal", reason="bare_launch_command", launch_command=AGY_LAUNCH_COMMAND)
+            return _d("human", reason="bare_launch_command", launch_command=launch_command)
+        return _d("recreate_terminal", reason="bare_launch_command", launch_command=launch_command)
     if retries < TUI_IDLE_RETRIES:
         return _d("retry_tui_idle", wait_seconds=TUI_IDLE_RETRY_SECONDS, attempt=retries + 1)
     if not _has_prompt(tail, agent):
@@ -134,8 +155,12 @@ def liveness(worker, terminal, role, now_ms):
     return _d("wait", silent_ms=now_ms - last)
 
 
-def reviewer_model(config_text):
-    """~/.codex/config.toml → 리뷰 워커 기동 인자. 모델은 codex 기본 모델을 따른다 (모델 계열)."""
+def reviewer_model(config_text, cfg=None):
+    """리뷰 워커(codex) 기동 인자. model·effort 는 relay 설정 파일(cfg, models.load_all 결과)에서만 온다.
+
+    codex 의 config.toml 은 사전 조건 키(Orca 가 codex 준비를 감지하는 데 쓴다)만 확인하고, 그 안의 model 은 쓰지 않는다 —
+    codex 를 평소 용도로 쓰는 모델과 리뷰어 모델을 따로 관리하기 위해서다 (ADR 0002).
+    """
     if tomllib is None:
         raise ValueError("Python 3.11+ 가 필요하다 (tomllib)")
     c = tomllib.loads(config_text)
@@ -146,6 +171,37 @@ def reviewer_model(config_text):
         missing.append("tui.terminal_title 에 app-name")
     if missing:
         return _d("human", reason="codex_prereq_missing", missing=missing)
-    if not c.get("model"):
-        return _d("human", reason="codex_model_unset")
-    return _d("launch", agent="codex", model=c["model"], effort="high")
+    r = models.resolve("reviewer", cfg or {})
+    if not r["model"]:
+        return _d("human", reason="reviewer_model_unset")
+    return _d("launch", agent="codex", model=r["model"], effort=r["effort"])
+
+
+def codex_launch_command(model, effort):
+    """리뷰 워커를 터미널로 먼저 띄우는 명령 (SKILL 의 codex 절차와 같다). --yolo 를 빼면 worker_done 보고가 멈춘다 (2026-10-11 실측)."""
+    models.check_value("reviewer", "model", model)
+    models.check_value("reviewer", "effort", effort)
+    return "codex --yolo -m %s -c model_reasoning_effort=%s" % (model, effort)
+
+
+def implementer_model(cfg=None, agy_models_text=None):
+    """구현 워커(agy) 기동 인자. model 이 없으면 agy 기본 모델 — 명령에 --model 을 붙이지 않는다.
+
+    agy_models_text(agy models 출력)를 주면 agy 가 실행 즉시 거부할 조합(없는 모델, 레벨이 이름에 든 모델 + effort)을 미리 잡는다.
+    """
+    r = models.resolve("implementer", cfg or {})
+    if agy_models_text is not None:
+        status, detail, _fix = models.check_agy(r["model"], r["effort"], agy_models_text)
+        if status == "fail":
+            return _d("human", reason="agy_model_invalid", detail=detail)
+    return _d("launch", agent="antigravity", model=r["model"], effort=r["effort"],
+              launch_command=agy_launch_command(r["model"], r["effort"]),
+              source="relay_models" if r["configured"] else "agy_default")
+
+
+def session_model(role, cfg=None):
+    """설계자·진행자(Claude 세션). 플러그인이 /model 을 대신 칠 수 없어 사람·진행자가 따를 명령만 돌려준다."""
+    r = models.resolve(role, cfg or {})
+    return _d("session", role=role, model=r["model"], effort=r["effort"],
+              command=models.session_command(r["model"], r["effort"]),
+              source="relay_models" if r["configured"] else "default")

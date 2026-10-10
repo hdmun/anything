@@ -174,8 +174,37 @@ class OrcaCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             c = pathlib.Path(d) / "config.toml"
             c.write_text('model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n[tui]\nterminal_title = ["app-name"]\n', encoding="utf-8")
-            r = cli("model", "reviewer", "--config", str(c))
-            self.assertEqual(json.loads(r.stdout)["model"], "gpt-6-luna")
+            none = str(pathlib.Path(d) / "no-user.json")
+            r = cli("model", "reviewer", "--config", str(c), "--repo", d, "--user-config", none)
+            out = json.loads(r.stdout)
+            self.assertEqual((out["action"], out["reason"]), ("human", "reviewer_model_unset"))   # config.toml 의 model 은 쓰지 않는다
+
+    def test_model_reviewer_cli_reads_both_layers(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            c = d / "config.toml"
+            c.write_text('model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n[tui]\nterminal_title = ["app-name"]\n', encoding="utf-8")
+            u = d / "user.json"
+            u.write_text(json.dumps({"reviewer": {"model": "gpt-9", "effort": "low"}}), encoding="utf-8")
+            (d / ".ai").mkdir()
+            (d / ".ai" / "relay-models.json").write_text(json.dumps({"reviewer": {"effort": "xhigh"}}), encoding="utf-8")
+            out = json.loads(cli("model", "reviewer", "--config", str(c), "--repo", str(d), "--user-config", str(u)).stdout)
+            self.assertEqual((out["model"], out["effort"]), ("gpt-9", "xhigh"))
+
+    def test_model_bad_file_exits_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            u = pathlib.Path(d) / "user.json"
+            u.write_text(json.dumps({"coordinator": {"model": "a b"}}), encoding="utf-8")
+            r = cli("model", "coordinator", "--repo", d, "--user-config", str(u))
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("user.json", r.stderr.decode("utf-8"))
+
+    def test_model_session_role(self):
+        with tempfile.TemporaryDirectory() as d:
+            u = pathlib.Path(d) / "user.json"
+            u.write_text(json.dumps({"designer": {"model": "opus", "effort": "max"}}), encoding="utf-8")
+            out = json.loads(cli("model", "designer", "--repo", d, "--user-config", str(u)).stdout)
+            self.assertEqual(out["command"], "claude --model opus --effort max")
 
 
 class ValidateCli(unittest.TestCase):
