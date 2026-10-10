@@ -56,6 +56,19 @@ def _trust(settings, root, exists):
                   "relay_cli.py doctor --fix (relay 워크트리 루트 아래만 지운다)")
 
 
+def _vtuple(v):
+    return tuple(int(x) for x in _VERSION_RE.search(v).group(1).split(".")) if v and _VERSION_RE.search(v) else (0,)
+
+
+def _plugin(running, installed):
+    """세션이 읽고 있는 플러그인 사본이 설치본보다 낡았는가 (실측 T-007: 1.2.3 설치 뒤에도 세션은 1.2.0 절차로 진행)."""
+    newer = sorted({v for v in installed if _vtuple(v) > _vtuple(running)}, key=_vtuple)
+    if not newer:
+        return _check("plugin", "ok", "relay v%s (설치본과 같거나 최신)" % running)
+    return _check("plugin", "fail", "이 세션은 relay v%s 를 읽고 있는데 v%s 가 설치되어 있다 — 낡은 절차로 진행하게 된다" % (running, newer[-1]),
+                  "/reload-plugins 또는 세션을 다시 시작한 뒤 (c)0 부터 다시")
+
+
 def _agy_permissions(settings):
     allow = ((settings or {}).get("permissions") or {}).get("allow") or []
     risky = [p for p in allow if p in ("command(git commit)", "command(powershell)")]
@@ -73,6 +86,8 @@ def evaluate(f):
         checks.append(_version(agent, (f.get("versions") or {}).get(agent), f.get("verified") or {}))
     checks.append(_trust(f.get("agy_settings"), f.get("trust_root", str(trust.DEFAULT_ROOT)), f.get("exists")))
     checks.append(_agy_permissions(f.get("agy_settings")))
+    if "plugin_version" in f:
+        checks.append(_plugin(f.get("plugin_version"), f.get("installed_versions") or []))
     return checks
 
 

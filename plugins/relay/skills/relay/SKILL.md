@@ -104,6 +104,7 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
    **그리고 머신을 점검한다** — `python "$RELAY/scripts/relay_cli.py" doctor`. 셸 명령이라 비용이 0이다.
    - `FAIL`(종료코드 1)이면 시작하지 않는다. 출력의 `→` 줄(고치는 방법)을 사용자에게 전한다.
+   - 특히 `FAIL plugin`은 **이 세션이 읽은 SKILL.md가 설치본보다 낡았다**는 뜻이다. 낡은 절차로 진행하면 이미 고친 문제를 다시 밟는다(실측 T-007: 1.2.3 설치 뒤에도 1.2.0 절차의 단독 `agy`로 띄워 9회 연속 timeout). 사용자에게 `/reload-plugins`나 세션 재시작을 요청하고 멈춘다.
    - `WARN version:*`(미검증 버전)이면 사용자에게 알리고 `relay_cli.py smoke --dir <trust 등록된 디렉터리>`를 권한다. smoke가 실패한 CLI로는 그 역할의 워커를 띄우지 않는다.
    - 그 밖의 `WARN`은 보고만 하고 진행한다.
 1. `orca orchestration run-use --id <run_id> --json`
@@ -177,14 +178,14 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
      ```bash
      orca terminal read --terminal <h> --screen --json > screen.json
      python "$RELAY/scripts/relay_cli.py" readiness --agent antigravity --screen screen.json \
-       --agy-log "$(ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1)" --retries <이미 다시 건 횟수> [--recreated]
+       --agy-log "$(ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1)" --retries <이미 다시 건 횟수> [--recreated]        --command '<terminal create 에 실제로 준 --command 값>'
      ```
 
      | `action` | 할 일 |
      |---|---|
      | `retry_tui_idle` | `wait_seconds`(30초) 뒤 `tui-idle`을 다시 건다. 다시 timeout이면 `--retries`를 1 올려 또 묻는다 |
-     | `recreate_terminal` | 화면엔 입력창이 있는데 Orca가 못 알아본다. 먼저 `--command`가 `AGY_LAUNCH_COMMAND`와 같은지 확인하고, 같으면 터미널을 닫고 새로 만든 뒤 `--recreated`를 붙여 같은 사다리를 다시 탄다 |
-     | `human` | `reason`과 함께 사람 호출: `blocked_prompt`(trust·update·permission — 자동 응답 금지), `not_signed_in`(로그에 로그인 기록 없음), `no_prompt`(입력창이 아직 없다), `recreate_failed`(재생성도 실패) |
+     | `recreate_terminal` | 터미널을 닫고 새로 만든 뒤 `--recreated`를 붙여 같은 사다리를 다시 탄다. `reason: bare_launch_command`면 단독 `agy`로 띄운 것이다 — 기다려도 풀리지 않으므로 재시도 없이 바로 나온다. 새 터미널은 결정의 `launch_command` 값을 `--command`로 쓴다 |
+     | `human` | `reason`과 함께 사람 호출: `blocked_prompt`(trust·update·permission — 자동 응답 금지), `not_signed_in`(로그에 로그인 기록 없음), `no_prompt`(입력창이 아직 없다), `recreate_failed`(재생성도 실패), `bare_launch_command`(재생성한 뒤에도 단독 `agy`로 띄웠다) |
 
      사다리(로그인 확인 → 재시도 3회 → 1회 재생성 → 사람)의 정본은 `scripts/relaylib/orca.py`다.
      - **이 사다리는 예비 수단이다.** poker-server T-004·T-005와 2026-10-05 smoke에서 보인 "간헐적·시간대에 몰리는" 준비 감지 실패는 대부분 단독 `agy` 실행 경로 탓이었다(위 `--command` 설명). 시작 명령을 지키면 사다리까지 올 일이 드물다. 그래도 timeout이 나면 사다리대로 하고, 실측으로 기록한다.

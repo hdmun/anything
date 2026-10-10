@@ -80,6 +80,14 @@
 - 바로 아래 10-05 측정의 "시간대 경합" 결론은 이것으로 대체된다. 1.2.x 의 단독 실행은 간헐 실패라 그때의 '연속 실패 뒤 13회 중 12회 통과'와 모순되지 않는다. 1.3.3 에서 상시 실패로 바뀌어 드러났다.
 - 버린 대안: 제목을 `agy` 로 설정 — 로그인 전에 통과할 수 있고, agy 하위 프로세스(MCP, 상태줄)가 제목을 덮어쓴다. `CLOUD_SHELL=true` — 통과하지만 agy 의 다른 동작(IDE 종류·인증)에 영향을 줄 수 있다.
 
+## 사고 — T-007 이 1.2.3 설치 뒤에도 1.2.0 절차로 진행 (2026-10-10, v1.2.4)
+
+- poker-server T-007 진행 세션이 `--command agy`(단독)로 띄워 tui-idle 9회 연속 timeout → 사다리 끝까지 가서 사람 호출.
+  세션 transcript 의 스킬 경로가 `relay/1.2.0` — 설치본(1.2.3)이 아니라 세션 시작 때 읽은 낡은 SKILL.md 로 진행했다.
+- 보고된 cp949 `UnicodeDecodeError` 는 세션이 즉석으로 쓴 `python -c "json.load(open(...))"` 에서 났다. `relay_cli readiness` 는 같은 파일을 utf-8 로 읽어 정상 판정했다.
+- 조치: doctor `plugin` 검사(세션이 읽는 사본 < 설치본이면 FAIL), `readiness --command`(단독 agy 면 재시도 없이 `recreate_terminal / bare_launch_command`), 회귀 테스트 8개.
+- tui-idle 을 건너뛰고 `worker-start --terminal` 을 거는 우회는 불가: `worker-start` 가 안에서 같은 준비 대기를 하고 실패하면 Task 가 `failed` 가 된다. `dispatch --inject` 는 감독(worker-list projection·worker-read·worker-release)을 잃는다 — SKILL (d) 서두에 이미 적혀 있다.
+
 ## 측정 — (대체됨) agy 준비 감지 실패는 버전이 아니라 시간대에 몰리는 경합이다 (2026-10-04~05)
 
 - 처음엔 agy 1.2.16 smoke 가 `tui-idle` 3/3 실패해 버전 문제로 보였다. 이어서 **1.2.14(.old 실행 파일)도 3/3 실패**, 워크트리에서도 실패 — 연속 8회.

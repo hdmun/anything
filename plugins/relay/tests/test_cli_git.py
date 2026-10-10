@@ -129,8 +129,29 @@ class OrcaCli(unittest.TestCase):
             log = pathlib.Path(d) / "cli.log"
             log.write_text("OAuth: authenticated successfully as x\n", encoding="utf-8")
             r = cli("readiness", "--agent", "antigravity", "--screen", str(self.FIX / "agy-screen-misordered.txt"),
-                    "--agy-log", str(log), "--retries", "3")
+                    "--agy-log", str(log), "--retries", "3", "--command", "$null=1; agy")
             self.assertEqual(json.loads(r.stdout)["action"], "recreate_terminal")
+
+    def test_readiness_agy_requires_command(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = pathlib.Path(d) / "cli.log"
+            log.write_text("OAuth: authenticated successfully as x\n", encoding="utf-8")
+            r = cli("readiness", "--agent", "antigravity", "--screen", str(self.FIX / "agy-screen-misordered.txt"),
+                    "--agy-log", str(log), "--retries", "0")
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("--command", r.stderr.decode("utf-8"))
+
+    def test_readiness_reads_box_drawing_json_as_utf8(self):
+        # T-007 보고: 박스 문자가 든 screen.json 을 cp949 로 읽는가 → relay_cli 는 utf-8 로 읽는다
+        tail = ["▄▀▀▄  Antigravity CLI 1.3.3", "─" * 10, ">", "─" * 10, "Gemini 3.8 Flash (Medium) │ Idle"]
+        with tempfile.TemporaryDirectory() as d:
+            p = pathlib.Path(d) / "screen.json"
+            p.write_text(json.dumps({"ok": True, "result": {"terminal": {"tail": tail}}}, ensure_ascii=False), encoding="utf-8")
+            env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING")}
+            r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "readiness", "--agent", "codex",
+                                "--screen", str(p), "--retries", "0"], capture_output=True, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+            self.assertNotIn(b"UnicodeDecodeError", r.stderr)
 
     def test_readiness_accepts_orca_json_screen(self):
         # orca terminal read --screen --json 출력을 그대로 넘겨도 된다

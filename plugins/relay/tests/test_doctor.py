@@ -71,6 +71,20 @@ class Doctor(unittest.TestCase):
         self.assertIn("git commit", c["detail"])
         self.assertIn("powershell", c["detail"])
 
+    def test_stale_session_plugin_fails(self):
+        # 실측(T-007): 1.2.3 이 설치된 뒤에도 세션은 1.2.0 절차(단독 agy)로 진행했다
+        checks = doctor.evaluate(facts(plugin_version="1.2.0", installed_versions=["1.2.3", "1.2.10"]))
+        c = by_name(checks)["plugin"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("1.2.10", c["detail"])
+        self.assertIn("reload-plugins", c["fix"])
+        self.assertEqual(doctor.exit_code(checks), 1)
+
+    def test_current_or_newer_session_plugin_is_ok(self):
+        for installed in (["1.2.3"], ["1.2.2"], []):
+            c = by_name(doctor.evaluate(facts(plugin_version="1.2.3", installed_versions=installed)))["plugin"]
+            self.assertEqual(c["status"], "ok", installed)
+
     def test_verified_file_has_known_agents(self):
         v = json.loads(doctor.VERIFIED_PATH.read_text(encoding="utf-8"))
         self.assertTrue(str(doctor.VERIFIED_PATH).startswith(str(PLUGIN_ROOT)))
