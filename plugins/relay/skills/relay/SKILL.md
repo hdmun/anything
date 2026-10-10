@@ -22,11 +22,29 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 | 설계자 | Claude Code | Opus (`/model opus`) / high | 코디네이터 자신 (워커 아님) |
 | 진행자 | Claude Code | Sonnet (`/model sonnet`) / medium | Run에 재바인딩, 태스크당 세션 폐기 |
 | 구현자 | agy (Antigravity CLI) | agy 기본 모델 — (d) 참조 | supervised worker |
-| 리뷰어 | codex | codex 기본 모델(`~/.codex/config.toml`의 `model`) / high | supervised worker |
+| 리뷰어 | codex | 모델 설정 파일의 `reviewer.model` (필수) / high | supervised worker |
 
-**이 스킬은 모델 버전을 적지 않는다.** 역할에는 **모델 계열**만 배정하고(용어는 `CONTEXT.md`), 실제로 쓰인 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)에 사후로 남긴다.
-Claude 세션은 별칭(`opus`/`sonnet`)이 최신을 따라가고, codex는 업그레이드 때 바꾸는 기본 모델을 따라간다 — 새 모델이 나와도 이 파일을 고칠 필요가 없다.
-단, codex 기본 모델을 평소 용도로 낮추면 리뷰어도 함께 낮아진다.
+**이 스킬은 모델 버전을 적지 않는다.** 위 표는 **기본값**(모델 계열)이고, 사용자가 정하는 값은 설정 파일에 있다. 실제로 쓰인 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)에 사후로 남긴다.
+
+**모델·effort 설정 파일** — 두 파일을 필드 단위로 겹친다(뒤가 앞을 덮는다). 둘 다 없으면 위 표대로 동작한다.
+
+| 순서 | 파일 | 용도 |
+|---|---|---|
+| 1 | `~/.relay/models.json` | 사용자 전역 — 계정·쿼터에 따른 개인 선호 |
+| 2 | `<저장소>/.ai/relay-models.json` | 저장소별 — 팀 통일 또는 이 저장소만 다르게 |
+
+```json
+{ "designer":    { "model": "opus",   "effort": "high" },
+  "coordinator": { "model": "sonnet", "effort": "medium" },
+  "implementer": { "model": "gemini-3.8-flash", "effort": "low" },
+  "reviewer":    { "effort": "high" } }
+```
+
+- 역할은 `designer`·`coordinator`·`implementer`·`reviewer`. 필드는 `model`·`effort`, 둘 다 생략할 수 있다(생략 = 기본 동작).
+- **지금 어떤 값이 적용되는지는 `relay_cli.py models`에 묻는다.** 역할별 `model <역할>` 결정기가 기동에 쓸 값을 돌려준다. 이 문서에서 우선순위를 다시 계산하지 않는다.
+- 설계자·진행자는 Claude 세션이라 플러그인이 모델을 바꿀 수 없다. 결정기가 `command`(예: `claude --model opus --effort high`)를 알려 주면 **사용자에게 전하는 것까지**가 일이다.
+- 구현자의 `model`은 `agy models`의 기본 이름(예: `gemini-3.8-flash`)이고 effort는 따로 준다. `gemini-3.8-flash-low`처럼 effort가 이름에 든 모델에 `effort`를 함께 주면 agy가 거부한다 — 결정기가 `human / agy_model_invalid`로 미리 막는다.
+- **리뷰어의 `model`은 기본값이 없다.** 설정 파일에 없으면 `human / reviewer_model_unset`이다. `~/.codex/config.toml`의 `model`(평소 용도)은 리뷰어 모델로 쓰지 않는다 — codex를 평소에 어떤 모델로 쓰든 리뷰어는 설정 파일 값으로 뜬다. `config.toml`은 사전 조건 키(아래 리뷰 워커 절)만 본다.
 
 ## 왜 세션을 둘로 나누는가
 
@@ -106,7 +124,10 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
    - `FAIL`(종료코드 1)이면 시작하지 않는다. 출력의 `→` 줄(고치는 방법)을 사용자에게 전한다.
    - 특히 `FAIL plugin`은 **이 세션이 읽은 SKILL.md가 설치본보다 낡았다**는 뜻이다. 낡은 절차로 진행하면 이미 고친 문제를 다시 밟는다(실측 T-007: 1.2.3 설치 뒤에도 1.2.0 절차의 단독 `agy`로 띄워 9회 연속 timeout). 사용자에게 `/reload-plugins`나 세션 재시작을 요청하고 멈춘다.
    - `WARN version:*`(미검증 버전)이면 사용자에게 알리고 `relay_cli.py smoke --dir <trust 등록된 디렉터리>`를 권한다. smoke가 실패한 CLI로는 그 역할의 워커를 띄우지 않는다.
+   - `FAIL models`는 모델 설정 파일(`~/.relay/models.json`, `.ai/relay-models.json`)이 잘못됐다는 뜻이다. 고치기 전에는 워커를 띄우지 않는다. 설정 파일이 없으면 `OK`다 — 기본 동작.
    - 그 밖의 `WARN`은 보고만 하고 진행한다.
+
+   **그리고 이 진행 세션이 설정대로 떠 있는지 본다** — `python "$RELAY/scripts/relay_cli.py" model coordinator`. `action: session`의 `model`·`effort`가 있는데 지금 세션(`/model`로 확인)과 다르면 **사용자에게 `command`를 알리고 계속할지 묻는다.** 플러그인은 세션의 모델을 바꿀 수 없다. `model`이 `null`이면 설정이 없는 것이니 묻지 않는다.
 1. `orca orchestration run-use --id <run_id> --json`
 2. `orca orchestration task-list --ready --json` 로 다음 태스크를 꺼낸다. **태스크 상태를 컨텍스트에 들고 있지 말고 매번 Orca에 물어본다** (외부 메모리로 사용).
 3. 워커 부트스트랩 — (d)
@@ -161,6 +182,15 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 4. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
 
+   먼저 구현자 기동 인자를 결정기에 묻는다. 설정 파일이 없으면 `launch_command`는 아래 기본값 `$null=1; agy` 그대로다:
+
+   ```bash
+   python "$RELAY/scripts/relay_cli.py" model implementer
+   # {"action": "launch", "agent": "antigravity", "model": null, "effort": null, "launch_command": "$null=1; agy", "source": "agy_default"}
+   ```
+
+   `human / agy_model_invalid`면 설정이 agy와 맞지 않는 것이니(`detail`에 사유) 기동하지 말고 사용자에게 `detail`을 전한다. `launch`면 `launch_command`를 `--command`에 **그대로** 쓴다(설정이 있으면 `$null=1; agy --model … --effort …`):
+
    ```bash
    orca terminal create --worktree id:<wt> --title "T-NNN agy" --command '$null=1; agy' --json
    orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
@@ -189,8 +219,9 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
      사다리(로그인 확인 → 재시도 3회 → 1회 재생성 → 사람)의 정본은 `scripts/relaylib/orca.py`다.
      - **이 사다리는 예비 수단이다.** poker-server T-004·T-005와 2026-10-05 smoke에서 보인 "간헐적·시간대에 몰리는" 준비 감지 실패는 대부분 단독 `agy` 실행 경로 탓이었다(위 `--command` 설명). 시작 명령을 지키면 사다리까지 올 일이 드물다. 그래도 timeout이 나면 사다리대로 하고, 실측으로 기록한다.
-   - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 구현자는 **agy 기본 모델**로 뜬다.
+   - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 **모델·effort는 `worker-start`가 아니라 agy 명령줄**(`launch_command`의 `--model`·`--effort`)로 준다. 설정 파일이 없으면 **agy 기본 모델**로 뜬다.
      (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
+   - `readiness`는 설정 파일을 직접 읽어 `recreate_terminal`의 `launch_command`에 같은 model·effort를 싣는다. 진행 세션이 인자를 다시 조립하지 않는다.
    - **`worker-start` 응답은 `startup`에 해석시킨다.** `ok`는 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 온다(실측: `failedStage: agent_readiness`, `dispatch: null`).
 
      ```bash
@@ -227,7 +258,8 @@ python "$RELAY/scripts/relay_cli.py" model reviewer
 # {"action": "launch", "agent": "codex", "model": "gpt-6-luna", "effort": "high"}
 ```
 
-- `launch`면 그 `model`·`effort`로 띄운다. 모델은 **codex 기본 모델**(`config.toml`의 최상위 `model`)을 따른다 — 모델 계열.
+- `launch`면 그 `model`·`effort`로 띄운다. 둘 다 모델 설정 파일의 값이고, effort는 설정 파일에 없으면 `high`다.
+- `human`(`reviewer_model_unset`)이면 기동하지 말고 사용자에게 `~/.relay/models.json`(또는 `.ai/relay-models.json`)에 `{"reviewer": {"model": "<모델>"}}`을 추가해 달라고 한다.
 - `human`(`codex_prereq_missing`)이면 기동하지 말고 `missing`에 적힌 키를 사용자에게 추가해 달라고 한다:
 
   ```toml
@@ -253,7 +285,7 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
 - **터미널을 먼저 띄우고 `tui-idle`을 Task 밖에서 통과시킨 뒤 `worker-start --terminal`을 건다.** `worker-start --agent codex`로 한 번에 띄우지 않는다. codex 시작 직후 확인창(`Hooks need review`, update, trust)이 뜨면 Orca가 입력창을 못 알아봐 `agent_readiness` timeout이 나고, **그 한 번으로 리뷰 Task가 `failed`가 된다**(실측: poker-server T-006 — ponytail 플러그인 갱신으로 hook 신뢰 해시가 어긋나 `Hooks need review`가 떴다). 사다리는 구현자 4번과 같다.
 
   ```bash
-  orca terminal create --worktree id:<wt> --title "T-NNN codex" --command 'codex --yolo -m <model reviewer 의 model> -c model_reasoning_effort=high' --json
+  orca terminal create --worktree id:<wt> --title "T-NNN codex" --command 'codex --yolo -m <model reviewer 의 model> -c model_reasoning_effort=<model reviewer 의 effort>' --json
   orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
   orca orchestration worker-start --task <id> --worktree id:<wt> --terminal <h> --json
   ```

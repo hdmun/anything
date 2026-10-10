@@ -10,9 +10,15 @@ ROOT = r"C:\Users\x\orca\workspaces"
 VERIFIED = {"codex": ["0.159.3"], "antigravity": ["1.2.16"], "orca": ["1.4.216"]}
 
 
+AGY = "gemini-3.8-flash-high\tA\ngemini-3.8-flash-low\tA\n"
+
+
 def facts(**kw):
     f = {
         "codex_config": GOOD_CODEX,
+        "models_cfg": {"reviewer": {"model": "gpt-6-luna"}},
+        "models_files": ["u.json"],
+        "agy_models": AGY,
         "versions": {"codex": "0.159.3", "antigravity": "1.2.16", "orca": "1.4.216"},
         "verified": VERIFIED,
         "agy_settings": {"trustedWorkspaces": [ROOT + r"\p\T-1"], "permissions": {"allow": ["command(git diff)"]}},
@@ -34,7 +40,39 @@ class Doctor(unittest.TestCase):
         self.assertEqual(doctor.exit_code(checks), 0)
 
     def test_reviewer_model_is_reported(self):
-        self.assertIn("gpt-6-luna", by_name(doctor.evaluate(facts()))["codex"]["detail"])
+        self.assertIn("gpt-6-luna / high (relay 설정 파일)", by_name(doctor.evaluate(facts()))["codex"]["detail"])
+
+    def test_no_models_file_is_fine_for_implementer_but_reviewer_needs_a_model(self):
+        checks = by_name(doctor.evaluate(facts(models_cfg={}, models_files=[])))
+        self.assertEqual(checks["models"]["status"], "ok")
+        self.assertEqual(checks["codex"]["status"], "fail")
+        self.assertIn("models.json", checks["codex"]["fix"])
+
+    def test_codex_config_model_does_not_count_as_reviewer_model(self):
+        c = by_name(doctor.evaluate(facts(models_cfg={})))["codex"]
+        self.assertEqual(c["status"], "fail")
+        self.assertNotIn("gpt-6-luna", c["detail"])
+
+    def test_models_file_overrides_reviewer_in_report(self):
+        cfg = {"reviewer": {"model": "gpt-9", "effort": "xhigh"}}
+        checks = by_name(doctor.evaluate(facts(models_cfg=cfg, models_files=["u.json"], agy_models=AGY)))
+        self.assertIn("gpt-9 / xhigh (relay 설정 파일)", checks["codex"]["detail"])
+        self.assertEqual(checks["models"]["status"], "ok")
+
+    def test_broken_models_file_fails(self):
+        c = by_name(doctor.evaluate(facts(models_error="u.json: JSON 오류")))["models"]
+        self.assertEqual(c["status"], "fail")
+
+    def test_conflicting_agy_model_effort_fails(self):
+        cfg = {"implementer": {"model": "gemini-3.8-flash-low", "effort": "high"}}
+        checks = doctor.evaluate(facts(models_cfg=cfg, models_files=["u.json"], agy_models=AGY))
+        self.assertEqual(by_name(checks)["models"]["status"], "fail")
+        self.assertEqual(doctor.exit_code(checks), 1)
+
+    def test_agy_listing_missing_warns(self):
+        cfg = {"implementer": {"model": "gemini-3.8-flash"}}
+        c = by_name(doctor.evaluate(facts(models_cfg=cfg, models_files=["u.json"], agy_models=None)))["models"]
+        self.assertEqual(c["status"], "warn")
 
     def test_missing_codex_prereq_fails(self):
         c = by_name(doctor.evaluate(facts(codex_config='model = "m"\n')))["codex"]

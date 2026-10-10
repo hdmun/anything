@@ -5,7 +5,7 @@ import pathlib
 import unittest
 
 import helpers  # noqa: F401
-from relaylib import orca
+from relaylib import models, orca
 
 FIX = pathlib.Path(__file__).parent / "fixtures" / "orca"
 
@@ -182,9 +182,30 @@ class Liveness(unittest.TestCase):
 class ReviewerModel(unittest.TestCase):
     GOOD = 'model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n\n[tui]\nterminal_title = ["app-name", "project-name"]\n'
 
-    def test_follows_codex_default_model(self):
-        d = orca.reviewer_model(self.GOOD)
-        self.assertEqual(d, {"action": "launch", "agent": "codex", "model": "gpt-6-luna", "effort": "high"})
+    def test_model_and_effort_come_from_relay_models(self):
+        d = orca.reviewer_model(self.GOOD, {"reviewer": {"model": "gpt-9", "effort": "xhigh"}})
+        self.assertEqual(d, {"action": "launch", "agent": "codex", "model": "gpt-9", "effort": "xhigh"})
+
+    def test_effort_defaults_to_high(self):
+        d = orca.reviewer_model(self.GOOD, {"reviewer": {"model": "gpt-9"}})
+        self.assertEqual(d["effort"], "high")
+
+    def test_codex_config_model_is_ignored(self):
+        # config.toml 의 model(평소 용도)을 리뷰어 모델로 쓰지 않는다 — 설정 파일에 model 이 없으면 사람 호출
+        for cfg in (None, {}, {"reviewer": {"effort": "medium"}}):
+            d = orca.reviewer_model(self.GOOD, cfg)
+            self.assertEqual((d["action"], d["reason"]), ("human", "reviewer_model_unset"), cfg)
+
+    def test_same_model_regardless_of_codex_config_model(self):
+        cfg = {"reviewer": {"model": "gpt-9"}}
+        a = orca.reviewer_model(self.GOOD, cfg)
+        b = orca.reviewer_model(self.GOOD.replace('model = "gpt-6-luna"\n', 'model = "other"\n'), cfg)
+        c = orca.reviewer_model(self.GOOD.replace('model = "gpt-6-luna"\n', ""), cfg)
+        self.assertTrue(a == b == c)
+
+    def test_prereqs_still_required_with_relay_models(self):
+        d = orca.reviewer_model('model = "m"\n', {"reviewer": {"model": "gpt-9"}})
+        self.assertEqual(d["reason"], "codex_prereq_missing")
 
     def test_missing_prereqs(self):
         d = orca.reviewer_model('model = "m"\n')
@@ -195,9 +216,118 @@ class ReviewerModel(unittest.TestCase):
         d = orca.reviewer_model(self.GOOD.replace("= false", "= true"))
         self.assertIn("check_for_update_on_startup = false", d["missing"])
 
-    def test_no_model_calls_human(self):
-        d = orca.reviewer_model(self.GOOD.replace('model = "gpt-6-luna"\n', ""))
-        self.assertEqual((d["action"], d["reason"]), ("human", "codex_model_unset"))
+
+AGY_IDS = ("gemini-3.8-flash-high", "gemini-3.8-flash-low", "gemini-3.1-pro-high", "gemini-3.1-pro-low")
+AGY_MODELS = "\n".join(["Fetching available models..."] + [i + "\tlabel" for i in AGY_IDS]) + "\n"
+
+class ImplementerModel(unittest.TestCase):
+    def test_default_is_bare_launch_command_without_flags(self):
+        d = orca.implementer_model()
+        self.assertEqual((d["model"], d["launch_command"], d["source"]), (None, orca.AGY_LAUNCH_COMMAND, "agy_default"))
+
+    def test_flags_are_appended_after_null_prefix(self):
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.8-flash", "effort": "low"}})
+        self.assertEqual(d["launch_command"], "$null=1; agy --model gemini-3.8-flash --effort low")
+        self.assertFalse(orca.is_bare_agy(d["launch_command"]))     # Orca 가 에이전트 시작 경로로 가로채지 않는다
+
+    def test_effort_only(self):
+        self.assertEqual(orca.agy_launch_command(None, "high"), "$null=1; agy --effort high")
+
+    def test_rejects_shell_metacharacters(self):
+        for bad in ("x; rm -rf /", "a b", "$(whoami)", "`id`", "x\ny"):
+            with self.assertRaises(models.ModelsError):
+                orca.agy_launch_command(bad, None)
+
+    def test_valid_against_agy_models(self):
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.8-flash", "effort": "low"}}, AGY_MODELS)
+        self.assertEqual(d["action"], "launch")
+
+    def test_level_suffixed_model_with_effort_is_refused_before_launch(self):
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.8-flash-low", "effort": "high"}}, AGY_MODELS)
+        self.assertEqual((d["action"], d["reason"]), ("human", "agy_model_invalid"))
+
+    def test_unknown_model_and_unsupported_effort(self):
+        self.assertEqual(orca.implementer_model({"implementer": {"model": "nope"}}, AGY_MODELS)["reason"], "agy_model_invalid")
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.1-pro", "effort": "xhigh"}}, AGY_MODELS)
+        self.assertIn("low, high", d["detail"])
+
+    def test_readiness_recreate_uses_configured_command(self):
+        cmd = orca.agy_launch_command("gemini-3.8-flash", "low")
+        d = orca.readiness(fx("agy-screen-misordered.txt"), agent="antigravity", log=ReadinessLadder.SIGNED, retries=0,
+                           command="agy", launch_command=cmd)
+        self.assertEqual(d["launch_command"], cmd)
+
+
+class CodexLaunchCommand(unittest.TestCase):
+    def test_matches_skill_form(self):
+        self.assertEqual(orca.codex_launch_command("gpt-9", "high"), "codex --yolo -m gpt-9 -c model_reasoning_effort=high")
+
+    def test_rejects_shell_metacharacters(self):
+        with self.assertRaises(models.ModelsError):
+            orca.codex_launch_command("x; calc", "high")
+        with self.assertRaises(models.ModelsError):
+            orca.codex_launch_command("gpt-9", "high; calc")
+
+
+class SessionModel(unittest.TestCase):
+    def test_defaults(self):
+        d = orca.session_model("coordinator")
+        self.assertEqual((d["action"], d["model"], d["effort"], d["command"]), ("session", None, "medium", "claude --effort medium"))
+
+    def test_configured(self):
+        d = orca.session_model("designer", {"designer": {"model": "opus", "effort": "max"}})
+        self.assertEqual(d["command"], "claude --model opus --effort max")
+
+
+AGY_MODELS = "Fetching available models...\ngemini-3.8-flash-high\tG (High)\ngemini-3.8-flash-low\tG (Low)\ngemini-3.1-pro-high\tP\ngemini-3.1-pro-low\tP\n"
+
+
+class ImplementerModel(unittest.TestCase):
+    def test_default_is_bare_launch_command_without_flags(self):
+        d = orca.implementer_model()
+        self.assertEqual((d["model"], d["launch_command"], d["source"]), (None, orca.AGY_LAUNCH_COMMAND, "agy_default"))
+
+    def test_flags_are_appended_after_null_prefix(self):
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.8-flash", "effort": "low"}})
+        self.assertEqual(d["launch_command"], "$null=1; agy --model gemini-3.8-flash --effort low")
+        self.assertFalse(orca.is_bare_agy(d["launch_command"]))     # Orca 가 에이전트 시작 경로로 가로채지 않는다
+
+    def test_effort_only(self):
+        self.assertEqual(orca.agy_launch_command(None, "high"), "$null=1; agy --effort high")
+
+    def test_rejects_shell_metacharacters(self):
+        for bad in ("x; rm -rf /", "a b", "$(whoami)", "`id`", "x\ny"):
+            with self.assertRaises(models.ModelsError):
+                orca.agy_launch_command(bad, None)
+
+    def test_valid_against_agy_models(self):
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.8-flash", "effort": "low"}}, AGY_MODELS)
+        self.assertEqual(d["action"], "launch")
+
+    def test_level_suffixed_model_with_effort_is_refused_before_launch(self):
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.8-flash-low", "effort": "high"}}, AGY_MODELS)
+        self.assertEqual((d["action"], d["reason"]), ("human", "agy_model_invalid"))
+
+    def test_unknown_model_and_unsupported_effort(self):
+        self.assertEqual(orca.implementer_model({"implementer": {"model": "nope"}}, AGY_MODELS)["reason"], "agy_model_invalid")
+        d = orca.implementer_model({"implementer": {"model": "gemini-3.1-pro", "effort": "xhigh"}}, AGY_MODELS)
+        self.assertIn("low, high", d["detail"])
+
+    def test_readiness_recreate_uses_configured_command(self):
+        cmd = orca.agy_launch_command("gemini-3.8-flash", "low")
+        d = orca.readiness(fx("agy-screen-misordered.txt"), agent="antigravity", log=Readiness.SIGNED, retries=0,
+                           command="agy", launch_command=cmd)
+        self.assertEqual(d["launch_command"], cmd)
+
+
+class SessionModel(unittest.TestCase):
+    def test_defaults(self):
+        d = orca.session_model("coordinator")
+        self.assertEqual((d["action"], d["model"], d["effort"], d["command"]), ("session", None, "medium", "claude --effort medium"))
+
+    def test_configured(self):
+        d = orca.session_model("designer", {"designer": {"model": "opus", "effort": "max"}})
+        self.assertEqual(d["command"], "claude --model opus --effort max")
 
 
 if __name__ == "__main__":

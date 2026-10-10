@@ -7,7 +7,7 @@ import copy
 import pathlib
 import re
 
-from relaylib import orca, trust
+from relaylib import models, orca, trust
 
 VERIFIED_PATH = pathlib.Path(__file__).resolve().parents[2] / "skills" / "relay" / "references" / "verified-cli.json"
 AGENTS = ("codex", "antigravity", "orca")
@@ -24,16 +24,17 @@ def _check(name, status, detail, fix=""):
     return {"name": name, "status": status, "detail": detail, "fix": fix}
 
 
-def _codex(config_text):
+def _codex(config_text, cfg=None):
     if config_text is None:
         return _check("codex", "fail", "~/.codex/config.toml 이 없다", "codex 를 한 번 실행해 설정 파일을 만든다")
-    d = orca.reviewer_model(config_text)
+    d = orca.reviewer_model(config_text, cfg)
     if d["action"] == "launch":
-        return _check("codex", "ok", "리뷰어 모델: %s / %s (codex 기본 모델)" % (d["model"], d["effort"]))
+        return _check("codex", "ok", "리뷰어 모델: %s / %s (relay 설정 파일)" % (d["model"], d["effort"]))
     if d["reason"] == "codex_prereq_missing":
         return _check("codex", "fail", "사전 조건 누락: " + "; ".join(d["missing"]),
                       'config.toml 에 추가: check_for_update_on_startup = false / [tui] terminal_title = ["app-name", "activity", "project-name"]')
-    return _check("codex", "fail", "config.toml 에 최상위 model 이 없다", 'model = "<리뷰어로 쓸 모델>"')
+    return _check("codex", "fail", "리뷰어 모델이 정해지지 않았다 (codex config.toml 의 model 은 쓰지 않는다)",
+                  '~/.relay/models.json 또는 .ai/relay-models.json 에 {"reviewer": {"model": "<리뷰어로 쓸 모델>"}}')
 
 
 def _version(agent, version, verified):
@@ -80,8 +81,26 @@ def _agy_permissions(settings):
                   "command(powershell) 이 남으면 우회 가능 — commit-guard 가 최종 방어선")
 
 
+def _models(f):
+    """relay 모델 설정 파일: 문법·값 검증, 구현자는 agy models 와 대조. 파일이 없으면 기본 동작이라 ok."""
+    if f.get("models_error"):
+        return _check("models", "fail", f["models_error"], "~/.relay/models.json 또는 .ai/relay-models.json 을 고친다")
+    cfg = f.get("models_cfg") or {}
+    files = f.get("models_files") or []
+    if not files:
+        return _check("models", "ok", "설정 파일 없음 — 구현자는 agy 기본 모델, 리뷰어 모델은 설정 파일이 필요하다")
+    r = models.resolve("implementer", cfg)
+    agy_text = f.get("agy_models")
+    if agy_text is None:
+        if r["model"] or "effort" in (cfg.get("implementer") or {}):
+            return _check("models", "warn", "설정 %d개 읽음, agy models 를 실행하지 못해 구현자 값을 대조하지 못했다" % len(files), "agy 로그인·PATH 확인")
+        return _check("models", "ok", "설정 %d개 읽음 (구현자는 agy 기본)" % len(files))
+    status, detail, fix = models.check_agy(r["model"], r["effort"], agy_text)
+    return _check("models", status, "설정 %d개 읽음; %s" % (len(files), detail), fix)
+
+
 def evaluate(f):
-    checks = [_codex(f.get("codex_config"))]
+    checks = [_codex(f.get("codex_config"), f.get("models_cfg")), _models(f)]
     for agent in AGENTS:
         checks.append(_version(agent, (f.get("versions") or {}).get(agent), f.get("verified") or {}))
     checks.append(_trust(f.get("agy_settings"), f.get("trust_root", str(trust.DEFAULT_ROOT)), f.get("exists")))

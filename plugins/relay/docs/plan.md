@@ -64,6 +64,14 @@
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
 
+## 기능 — 역할별 model·effort 설정 파일 (2026-10-11, v1.3.0)
+
+- `~/.relay/models.json`(사용자) + `.ai/relay-models.json`(저장소) 를 필드 단위로 겹친다. 정본은 `relaylib/models.py`, 근거는 `docs/adr/0002-model-settings-file.md`.
+- 리뷰어 모델은 codex `config.toml` 의 `model` 과 분리 — 설정 파일에 없으면 `reviewer_model_unset`(폴백 없음). `config.toml` 은 사전 조건 키만 본다.
+- 결정기: `model designer|coordinator|implementer|reviewer`, `models`. doctor 에 `models` 줄, smoke 가 설정의 agy 명령으로 리허설.
+- 실측(agy 1.3.3, `-p` 모드): `--model gemini-3.8-flash --effort low` 통과 / `--model gemini-3.8-flash-low --effort high` → `conflicts with --effort` 로 즉시 거부 / `--model gemini-3.1-pro --effort xhigh` → `has no "xhigh" effort (available: low, high)` / 없는 모델은 목록과 함께 거부 / `--effort high` 단독은 기본 모델에 적용되어 통과.
+- 실측(2026-10-11, agy 1.3.3·Orca 1.4.222): `$null=1; agy --model gemini-3.8-flash --effort low` 로 smoke 1/1 통과 — `tui-idle` 2.5초, 입력 전달(`HandleUserInput`) 확인. 같은 날 두 번째 실행은 `tui-idle` 14.5초로 통과(첫 회 2.5초와 편차 큼). 표본 2회라 실전 Task 에서 더 쌓는다. 리뷰어도 같은 smoke 로 `codex --yolo -m gpt-6-luna -c model_reasoning_effort=medium` 1/1 통과(codex 0.159.3, `tui-idle` 6.6초, 전달 확인). (`--dir` 은 Orca 에 등록된 워크트리여야 한다: `plugins/relay` 는 `selector_not_found`, `C:/Users/hdmun/scripts` 는 통과)
+
 ## 측정 — 리뷰 워커도 터미널 선기동으로, codex 는 `--yolo` 필수 (2026-10-11, v1.2.5)
 
 - 배경: `worker-start --agent codex` 는 시작 직후 확인창(`Hooks need review` 등)이 뜨면 timeout 한 번으로 리뷰 Task 가 `failed` 가 된다(T-006). 구현자처럼 Task 밖에서 `tui-idle` 을 통과시킨다.
@@ -140,7 +148,7 @@
 
 ## 미검증 (smoke·실전에서 확인)
 
-- `--command agy` 로 모델 핀 가능 여부 — agy 에 `--model`·`--effort` 플래그가 있음(1.2.16 `--help`). 실측 전 / codex `--terminal` 경로
+- `--command '$null=1; agy --model … --effort …'` 로 모델 핀 — 플래그는 `-p` 모드에서 실측(1.3.3), Orca `tui-idle` 통과는 smoke 1/1 (위 「기능」), 표본 추가 필요. codex `--terminal` 경로는 v1.2.5 에서 확인
 - ~~`worker-release` 가 수동 생성 터미널을 닫는가~~ → 닫지 않는다(`retained / external_terminal`, 2026-10-10). (i) 의 `terminal close` 가 필요하다
 - 정착한 Task 에 decision gate 가 걸리는가
 - ~~agy `auto_updater` 차단~~ → 예열로 대응(2026-10-02). 실행 중 교체는 확인됨: 기존 파일을 `agy.exe.<숫자>.old` 로 옮기고 새 파일을 놓는다(1.2.14 세션이 떠 있는 동안 1.2.16 설치). 예열은 `agy update`(동기) 사용
