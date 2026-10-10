@@ -161,11 +161,13 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 4. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
 
    ```bash
-   orca terminal create --worktree id:<wt> --title "T-NNN agy" --command agy --json
+   orca terminal create --worktree id:<wt> --title "T-NNN agy" --command '$null=1; agy' --json
    orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
    orca orchestration worker-start --task <id> [--retry-of <dispatch_id>] --worktree id:<wt> --terminal <h> --json
    ```
 
+   - **`--command`는 `'$null=1; agy'` 그대로 쓴다 — 단독 `agy`로 바꾸지 않는다.** 맨 앞 토큰이 `agy`면 Orca가 시작 명령을 에이전트로 인식해 다른 경로로 띄우는데, 그 경로에선 입력창(`>` 줄)이 Orca가 보는 출력 스트림에 남지 않아 화면은 멀쩡해도 `tui-idle`이 영영 통과하지 못한다. 앞의 문장은 아무 일도 하지 않는 PowerShell 문장으로, 일반 셸 명령으로 실행되게 할 뿐이다. 작은따옴표는 bash가 `$null`을 펼치지 않게 하려는 것이다. 정본: `scripts/relaylib/orca.py`의 `AGY_LAUNCH_COMMAND`.
+     실측(2026-10-10, Orca 1.4.216): 단독 `agy` — 1.3.3 11/11 실패, 1.2.17 간헐 실패. 위 명령 — 1.2.17·1.3.3 7/7 통과(2~3초), `worker-start --terminal` 연결과 `worker_done`까지 정상.
    - **이유**: agy는 입력창이 준비되기 전에 들어온 입력을 **조용히 버린다.** Orca는 antigravity의 전달 여부를 관측하지 못해(`provider: unsupported`) 경고도 없다.
      실측(poker-server T-004): `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다 — 2회 연속.
    - `tui-idle`을 건너뛰고 바로 `worker-start --terminal`을 걸면 `agent_unconfigured`로 거부된다. Orca가 터미널에 `agentIdentity: antigravity`를 태깅하기 전이기 때문이다.
@@ -181,11 +183,11 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
      | `action` | 할 일 |
      |---|---|
      | `retry_tui_idle` | `wait_seconds`(30초) 뒤 `tui-idle`을 다시 건다. 다시 timeout이면 `--retries`를 1 올려 또 묻는다 |
-     | `recreate_terminal` | 화면엔 입력창이 있는데 Orca가 못 알아본다(그리기 순서 경합). 터미널을 닫고 새로 만든 뒤 `--recreated`를 붙여 같은 사다리를 다시 탄다 |
+     | `recreate_terminal` | 화면엔 입력창이 있는데 Orca가 못 알아본다. 먼저 `--command`가 `AGY_LAUNCH_COMMAND`와 같은지 확인하고, 같으면 터미널을 닫고 새로 만든 뒤 `--recreated`를 붙여 같은 사다리를 다시 탄다 |
      | `human` | `reason`과 함께 사람 호출: `blocked_prompt`(trust·update·permission — 자동 응답 금지), `not_signed_in`(로그에 로그인 기록 없음), `no_prompt`(입력창이 아직 없다), `recreate_failed`(재생성도 실패) |
 
      사다리(로그인 확인 → 재시도 3회 → 1회 재생성 → 사람)의 정본은 `scripts/relaylib/orca.py`다.
-     - **알려진 한계(측정됨, 원인 미확정)** — poker-server T-005 (agy 1.2.14, Orca 1.4.216): 새 터미널 2개가 30초 timeout, `worker-start`의 준비 대기도 실패했는데 **같은 터미널이 약 18시간 뒤 0.5초 만에 통과**했다. 그 사이 한 일은 확인용 입력 한 줄(`ok` 응답)뿐이라, 입력이 풀었는지 시간이 풀었는지 **가려지지 않았다.** Orca의 판정은 마지막 `Antigravity CLI` 머리글 **뒤**에 `>` 단독 줄이 있어야 하고 `sign in` 등이 없어야 하는데, 로그인 직후 다시 그리는 화면에서 이 순서가 어긋나는 것으로 보인다. 사다리는 이 관측에 맞춘 것이지 검증된 해법이 아니다.
+     - **이 사다리는 예비 수단이다.** poker-server T-004·T-005와 2026-10-05 smoke에서 보인 "간헐적·시간대에 몰리는" 준비 감지 실패는 대부분 단독 `agy` 실행 경로 탓이었다(위 `--command` 설명). 시작 명령을 지키면 사다리까지 올 일이 드물다. 그래도 timeout이 나면 사다리대로 하고, 실측으로 기록한다.
    - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 구현자는 **agy 기본 모델**로 뜬다.
      (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
    - **`worker-start` 응답은 `startup`에 해석시킨다.** `ok`는 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 온다(실측: `failedStage: agent_readiness`, `dispatch: null`).
@@ -519,7 +521,7 @@ relay의 세 갈래 출구에 그 "정확히 하나"를 대응시키면 이렇�
 orca orchestration worker-release --dispatch <impl_dispatch_id> --json
 orca orchestration worker-release --dispatch <review_dispatch_id> --json
 
-# 구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않을 수 있다 — 닫혔는지 보고 남아 있으면 닫는다
+# 구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않는다(실측: state retained / reason external_terminal) — 닫는다
 orca terminal show --terminal <impl_handle> --json
 orca terminal close --terminal <impl_handle> --json
 

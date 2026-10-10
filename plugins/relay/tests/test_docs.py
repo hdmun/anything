@@ -28,6 +28,12 @@ class SkillCallsExistingCommands(unittest.TestCase):
         # 정책을 스크립트로 옮긴 뒤 heredoc 이 되살아나면 두 정본이 생긴다 (ADR 0001)
         self.assertNotIn("<<'PY'", SKILL)
 
+    def test_agy_launch_command_matches_code(self):
+        # 회귀: 단독 `agy` 로 띄우면 Orca 의 tui-idle 이 통과하지 못한다 (1.3.3: 11/11 실패)
+        from relaylib import orca
+        self.assertIn("--command '%s'" % orca.AGY_LAUNCH_COMMAND, SKILL)
+        self.assertNotRegex(SKILL, r"--command\s+['\"]?agy\b")
+
     def test_severity_table_not_reintroduced(self):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
