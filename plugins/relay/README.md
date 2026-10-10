@@ -221,6 +221,90 @@ done
 - 모르는 역할·필드, 허용 문자(영문·숫자·`._:/-`) 밖의 model 값, 역할별 허용 목록 밖의 effort 는 거부한다. 값이 셸 명령줄에 들어가기 때문이다.
 - 확인: `python scripts/relay_cli.py models` (4역할 한눈에) / `python scripts/relay_cli.py doctor` (`models` 줄).
 
+### 구현자(agy) 모델 고르기
+
+1. **목록을 본다.** 왼쪽 ID 가 `model` 에 쓰는 값이다.
+
+   ```bash
+   agy models
+   # gemini-3.8-flash-high    Gemini 3.8 Flash (High)
+   # gemini-3.8-flash-low     Gemini 3.8 Flash (Low)
+   # gemini-3.1-pro-high      Gemini 3.1 Pro (High)
+   # claude-sonnet-5-5-medium Claude Sonnet 5.5 (Medium)
+   ```
+
+2. **ID 끝의 `-low`/`-medium`/`-high` 를 떼고** 기본 이름을 `model` 에, 그 레벨을 `effort` 에 적는다.
+
+   | 원하는 것 | `models.json` 의 `implementer` |
+   |---|---|
+   | Gemini 3.8 Flash, 낮은 effort | `{"model": "gemini-3.8-flash", "effort": "low"}` |
+   | Gemini 3.1 Pro, 높은 effort | `{"model": "gemini-3.1-pro", "effort": "high"}` |
+   | Claude Sonnet 5.5, 중간 effort | `{"model": "claude-sonnet-5-5", "effort": "medium"}` |
+   | 모델은 agy 기본, effort 만 | `{"effort": "high"}` |
+   | 전부 agy 기본 | 이 키를 지운다 |
+
+3. **모델마다 지원하는 effort 가 다르다.** `gemini-3.1-pro` 는 `low`/`high` 만 있다. 없는 조합은 agy 가 거부하며 기동 실패 예산을 쓰므로, 적은 뒤에 반드시 `doctor` 로 확인한다.
+
+   ```bash
+   python scripts/relay_cli.py doctor | grep models
+   # OK   models  설정 1개 읽음; 구현자: gemini-3.8-flash / low
+   ```
+
+4. **하지 말 것**: `"model": "gemini-3.8-flash-low"` 처럼 레벨이 붙은 ID 에 `effort` 를 같이 주기. agy 가 `conflicts with --effort` 로 거부한다. 레벨 붙은 ID 만 쓰고 `effort` 를 비우는 것은 된다.
+5. **실제로 뜨는지 확인한다.** Orca 에 등록된 워크트리가 필요하다(`plugins/relay` 같은 하위 폴더는 `selector_not_found`).
+
+   ```bash
+   python scripts/relay_cli.py smoke --dir C:/Users/hdmun/scripts --agent antigravity
+   ```
+
+   `"passed": true` 면 설정대로 기동되고 입력이 전달된 것이다. 같은 저장소의 설정을 바꾸지 않고 다른 값을 시험하려면 `--user-config <임시 파일>` 을 준다.
+
+커밋 트레일러 `Implemented-by: agy/<모델>` 은 설정값이 아니라 agy 로그의 마지막 모델 라벨로 남는다. 설정이 실제로 적용됐는지 `git log` 에서 대조할 수 있다.
+
+## 1.3.0 으로 올리기 (다른 작업 경로·설정 디렉터리)
+
+1.3.0 은 `templates/` 를 바꾸지 않았다. **저장소의 역할 파일을 다시 렌더링할 필요가 없고**, 플러그인 설치본과 모델 설정 파일만 맞추면 된다.
+
+1. **설정 디렉터리마다 플러그인을 갱신한다.** 마켓플레이스 소스가 로컬 폴더(`C:\Users\hdmun\scripts`)라 **main 이 체크아웃된 상태**여야 한다.
+
+   ```bash
+   git -C C:/Users/hdmun/scripts branch --show-current          # main 이어야 한다
+   claude plugin marketplace update hdmun-scripts
+   claude plugin update relay                                    # ~/.claude
+   CLAUDE_CONFIG_DIR=~/.claude-max claude plugin update relay    # ~/.claude-max
+   ```
+
+2. **설치된 버전을 확인한다.** 둘 다 `1.3.0` 이어야 한다.
+
+   ```bash
+   for d in ~/.claude ~/.claude-max; do
+     python -c "import json,sys; d=json.load(open(sys.argv[1]+'/plugins/installed_plugins.json')); print(sys.argv[1], [e['version'] for k,v in d['plugins'].items() if k.startswith('relay@') for e in v])" "$d"
+   done
+   ```
+
+3. **모델 설정 파일을 만든다.** 사용자 전역은 한 번만, 저장소별은 통일이 필요한 저장소에서만 한다. **리뷰어 `model` 은 필수**다(없으면 리뷰 단계에서 멈춘다).
+
+   ```bash
+   mkdir -p ~/.relay
+   cat > ~/.relay/models.json <<'JSON'
+   { "reviewer":    { "model": "gpt-6-luna", "effort": "high" },
+     "implementer": { "model": "gemini-3.8-flash", "effort": "low" } }
+   JSON
+   ```
+
+   저장소별 덮어쓰기는 같은 형식으로 `<저장소>/.ai/relay-models.json` 에 적고 커밋한다.
+
+4. **저장소마다 점검한다.** 저장소 루트에서 실행한다(약 10초). `FAIL` 이 없어야 한다.
+
+   ```bash
+   P=$(ls -d ~/.claude/plugins/cache/hdmun-scripts/relay/*/ | sort -V | tail -1)
+   cd <repo>
+   python "$P/scripts/relay_cli.py" doctor | grep -E "FAIL|plugin|models|codex"
+   python "$P/scripts/relay_cli.py" models
+   ```
+
+5. **진행 중인 relay 세션은 재시작한다.** `/reload-plugins` 또는 세션 재시작. 안 하면 `FAIL plugin`(낡은 절차) 이 나온다.
+
 ## 알려진 한계
 
 - 실전으로 아직 검증하지 못한 동작이 있다. 목록과 확인 계획은 [docs/plan.md](docs/plan.md)의 「미검증」에 있다.
