@@ -26,7 +26,7 @@ EFFORTS = {
     "designer": _CLAUDE_EFFORTS,
     "coordinator": _CLAUDE_EFFORTS,
     "implementer": ("low", "medium", "high", "xhigh", "max"),   # agy --help
-    "reviewer": ("minimal", "low", "medium", "high", "xhigh"),  # codex model_reasoning_effort
+    "reviewer": ("low", "medium", "high", "xhigh", "max", "ultra"),  # codex models_cache.json 의 supported_reasoning_levels 합집합
 }
 DEFAULT_EFFORT = {"designer": "high", "coordinator": "medium", "implementer": None, "reviewer": "high"}
 
@@ -165,3 +165,56 @@ def check_agy(model, effort, agy_models_text):
     if effort and effort not in bases[model]:
         return "fail", "%s 는 effort %s 를 지원하지 않는다 (가능: %s)" % (model, effort, ", ".join(sorted(bases[model], key=_LEVELS.index))), "effort 를 바꾼다"
     return "ok", "구현자: %s / %s" % (model, effort or "기본 effort"), ""
+
+
+# ---- codex 모델 목록 대조 (~/.codex/models_cache.json) ----------------------------------------
+
+def parse_codex_models(text):
+    """models_cache.json → {slug: [지원 effort]}. 읽을 수 없으면 {}."""
+    try:
+        raw = json.loads(text)
+    except (ValueError, TypeError):
+        return {}
+    out = {}
+    for m in (raw.get("models") if isinstance(raw, dict) else None) or []:
+        if isinstance(m, dict) and m.get("slug"):
+            out[m["slug"]] = [x.get("effort") for x in (m.get("supported_reasoning_levels") or []) if isinstance(x, dict)]
+    return out
+
+
+def check_codex(model, effort, cache_text):
+    """(status, detail, fix). 캐시가 낡았거나 사용자 정의 모델일 수 있어 모르는 모델은 warn, 모델이 지원하지 않는 effort 만 fail."""
+    known = parse_codex_models(cache_text)
+    if not known:
+        return "warn", "codex models_cache.json 을 읽지 못해 리뷰어 모델·effort 를 대조하지 못했다", "codex 를 한 번 실행해 캐시를 갱신한다"
+    if model not in known:
+        return ("warn", "리뷰어 모델 %s 가 codex 모델 목록에 없다 (캐시가 낡았거나 사용자 정의 모델)" % model,
+                "목록: %s" % ", ".join(sorted(known)[:5]))
+    if effort not in known[model]:
+        return ("fail", "%s 는 effort %s 를 지원하지 않는다 (가능: %s)" % (model, effort, ", ".join(known[model])), "effort 를 바꾼다")
+    return "ok", "%s / %s (codex 모델 목록에 있음)" % (model, effort), ""
+
+
+# ---- 설정 파일 생성 (models-init) ---------------------------------------------------------
+
+def build(reviewer_model=None, reviewer_effort=None, implementer_model=None, implementer_effort=None):
+    """주어진 값만 담은 설정 dict. 값 검증은 parse 와 같은 규칙이다. 아무 값도 없으면 ModelsError."""
+    given = {
+        "reviewer": {"model": reviewer_model, "effort": reviewer_effort},
+        "implementer": {"model": implementer_model, "effort": implementer_effort},
+    }
+    out = {}
+    for role, spec in given.items():
+        kept = {f: v for f, v in spec.items() if v}
+        for f, v in kept.items():
+            check_value(role, f, v, "models-init")
+        if kept:
+            out[role] = kept
+    if not out:
+        raise ModelsError("models-init: 리뷰어·구현자 model/effort 중 하나 이상 필요하다 (--reviewer-model 등)")
+    return out
+
+
+def render(cfg):
+    """저장소에 커밋할 JSON 텍스트 (끝 개행 포함, 한글 그대로)."""
+    return json.dumps(cfg, ensure_ascii=False, indent=2) + chr(10)

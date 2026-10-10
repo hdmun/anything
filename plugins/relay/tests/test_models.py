@@ -23,9 +23,11 @@ class Parse(unittest.TestCase):
             models.parse("{nope")
 
     def test_effort_set_depends_on_role(self):
-        models.parse(json.dumps({"reviewer": {"effort": "minimal"}}))
+        models.parse(json.dumps({"reviewer": {"effort": "ultra"}}))        # codex 는 max·ultra 까지 지원한다
         with self.assertRaises(models.ModelsError):
-            models.parse(json.dumps({"coordinator": {"effort": "minimal"}}))
+            models.parse(json.dumps({"coordinator": {"effort": "ultra"}}))
+        with self.assertRaises(models.ModelsError):
+            models.parse(json.dumps({"reviewer": {"effort": "minimal"}}))
 
     def test_model_charset(self):
         for ok in ("opus", "gemini-3.8-flash", "claude-sonnet-5-5", "ns/model:tag"):
@@ -100,6 +102,28 @@ class AgyCheck(unittest.TestCase):
 
     def test_unreadable_listing_only_warns(self):
         self.assertEqual(models.check_agy("x", None, "")[0], "warn")
+
+
+CODEX_CACHE = json.dumps({"models": [
+    {"slug": "gpt-6-luna", "supported_reasoning_levels": [{"effort": e} for e in ("low", "medium", "high", "xhigh", "max")]},
+    {"slug": "gpt-6-sol", "supported_reasoning_levels": [{"effort": e} for e in ("low", "medium", "high", "xhigh", "max", "ultra")]},
+]})
+
+
+class CodexCheck(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(models.parse_codex_models(CODEX_CACHE)["gpt-6-luna"][-1], "max")
+        self.assertEqual(models.parse_codex_models("{nope"), {})
+
+    def test_results(self):
+        c = lambda m, e: models.check_codex(m, e, CODEX_CACHE)[0]       # noqa: E731
+        self.assertEqual(c("gpt-6-luna", "high"), "ok")
+        self.assertEqual(c("gpt-6-sol", "ultra"), "ok")
+        self.assertEqual(c("gpt-6-luna", "ultra"), "fail")             # luna 는 ultra 미지원
+        self.assertEqual(c("gpt-unknown", "high"), "warn")             # 캐시가 낡았을 수 있어 막지 않는다
+
+    def test_unreadable_cache_only_warns(self):
+        self.assertEqual(models.check_codex("gpt-6-luna", "high", "")[0], "warn")
 
 
 if __name__ == "__main__":

@@ -70,7 +70,7 @@
 - 리뷰어 모델은 codex `config.toml` 의 `model` 과 분리 — 설정 파일에 없으면 `reviewer_model_unset`(폴백 없음). `config.toml` 은 사전 조건 키만 본다.
 - 결정기: `model designer|coordinator|implementer|reviewer`, `models`. doctor 에 `models` 줄, smoke 가 설정의 agy 명령으로 리허설.
 - 실측(agy 1.3.3, `-p` 모드): `--model gemini-3.8-flash --effort low` 통과 / `--model gemini-3.8-flash-low --effort high` → `conflicts with --effort` 로 즉시 거부 / `--model gemini-3.1-pro --effort xhigh` → `has no "xhigh" effort (available: low, high)` / 없는 모델은 목록과 함께 거부 / `--effort high` 단독은 기본 모델에 적용되어 통과.
-- 실측(2026-10-11, agy 1.3.3·Orca 1.4.222): `$null=1; agy --model gemini-3.8-flash --effort low` 로 smoke 1/1 통과 — `tui-idle` 2.5초, 입력 전달(`HandleUserInput`) 확인. 같은 날 두 번째 실행은 `tui-idle` 14.5초로 통과(첫 회 2.5초와 편차 큼). 표본 2회라 실전 Task 에서 더 쌓는다. 리뷰어도 같은 smoke 로 `codex --yolo -m gpt-6-luna -c model_reasoning_effort=medium` 1/1 통과(codex 0.159.3, `tui-idle` 6.6초, 전달 확인). (`--dir` 은 Orca 에 등록된 워크트리여야 한다: `plugins/relay` 는 `selector_not_found`, `C:/Users/hdmun/scripts` 는 통과)
+- 실측(2026-10-11, agy 1.3.3·Orca 1.4.222): `$null=1; agy --model gemini-3.8-flash --effort low` 로 smoke 1/1 통과 — `tui-idle` 2.5초, 입력 전달(`HandleUserInput`) 확인. 같은 날 두 번째 실행은 `tui-idle` 14.5초로 통과(첫 회 2.5초와 편차 큼). 표본 2회라 실전 Task 에서 더 쌓는다. v1.3.1 코드(`models-init` 로 만든 파일을 smoke 가 읽음)로 agy 1/1(`tui-idle` 2.5초)·codex 1/1(`high`, 6.4초) 재통과 — 누적 agy 3/3, codex 2/2. 리뷰어도 같은 smoke 로 `codex --yolo -m gpt-6-luna -c model_reasoning_effort=medium` 1/1 통과(codex 0.159.3, `tui-idle` 6.6초, 전달 확인). (`--dir` 은 Orca 에 등록된 워크트리여야 한다: `plugins/relay` 는 `selector_not_found`, `C:/Users/hdmun/scripts` 는 통과)
 
 ## 측정 — 리뷰 워커도 터미널 선기동으로, codex 는 `--yolo` 필수 (2026-10-11, v1.2.5)
 

@@ -59,6 +59,17 @@ class Doctor(unittest.TestCase):
         self.assertIn("gpt-9 / xhigh (relay 설정 파일)", checks["codex"]["detail"])
         self.assertEqual(checks["models"]["status"], "ok")
 
+    def test_reviewer_effort_unsupported_by_model_fails(self):
+        cache = '{"models":[{"slug":"gpt-6-luna","supported_reasoning_levels":[{"effort":"low"},{"effort":"high"}]}]}'
+        cfg = {"reviewer": {"model": "gpt-6-luna", "effort": "ultra"}}
+        c = by_name(doctor.evaluate(facts(models_cfg=cfg, codex_models=cache)))["reviewer-model"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("low, high", c["detail"])
+
+    def test_reviewer_model_in_codex_list_is_ok(self):
+        cache = '{"models":[{"slug":"gpt-6-luna","supported_reasoning_levels":[{"effort":"high"}]}]}'
+        self.assertEqual(by_name(doctor.evaluate(facts(codex_models=cache)))["reviewer-model"]["status"], "ok")
+
     def test_broken_models_file_fails(self):
         c = by_name(doctor.evaluate(facts(models_error="u.json: JSON 오류")))["models"]
         self.assertEqual(c["status"], "fail")

@@ -99,8 +99,20 @@ def _models(f):
     return _check("models", status, "설정 %d개 읽음; %s" % (len(files), detail), fix)
 
 
+def _reviewer(f):
+    """리뷰어 model·effort 를 codex 모델 목록(models_cache.json)과 대조. 모델이 정해지지 않았으면 _codex 가 이미 fail 이다."""
+    r = models.resolve("reviewer", f.get("models_cfg") or {})
+    if not r["model"] or f.get("codex_models") is None:
+        return None
+    status, detail, fix = models.check_codex(r["model"], r["effort"], f["codex_models"])
+    return _check("reviewer-model", status, detail, fix)
+
+
 def evaluate(f):
     checks = [_codex(f.get("codex_config"), f.get("models_cfg")), _models(f)]
+    rv = _reviewer(f)
+    if rv:
+        checks.append(rv)
     for agent in AGENTS:
         checks.append(_version(agent, (f.get("versions") or {}).get(agent), f.get("verified") or {}))
     checks.append(_trust(f.get("agy_settings"), f.get("trust_root", str(trust.DEFAULT_ROOT)), f.get("exists")))

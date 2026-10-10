@@ -221,6 +221,79 @@ done
 - 모르는 역할·필드, 허용 문자(영문·숫자·`._:/-`) 밖의 model 값, 역할별 허용 목록 밖의 effort 는 거부한다. 값이 셸 명령줄에 들어가기 때문이다.
 - 확인: `python scripts/relay_cli.py models` (4역할 한눈에) / `python scripts/relay_cli.py doctor` (`models` 줄).
 
+### 설정 파일 만들기 — `models-init`
+
+리뷰어·구현자의 model/effort 를 한 줄로 파일에 쓴다. 쓰기 전에 `agy models`, codex `models_cache.json` 과 대조해 안 되는 조합은 거부한다(종료코드 2, 아무것도 쓰지 않음).
+
+```bash
+cd <프로젝트>
+python "$P/scripts/relay_cli.py" models-init \
+  --reviewer-model gpt-6-luna --reviewer-effort high \
+  --implementer-model gemini-3.8-flash --implementer-effort low
+# wrote <프로젝트>/.ai/relay-models.json
+# 저장소 설정이다 — 팀과 공유하려면 git add .ai/relay-models.json
+```
+
+(`P` 는 위 「1.3.0 으로 올리기」 4번의 설치 경로. 이 저장소 안에서는 `python plugins/relay/scripts/relay_cli.py …`.)
+
+| 옵션 | 뜻 |
+|---|---|
+| `--repo <dir>` | 파일을 만들 프로젝트 (기본: 현재 디렉터리). 결과는 `<dir>/.ai/relay-models.json` |
+| `--user` | 프로젝트 대신 사용자 전역 `~/.relay/models.json` 에 만든다 |
+| `--print` | 쓰지 않고 내용만 출력한다 (미리 보기) |
+| `--force` | 이미 있어도 덮어쓴다. 없으면 기존 파일이 있을 때 거부한다 |
+| `--no-verify` | agy·codex 목록 대조를 건너뛴다 (오프라인) |
+| `--output <file>` | 만들 파일 경로를 직접 지정 |
+
+넘긴 값만 파일에 들어간다. 예를 들어 `--reviewer-effort xhigh` 만 주면 `{"reviewer": {"effort": "xhigh"}}` 가 되어 모델은 사용자 전역 파일 값을 그대로 쓴다. 설계자·진행자는 이 명령이 다루지 않는다(Claude 세션이라 파일로 강제할 수 없고, 필요하면 파일을 직접 편집한다).
+
+### 리뷰어(codex) 모델 고르기
+
+리뷰어 모델은 codex 를 평소에 쓰는 모델(`~/.codex/config.toml` 의 `model`)과 **별개**다. 설정 파일에 `reviewer.model` 이 없으면 리뷰 단계가 시작되지 않는다.
+
+1. **목록과 effort 를 본다.** codex 가 캐시해 둔 모델 목록에서 `slug` 가 `model` 값이다.
+
+   ```bash
+   python -c "
+   import json,pathlib
+   for m in json.loads((pathlib.Path.home()/'.codex'/'models_cache.json').read_text(encoding='utf-8'))['models']:
+       if m.get('visibility')=='list': print(m['slug'], [x['effort'] for x in m['supported_reasoning_levels']])"
+   # gpt-6-luna [low, medium, high, xhigh, max]
+   # gpt-6-sol  [low, medium, high, xhigh, max, ultra]
+   ```
+
+2. **`~/.relay/models.json` 에 적는다.** 모델마다 지원하는 effort 가 다르다(`ultra` 는 `gpt-6-sol` 계열만).
+
+   ```json
+   { "reviewer": { "model": "gpt-6-luna", "effort": "high" } }
+   ```
+
+   | 원하는 것 | `reviewer` |
+   |---|---|
+   | 기본 리뷰 | `{"model": "gpt-6-luna", "effort": "high"}` |
+   | 어려운 변경만 깊게 | `{"model": "gpt-6-sol", "effort": "ultra"}` |
+   | effort 만 바꾸기 | `{"model": "gpt-6-luna", "effort": "medium"}` (model 은 항상 필요) |
+
+   `effort` 를 생략하면 `high` 다. `model` 을 생략하면 기동하지 않는다.
+3. **저장소마다 다르게 하려면** `<저장소>/.ai/relay-models.json` 에 같은 형식으로 적는다. 필드 단위로 사용자 파일을 덮는다. 예를 들어 이 파일에 `{"reviewer": {"effort": "xhigh"}}` 만 있으면 모델은 사용자 파일의 것, effort 만 `xhigh` 다.
+4. **확인한다.** `reviewer-model` 줄이 `OK` 여야 한다. 모델이 지원하지 않는 effort 는 `FAIL`, 목록에 없는 모델은 `WARN`(캐시가 낡았거나 사용자 정의 모델일 수 있어 막지 않는다).
+
+   ```bash
+   python scripts/relay_cli.py doctor | grep -E "codex|reviewer-model"
+   # OK   codex           리뷰어 모델: gpt-6-luna / high (relay 설정 파일)
+   # OK   reviewer-model  gpt-6-luna / high (codex 모델 목록에 있음)
+   ```
+
+5. **실제로 뜨는지 본다.** 설정대로 `codex --yolo -m … -c model_reasoning_effort=…` 로 기동한다.
+
+   ```bash
+   python scripts/relay_cli.py smoke --dir C:/Users/hdmun/scripts --agent codex
+   ```
+
+6. **`config.toml` 에서 필요한 것은 사전 조건 키 두 개뿐**이다(위 「준비물」 3번). `model` 은 있어도 없어도 리뷰어에 영향이 없다.
+
+리뷰 리포트 커밋의 `Reviewed-by: codex/<모델>` 트레일러는 기동 명령에 준 `-m` 값, 즉 설정 파일의 `reviewer.model` 이다.
+
 ### 구현자(agy) 모델 고르기
 
 1. **목록을 본다.** 왼쪽 ID 가 `model` 에 쓰는 값이다.

@@ -207,6 +207,52 @@ class OrcaCli(unittest.TestCase):
             self.assertEqual(out["command"], "claude --model opus --effort max")
 
 
+class ModelsInitCli(unittest.TestCase):
+    def run_init(self, d, *args):
+        return cli("models-init", "--repo", str(d), "--no-verify", *args)
+
+    def test_writes_repo_file_that_models_command_reads_back(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self.run_init(d, "--reviewer-model", "gpt-9", "--reviewer-effort", "xhigh",
+                              "--implementer-model", "gemini-3.8-flash", "--implementer-effort", "low")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            path = pathlib.Path(d) / ".ai" / "relay-models.json"
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
+                             {"reviewer": {"model": "gpt-9", "effort": "xhigh"}, "implementer": {"model": "gemini-3.8-flash", "effort": "low"}})
+            self.assertNotIn(bytes([13]), path.read_bytes())   # LF 로 쓴다
+            out = json.loads(cli("models", "--repo", d, "--user-config", str(pathlib.Path(d) / "none.json")).stdout)
+            self.assertEqual(out["implementer"]["launch_command"], "$null=1; agy --model gemini-3.8-flash --effort low")
+
+    def test_refuses_to_overwrite_without_force(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self.run_init(d, "--reviewer-model", "a").returncode, 0)
+            r = self.run_init(d, "--reviewer-model", "b")
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("--force", r.stderr.decode("utf-8"))
+            path = pathlib.Path(d) / ".ai" / "relay-models.json"
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["reviewer"]["model"], "a")
+            self.assertEqual(self.run_init(d, "--reviewer-model", "b", "--force").returncode, 0)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["reviewer"]["model"], "b")
+
+    def test_invalid_values_exit_2_and_write_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            for args in (("--reviewer-model", "x;y"), ("--reviewer-model", "a", "--reviewer-effort", "minimal"), ()):
+                self.assertEqual(self.run_init(d, *args).returncode, 2, args)
+            self.assertFalse((pathlib.Path(d) / ".ai").exists())
+
+    def test_print_does_not_write(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self.run_init(d, "--reviewer-model", "gpt-9", "--print")
+            self.assertEqual(json.loads(r.stdout), {"reviewer": {"model": "gpt-9"}})
+            self.assertFalse((pathlib.Path(d) / ".ai").exists())
+
+    def test_output_path_override(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = pathlib.Path(d) / "sub" / "m.json"
+            self.assertEqual(self.run_init(d, "--reviewer-model", "gpt-9", "--output", str(out)).returncode, 0)
+            self.assertTrue(out.exists())
+
+
 class ValidateCli(unittest.TestCase):
     def test_exit_codes(self):
         with tempfile.TemporaryDirectory() as d:
