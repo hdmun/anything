@@ -14,6 +14,8 @@
   python relay_cli.py liveness --worker <file> [--terminal <file>] --role implementer|reviewer [--now <ms>]   (결정기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
+  python relay_cli.py models-init [--repo <dir> | --user] [--reviewer-model M] [--reviewer-effort E]
+                                  [--implementer-model M] [--implementer-effort E] [--force] [--print] [--no-verify]   (설정 파일 생성)
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
   python relay_cli.py smoke --dir <trusted dir> [--agent antigravity|codex|all]   (검사기 — 실제 CLI 리허설, 수동)
@@ -207,6 +209,11 @@ def _agy_models_text():
     return out if rc == 0 else None
 
 
+def _codex_models_text():
+    p = pathlib.Path.home() / ".codex" / "models_cache.json"
+    return p.read_text(encoding="utf-8") if p.is_file() else None
+
+
 def _decide_model(role, cfg, codex_config=None):
     if role == "reviewer":
         path = pathlib.Path(codex_config) if codex_config else pathlib.Path.home() / ".codex" / "config.toml"
@@ -219,6 +226,50 @@ def _decide_model(role, cfg, codex_config=None):
 def cmd_model(a):
     cfg, _used = _models_cfg(a)
     return _emit(_decide_model(a.role, cfg, a.config))
+
+
+def cmd_models_init(a):
+    """리뷰어·구현자 model/effort 를 설정 파일로 만든다. 저장소(.ai/relay-models.json) 또는 사용자(~/.relay/models.json)."""
+    cfg = models.build(a.reviewer_model, a.reviewer_effort, a.implementer_model, a.implementer_effort)
+    for role in cfg:
+        for f, v in cfg[role].items():
+            models.check_value(role, f, v, "models-init")
+    target = pathlib.Path(a.output) if a.output else models.USER_PATH if a.user else pathlib.Path(a.repo) / models.REPO_REL
+    notes = []
+    if not a.no_verify:
+        impl = cfg.get("implementer")
+        if impl:
+            text = _agy_models_text()
+            if text is None:
+                notes.append("WARN agy models 를 실행하지 못해 구현자 값을 대조하지 못했다")
+            else:
+                status, detail, fix = models.check_agy(impl.get("model"), impl.get("effort"), text)
+                if status == "fail":
+                    raise InputError("%s — %s" % (detail, fix))
+                if status == "warn":
+                    notes.append("WARN " + detail)
+        rev = cfg.get("reviewer")
+        if rev and rev.get("model"):
+            text = _codex_models_text()
+            status, detail, fix = models.check_codex(rev["model"], rev.get("effort") or models.DEFAULT_EFFORT["reviewer"], text or "")
+            if status == "fail":
+                raise InputError("%s — %s" % (detail, fix))
+            if status == "warn":
+                notes.append("WARN " + detail)
+    if target.exists() and not a.force:
+        raise InputError("이미 있다: %s (--force 로 덮어쓰거나 --print 로 내용만 본다)" % target)
+    text = models.render(cfg)
+    if a.print:
+        print(text, end="")
+        return 0
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(text.encode("utf-8"))   # LF 로 쓴다 — 저장소에 커밋하는 파일
+    print("wrote %s" % target)
+    for n in notes:
+        print(n)
+    if not a.user and not a.output:
+        print("저장소 설정이다 — 팀과 공유하려면 git add %s" % models.REPO_REL)
+    return 0
 
 
 def cmd_models(a):
@@ -290,6 +341,7 @@ def cmd_doctor(a):
     facts = {
         "models_error": models_error, "models_cfg": models_cfg, "models_files": models_files,
         "agy_models": _agy_models_text() if models_files else None,
+        "codex_models": _codex_models_text(),
         "codex_config": codex_cfg.read_text(encoding="utf-8") if codex_cfg.exists() else None,
         "versions": {k: _cli_version(k) for k in doctor.AGENTS},
         "verified": _verified(),
@@ -418,6 +470,19 @@ def build_parser():
     _add_models_args(ms)
     ms.set_defaults(func=cmd_models)
 
+    mi = sub.add_parser("models-init", help="리뷰어·구현자 model/effort 설정 파일 생성 (기본: <repo>/.ai/relay-models.json)")
+    mi.add_argument("--repo", default=".", help="설정 파일을 만들 저장소. 기본: 현재 디렉터리")
+    mi.add_argument("--user", action="store_true", help="저장소 대신 사용자 전역(~/.relay/models.json)에 만든다")
+    mi.add_argument("--output", help="만들 파일 경로를 직접 지정 (테스트·특수용)")
+    mi.add_argument("--reviewer-model")
+    mi.add_argument("--reviewer-effort")
+    mi.add_argument("--implementer-model")
+    mi.add_argument("--implementer-effort")
+    mi.add_argument("--force", action="store_true", help="이미 있어도 덮어쓴다")
+    mi.add_argument("--print", action="store_true", help="쓰지 않고 내용만 출력한다")
+    mi.add_argument("--no-verify", action="store_true", help="agy models·codex models_cache 대조를 건너뛴다")
+    mi.set_defaults(func=cmd_models_init)
+
     dr = sub.add_parser("doctor", help="머신 점검: codex 설정·CLI 버전·trust·agy 권한")
     dr.add_argument("--fix", action="store_true", help="relay 워크트리 루트 아래 죽은 trust 항목만 정리")
     dr.add_argument("--json", action="store_true")
@@ -444,7 +509,7 @@ def main(argv=None):
         ap.error("trust %s 에는 경로가 필요하다" % a.op)
     try:
         return a.func(a)
-    except (InputError, review.ReviewError, OSError, ValueError) as e:
+    except (InputError, models.ModelsError, review.ReviewError, OSError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 2
 
