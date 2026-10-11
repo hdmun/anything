@@ -165,13 +165,18 @@ def cmd_startup(a):
     return _emit(orca.startup(_read_json_arg(a.response), prior_failures=a.prior_failures))
 
 
-def cmd_readiness(a):
-    raw = pathlib.Path(a.screen).read_text(encoding="utf-8")
+def _read_screen(path):
+    """terminal read --screen --json 출력(또는 화면 텍스트) 파일 → 화면 텍스트."""
+    raw = pathlib.Path(path).read_text(encoding="utf-8")
     try:
         t = _unwrap_terminal(json.loads(raw))
-        screen = "\n".join(t["tail"]) if isinstance(t, dict) and "tail" in t else raw
+        return "\n".join(t["tail"]) if isinstance(t, dict) and "tail" in t else raw
     except ValueError:
-        screen = raw
+        return raw
+
+
+def cmd_readiness(a):
+    screen = _read_screen(a.screen)
     if a.agent == "antigravity" and not a.agy_log:
         raise InputError("antigravity 는 --agy-log(최신 cli-*.log)가 필요하다 — 로그인 여부를 거기서 본다")
     if a.agent == "antigravity" and a.command is None:
@@ -187,14 +192,17 @@ def cmd_readiness(a):
 
 
 def cmd_liveness(a):
-    worker = _read_json_arg(a.worker)
+    worker = _read_json_arg(a.worker) if a.worker else {}
     if isinstance(worker, dict) and "result" in worker:
         r = worker["result"]
         ws = r.get("workers") if isinstance(r, dict) else r
         worker = ws[0] if isinstance(ws, list) and ws else r
     term = _unwrap_terminal(_read_json_arg(a.terminal)) if a.terminal else {}
     now = a.now if a.now is not None else int(time.time() * 1000)
-    return _emit(orca.liveness(worker, term, a.role, now))
+    screen = _read_screen(a.screen) if a.screen else None
+    if not a.worker and (a.empty_waits is None or a.empty_waits >= orca.LAYER1_EMPTY_WAITS):
+        raise InputError("빈 대기 %d회째부터는 --worker(worker-list --json 출력)가 필요하다" % orca.LAYER1_EMPTY_WAITS)
+    return _emit(orca.liveness(worker, term, a.role, now, screen=screen, empty_waits=a.empty_waits))
 
 
 def _models_cfg(a):
@@ -453,10 +461,12 @@ def build_parser():
     _add_models_args(rd)
     rd.set_defaults(func=cmd_readiness)
 
-    lv = sub.add_parser("liveness", help="빈 대기 3회 뒤 무응답 판정")
-    lv.add_argument("--worker", required=True, help="worker-list --json 출력(또는 그 항목) 파일, - 면 stdin")
+    lv = sub.add_parser("liveness", help="빈 대기 뒤 무응답 판정")
+    lv.add_argument("--worker", help="worker-list --json 출력(또는 그 항목) 파일, - 면 stdin. 빈 대기 3회째부터 필요")
     lv.add_argument("--terminal", help="terminal show --json 출력 파일")
     lv.add_argument("--role", required=True, choices=tuple(orca.STALL_MS))
+    lv.add_argument("--screen", help="terminal read --screen --json 출력 파일 — 확인창에서 멈췄는지 본다")
+    lv.add_argument("--empty-waits", type=int, help="연속 빈 대기 횟수. 3 미만이면 화면만 보고 기다린다")
     lv.add_argument("--now", type=int, help="epoch ms (테스트용)")
     lv.set_defaults(func=cmd_liveness)
 

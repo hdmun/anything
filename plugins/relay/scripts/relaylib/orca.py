@@ -24,7 +24,9 @@ SCREEN_TAIL_LINES = 15        # 답한 프롬프트가 스크롤백에 남아도
 BLOCKED_RE = re.compile(
     r"update available|choose working directory to|codex just got an upgrade|hooks need review|do you trust"
     r"|trust this|trusted workspace|press enter to (?:confirm|continue|view|insert)|press t to trust"
-    r"|permission required|requires permission|allow once|allow always|run this command\?|\bsign in\b",
+    r"|permission required|requires permission|allow once|allow always|run this command\?|\bsign in\b"
+    # codex 명령 승인창 (실측 T-007: git status --short, Get-Location 에서 멈춤)
+    r"|would you like to run the following command|yes, proceed|don'?t ask again",
     re.I,
 )
 AGY_SIGNED_IN = "OAuth: authenticated successfully"
@@ -49,6 +51,11 @@ def agy_launch_command(model=None, effort=None):
         models.check_value("implementer", "effort", effort)
         cmd += " --effort " + effort
     return cmd
+
+
+AGY_HEADER = "antigravity cli"
+AGY_IDLE_RE = re.compile(r"\bidle\b", re.I)
+LAYER1_EMPTY_WAITS = 3        # 이 횟수 전에는 화면 확인만 하고 그냥 기다린다 (SKILL (e) 1층)
 
 
 def _d(action, **kw):
@@ -126,6 +133,13 @@ def readiness(screen, agent, retries, log=None, recreated=False, command=None, l
         if recreated:
             return _d("human", reason="bare_launch_command", launch_command=launch_command)
         return _d("recreate_terminal", reason="bare_launch_command", launch_command=launch_command)
+    if agent == "antigravity" and AGY_HEADER not in screen.lower() and _has_prompt(tail, agent) \
+            and AGY_IDLE_RE.search("\n".join(tail)):
+        # 실측(T-007 수정 라운드): 긴 세션 뒤 같은 터미널에서 tui-idle 3회 연속 timeout, 화면은 `>`·Idle 정상.
+        # Orca 는 보관하는 꼬리(최대 2000줄)에서 `antigravity cli` 머리글을 찾는데 그게 밀려났다 — 기다려도 안 돌아온다
+        if recreated:
+            return _d("human", reason="header_scrolled_out")
+        return _d("recreate_terminal", reason="header_scrolled_out", launch_command=launch_command)
     if retries < TUI_IDLE_RETRIES:
         return _d("retry_tui_idle", wait_seconds=TUI_IDLE_RETRY_SECONDS, attempt=retries + 1)
     if not _has_prompt(tail, agent):
@@ -136,12 +150,20 @@ def readiness(screen, agent, retries, log=None, recreated=False, command=None, l
     return _d("recreate_terminal")
 
 
-def liveness(worker, terminal, role, now_ms):
-    """빈 대기 3회 뒤의 판정 (SKILL (e) 2·3층). worker 는 worker-list 항목, terminal 은 terminal show 결과."""
+def liveness(worker, terminal, role, now_ms, screen=None, empty_waits=None):
+    """빈 대기 뒤의 판정 (SKILL (e)). worker 는 worker-list 항목, terminal 은 terminal show 결과, screen 은 terminal read --screen.
+
+    empty_waits(연속 빈 대기 횟수)를 주면 LAYER1_EMPTY_WAITS 전에는 화면만 보고 기다린다.
+    """
     terminal = terminal or {}
     if terminal.get("agentWait"):
         return _d("human", reason="prompt_wait")       # agentWait 은 양성 신호로만 믿는다
-    p = worker.get("projection") or {}
+    if screen and BLOCKED_RE.search("\n".join(_tail(screen))):
+        # 실측(T-007): codex 가 승인창에서 멈췄는데 agentWait 은 비어 있었다 — 화면이 유일한 증거다
+        return _d("human", reason="blocked_prompt")
+    if empty_waits is not None and empty_waits < LAYER1_EMPTY_WAITS:
+        return _d("wait", reason="layer1")
+    p = (worker or {}).get("projection") or {}
     na = p.get("nextAction") or {}
     if (p.get("attention") or {}).get("requiresAction") and na.get("kind") not in (None, "none") and na.get("argv"):
         return _d("run_argv", argv=["orca"] + list(na["argv"]), kind=na["kind"])   # argv 엔 실행 파일명이 없다

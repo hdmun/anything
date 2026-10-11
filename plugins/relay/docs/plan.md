@@ -64,6 +64,21 @@
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
 
+## 후속 — T-007 진행 세션 보고 3건 (2026-10-11, v1.3.2)
+
+T-007 은 v1.2.3 으로 성공 종료(구현 2·리뷰 2, r2 pass). 그 세션이 실측한 3건:
+
+1. **codex 리뷰어가 읽기 명령마다 승인창에서 멈춤**(r1 `git status --short`, r2 `Get-Location`), `agentWait` 은 null 이라 liveness 가 못 잡음.
+   - 원인: v1.2.3 의 `worker-start --agent codex` 는 샌드박스를 켠 채 띄운다. `[windows] sandbox = "elevated"` 는 샌드박스 사용자 재설치가 필요한 상태(`.sandbox` 로그 `sandbox setup required: sandbox users missing or incompatible with marker version`)라 명령마다 승인을 묻거나 UAC 도우미에서 멈춘다.
+   - v1.2.5 부터 리뷰어는 `codex --yolo` 라 승인창이 뜨지 않는다. 최소 권한 대안을 실측: `-a never -s workspace-write -c windows.sandbox=unelevated` 는 읽기·쓰기 OK, Orca 연결 `EPERM`(network_access 로도 같음). `~/.codex/rules` 로 `orca orchestration` 만 허용하는 길은 사용자 결정으로 쓰지 않는다 → `--yolo` 유지.
+   - 보강: `BLOCKED_RE` 에 codex 승인창 문구, `liveness --screen --empty-waits` — 빈 대기 1회째부터 화면의 확인창을 `human / blocked_prompt` 로.
+2. **긴 세션 뒤 agy 터미널이 tui-idle 을 통과 못 함**(화면은 `>`·Idle 정상, 새 터미널은 즉시 통과).
+   - 원인 확인(Orca 소스): 준비 판정은 PTY 꼬리(최대 2000줄·256 KiB)에서 `antigravity cli` 머리글 뒤의 `gemini…` 줄과 `>` 줄을 찾는다. 머리글이 밀려나면 영영 못 찾는다.
+   - `readiness` 에 `header_scrolled_out`(재시도 없이 재생성), SKILL (g) 에 재사용 전 `tui-idle` 과 재생성 절차.
+   - `/clear` 실측: 머리글은 다시 찍혀 통과하지만 대화 맥락도 사라짐(UNKNOWN) — 재사용의 의미가 없어 쓰지 않는다.
+   - agy `--model claude-…` 로 띄워도 새 터미널은 2초에 통과(모델 줄이 `gemini` 가 아니어도 무관).
+3. **변이 게이트 25~40분**(`tools/mutate/mutate.py` 가 변이마다 `go test ./...`) — 도구 개선은 poker-server 몫. SKILL (f) 에 백그라운드 실행·동시 테스트 금지·잔재 판별·커밋 시점 주의.
+
 ## 기능 — 역할별 model·effort 설정 파일 (2026-10-11, v1.3.0)
 
 - `~/.relay/models.json`(사용자) + `.ai/relay-models.json`(저장소) 를 필드 단위로 겹친다. 정본은 `relaylib/models.py`, 근거는 `docs/adr/0002-model-settings-file.md`.

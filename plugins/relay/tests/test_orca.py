@@ -134,6 +134,26 @@ class Readiness(unittest.TestCase):
         d = orca.readiness(fx("codex-screen-update.txt"), agent="codex", retries=0)
         self.assertEqual((d["action"], d["reason"]), ("human", "blocked_prompt"))
 
+    def test_scrolled_out_header_recreates_without_retrying(self):
+        # 실측(T-007 수정 라운드): 긴 세션 뒤 화면은 `>`·Idle 정상인데 머리글이 Orca 꼬리(2000줄) 밖으로 밀려났다
+        cmd = orca.AGY_LAUNCH_COMMAND
+        d = orca.readiness(fx("agy-screen-long-session.txt"), agent="antigravity", log=self.SIGNED, retries=0, command=cmd)
+        self.assertEqual((d["action"], d["reason"]), ("recreate_terminal", "header_scrolled_out"))
+        self.assertEqual(d["launch_command"], cmd)
+        d = orca.readiness(fx("agy-screen-long-session.txt"), agent="antigravity", log=self.SIGNED, retries=0,
+                           command=cmd, recreated=True)
+        self.assertEqual((d["action"], d["reason"]), ("human", "header_scrolled_out"))
+
+    def test_header_rule_needs_idle_prompt(self):
+        # 일하는 중(Idle 아님)이거나 입력창이 없으면 머리글이 없어도 이 규칙이 아니다
+        busy = fx("agy-screen-long-session.txt").replace("│ Idle │", "│ Working │")
+        d = orca.readiness(busy, agent="antigravity", log=self.SIGNED, retries=0, command=orca.AGY_LAUNCH_COMMAND)
+        self.assertEqual(d["action"], "retry_tui_idle")
+
+    def test_codex_approval_prompt_blocks(self):
+        d = orca.readiness(fx("codex-screen-approval.txt"), agent="codex", retries=0)
+        self.assertEqual((d["action"], d["reason"]), ("human", "blocked_prompt"))
+
     def test_codex_needs_no_log(self):
         d = orca.readiness(fx("codex-screen-ready.txt"), agent="codex", retries=3)
         self.assertEqual(d["action"], "recreate_terminal")
@@ -173,6 +193,19 @@ class Liveness(unittest.TestCase):
         w = self.worker(liveness={"verdict": "unverifiable", "reason": "missing_status"},
                         nextAction={"kind": "none"}, attention={"categories": [], "requiresAction": False})
         self.assertEqual(orca.liveness(w, {"agentWait": None, "lastOutputAt": self.NOW - 1000}, "implementer", self.NOW)["action"], "wait")
+
+    def test_approval_screen_calls_human_on_first_empty_wait(self):
+        # 실측(T-007): codex 가 승인창에서 멈췄는데 agentWait 은 null — 빈 대기 3회(30분)를 기다리지 않는다
+        t = {"agentWait": None, "lastOutputAt": self.NOW}
+        d = orca.liveness({}, t, "reviewer", self.NOW, screen=fx("codex-screen-approval.txt"), empty_waits=1)
+        self.assertEqual((d["action"], d["reason"]), ("human", "blocked_prompt"))
+
+    def test_layer1_waits_without_projection(self):
+        t = {"agentWait": None, "lastOutputAt": self.NOW - 60 * 60_000}
+        d = orca.liveness({}, t, "implementer", self.NOW, screen=fx("codex-screen-ready.txt"), empty_waits=2)
+        self.assertEqual((d["action"], d["reason"]), ("wait", "layer1"))
+        d = orca.liveness(self.worker(), t, "implementer", self.NOW, screen=fx("codex-screen-ready.txt"), empty_waits=3)
+        self.assertEqual(d["reason"], "stalled")
 
     def test_exited_calls_human(self):
         w = self.worker(liveness={"verdict": "exited"}, nextAction={"kind": "none"})
