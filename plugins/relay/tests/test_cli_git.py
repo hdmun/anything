@@ -170,6 +170,15 @@ class OrcaCli(unittest.TestCase):
                     "--role", "implementer", "--now", str(1000 + 6 * 60_000))
             self.assertEqual(json.loads(r.stdout)["reason"], "stalled")
 
+    def test_liveness_cli_screen_on_first_empty_wait(self):
+        r = cli("liveness", "--screen", str(self.FIX / "codex-screen-approval.txt"), "--empty-waits", "1",
+                "--role", "reviewer", "--now", "1000")
+        self.assertEqual(json.loads(r.stdout)["reason"], "blocked_prompt")
+
+    def test_liveness_cli_needs_worker_from_third_empty_wait(self):
+        r = cli("liveness", "--empty-waits", "3", "--role", "reviewer", "--now", "1000")
+        self.assertEqual(r.returncode, 2)
+
     def test_model_reviewer_cli(self):
         with tempfile.TemporaryDirectory() as d:
             c = pathlib.Path(d) / "config.toml"

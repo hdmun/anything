@@ -214,8 +214,8 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
      | `action` | 할 일 |
      |---|---|
      | `retry_tui_idle` | `wait_seconds`(30초) 뒤 `tui-idle`을 다시 건다. 다시 timeout이면 `--retries`를 1 올려 또 묻는다 |
-     | `recreate_terminal` | 터미널을 닫고 새로 만든 뒤 `--recreated`를 붙여 같은 사다리를 다시 탄다. `reason: bare_launch_command`면 단독 `agy`로 띄운 것이다 — 기다려도 풀리지 않으므로 재시도 없이 바로 나온다. 새 터미널은 결정의 `launch_command` 값을 `--command`로 쓴다 |
-     | `human` | `reason`과 함께 사람 호출: `blocked_prompt`(trust·update·permission — 자동 응답 금지), `not_signed_in`(로그에 로그인 기록 없음), `no_prompt`(입력창이 아직 없다), `recreate_failed`(재생성도 실패), `bare_launch_command`(재생성한 뒤에도 단독 `agy`로 띄웠다) |
+     | `recreate_terminal` | 터미널을 닫고 새로 만든 뒤 `--recreated`를 붙여 같은 사다리를 다시 탄다. `reason: bare_launch_command`면 단독 `agy`로 띄운 것이다 — 기다려도 풀리지 않으므로 재시도 없이 바로 나온다. `reason: header_scrolled_out`도 그렇다 — 화면은 `>`·Idle로 정상인데 긴 세션으로 `Antigravity CLI` 머리글이 Orca가 보관하는 꼬리(최대 2000줄) 밖으로 밀려났다. 새 터미널은 결정의 `launch_command` 값을 `--command`로 쓴다 |
+     | `human` | `reason`과 함께 사람 호출: `blocked_prompt`(trust·update·permission·codex 승인창 — 자동 응답 금지), `not_signed_in`(로그에 로그인 기록 없음), `no_prompt`(입력창이 아직 없다), `recreate_failed`(재생성도 실패), `bare_launch_command`(재생성한 뒤에도 단독 `agy`로 띄웠다), `header_scrolled_out`(새 터미널에서도 머리글이 없다) |
 
      사다리(로그인 확인 → 재시도 3회 → 1회 재생성 → 사람)의 정본은 `scripts/relaylib/orca.py`다.
      - **이 사다리는 예비 수단이다.** poker-server T-004·T-005와 2026-10-05 smoke에서 보인 "간헐적·시간대에 몰리는" 준비 감지 실패는 대부분 단독 `agy` 실행 경로 탓이었다(위 `--command` 설명). 시작 명령을 지키면 사다리까지 올 일이 드물다. 그래도 timeout이 나면 사다리대로 하고, 실측으로 기록한다.
@@ -304,6 +304,8 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
     2. 사람이 끝났다고 알리면 **같은 터미널**에 `tui-idle`을 다시 건다. 새 터미널이나 새 Task를 만들지 않는다.
     3. 통과하면 **같은 Task**로 `worker-start --terminal <h>`를 건다. 다시 timeout이면 `readiness`부터 다시 — 확인창이 연달아 뜰 수 있다.
   - **`--yolo`(= `--dangerously-bypass-approvals-and-sandbox`)를 빼지 않는다.** `worker-start --agent codex`로 띄울 때 Orca가 기본으로 붙이는 인자다(Orca `tui-agent-permissions.ts`). 직접 띄우면 이 인자가 빠지고, `config.toml`의 샌드박스 안에서 워커의 `orca orchestration send … worker_done`이 응답 없이 멈춘다(실측: 3분 뒤 codex가 스스로 끊고 "can't confirm delivery", Task는 `dispatched`에 남음).
+    샌드박스를 켠 채로는 길이 없다(2026-10-11 실측): `[windows] sandbox = "elevated"`는 첫 명령에서 UAC 설치 도우미를 띄우고 멈춘다(`.sandbox` 로그 `sandbox setup required`). `-a never -s workspace-write -c windows.sandbox=unelevated`는 읽기·쓰기는 확인창 없이 되지만 Orca 연결이 `EPERM`이다(`network_access=true`로도 같음).
+    `~/.codex/rules`에 `orca orchestration`만 허용하는 규칙을 두면 최소 권한이 가능하지만, codex 전역 설정이라 쓰지 않기로 했다(사용자 결정).
   - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다(`worker-start --help`). 그래서 모델·effort는 위처럼 **codex 명령줄**로 준다. 이 경로는 응답의 `launch.effective`가 비어 온다 — `model`은 명령줄에 준 값을 기록한다(화면 상태줄에 `<Model> high`로 보인다).
   - 실측(2026-10-11, codex 0.159.3·Orca 1.4.222, 버리는 Task): `--yolo` 로 5회 — `tui-idle` 7~11초 통과, 4회는 `worker_done`까지 14초 안팎, 1회는 `turn_start_unobserved`로 입력이 유실됐다(아래 `confirm_delivery`). 2026-10-06(Orca 1.4.200)엔 `Hooks need review` 화면에서 `tui-idle` timeout → `readiness --agent codex`가 `human / blocked_prompt`를 돌려줬다.
   - 응답은 구현 워커와 같이 `startup`에 해석시킨다. `confirm_delivery`면 4번 표대로 `dispatch-show`의 `status`로 전달을 확인한다
@@ -337,21 +339,30 @@ orca orchestration check --ack <delivery_id> --wait --types worker_done,escalati
 
 **빈 대기와 타임아웃은 실패가 아니라 체크포인트다.** 순서대로 내려간다.
 
-**1층 — 3회까지는 그냥 기다린다.** `check --wait`를 다시 건다. heartbeat나 화면 활동은 *살아 있다*는 뜻이지 *끝났다*는 뜻이 아니다.
+**1층 — 빈 대기마다 화면만 본다. 3회 미만이면 다시 기다린다.** heartbeat나 화면 활동은 *살아 있다*는 뜻이지 *끝났다*는 뜻이 아니다.
+그러나 확인창에서 멈춘 워커는 기다려도 끝나지 않는다. 그래서 **1회째부터** 화면을 `liveness`에 넘긴다 — 확인창이면 그 자리에서 `human / blocked_prompt`가 나온다.
+실측(T-007): codex 리뷰어가 `git status --short`·`Get-Location` 승인창에서 멈췄는데 `agentWait`은 비어 있었다. 빈 대기 2회 뒤 화면을 읽고서야 알았다.
 
-**2·3층 — 3회 연속 빈 대기면 fleet projection과 터미널 상태를 받아 `liveness`에 묻는다.**
+```bash
+orca terminal read --terminal <worker handle> --screen --json > screen.json
+orca terminal show --terminal <worker handle> --json > term.json
+python "$RELAY/scripts/relay_cli.py" liveness --screen screen.json --terminal term.json --empty-waits <연속 빈 대기 횟수> --role implementer|reviewer
+```
+
+`wait`(`reason: layer1`)이면 `check --wait`를 다시 건다.
+
+**2·3층 — 3회 연속 빈 대기면 fleet projection도 함께 넘긴다.**
 
 ```bash
 orca orchestration worker-list --run <run_id> --include-remote --json > workers.json   # 그 워커 항목만 남겨도 된다
-orca terminal show --terminal <worker handle> --json > term.json
-python "$RELAY/scripts/relay_cli.py" liveness --worker workers.json --terminal term.json --role implementer|reviewer
+python "$RELAY/scripts/relay_cli.py" liveness --worker workers.json --screen screen.json --terminal term.json --empty-waits 3 --role implementer|reviewer
 ```
 
 | `action` | 할 일 |
 |---|---|
 | `run_argv` | projection이 다음 행동을 줬다(`attention.requiresAction`). `argv`를 그대로 실행한다 — `orca` 접두는 이미 붙어 있다 |
 | `wait` | 작업 중이다. 1층으로 돌아가 계속 대기 |
-| `human` | `prompt_wait`(`agentWait` — 자동 응답 금지), `stalled`(출력 정지: 구현 5분·리뷰 10분), `exited`(워커 종료) |
+| `human` | `prompt_wait`(`agentWait` — 자동 응답 금지), `blocked_prompt`(화면의 확인창 — 자동 응답 금지), `stalled`(출력 정지: 구현 5분·리뷰 10분), `exited`(워커 종료) |
 
 - **2층(projection)이 1차 신호**이고 3층(`lastOutputAt` 벽시계)은 projection이 답을 못 줄 때만 쓴다. 정본은 3층에서 *"`liveness.reason`을 읽고 계속 기다려라"* 라고만 해서 종료 조건이 없다 — relay가 임계값을 둔 이유다.
 - **agy 워커는 2층이 답을 주지 않는다.** 실측(T-004): `liveness: unverifiable (missing_status)`, `nextAction: none`만 돌아왔다. `liveness`는 이 경우 자동으로 3층으로 내려간다.
@@ -431,6 +442,22 @@ grep -cE "error TS[0-9]+" tsc.log
 - 머지 후 검증 전에 의존성을 동기화한다.
 - 새 워크트리에서는 (d)의 기준선 확인이 같은 일을 한다.
 
+### 소스를 고쳐 가며 도는 게이트(변이 테스트)는 따로 돌린다
+
+변이 테스트 도구는 소스에 변이를 심고 테스트를 돌린 뒤 되돌리기를 반복한다. 실측(poker-server T-007): `tools/mutate/mutate.py`가 변이마다 `go test ./...` 전체를 돌려 25~40분 걸렸다.
+
+- **다른 게이트를 먼저 끝내고 변이 게이트는 마지막에 백그라운드로 돌린다**(예: Bash의 `run_in_background`). 끝나면 종료코드로 판정한다.
+- **변이 게이트가 도는 동안 같은 워크트리에서 `go test` 등 다른 게이트를 돌리지 않는다.** 변이가 심어진 소스를 테스트해 거짓 FAIL이 난다(실측: `internal/analysis`).
+- **그동안 `git status`에 보이는 소스 변경은 변이 잔재일 수 있다.** 변이 도구가 살아 있는지 먼저 본다:
+
+  ```bash
+  powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "mutate" } | Select-Object ProcessId, CommandLine'
+  ```
+
+  - 살아 있으면 끝날 때까지 기다린다. 그 변경을 고치거나 되돌리지 않는다.
+  - 프로세스가 없는데 워커가 만들지 않은 변경이 남아 있으면 도구가 복원하지 못한 것이다. 커밋하지 말고 `git diff`를 첨부해 사람을 부른다.
+- **변이 게이트가 끝나고 `git status`가 깨끗해진 뒤에만 아래의 구현 커밋을 만든다.** 도는 중에 커밋하면 변이가 커밋에 섞인다.
+
 ### 게이트 통과 즉시 커밋한다
 
 리뷰 결과를 기다리지 않고, 게이트가 초록이면 그 자리에서 구현자 커밋을 만든다.
@@ -486,10 +513,18 @@ orca orchestration task-create \
   --spec "T-NNN 리뷰 지적 수정. 리뷰: .ai/reviews/T-NNN.rN.json / 원본 명세: .ai/specs/T-NNN-<슬러그>.md" --json
 
 orca orchestration worker-show --dispatch <이전 dispatch_id> --json
+orca terminal wait --terminal <agent_terminal_handle> --for tui-idle --timeout-ms 30000 --json   # 재사용 전 확인
 orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_handle> --json
 ```
 
 - **워커 터미널은 살아 있으므로 같은 handle을 재사용한다.** 세션 컨텍스트가 유지되어 배경을 다시 설명할 필요가 없다.
+- **재사용 전에 `tui-idle`부터 통과시킨다.** `worker-start`는 안에서 같은 준비 대기를 하고, 실패하면 새 Task가 바로 `failed`가 된다.
+  timeout이면 (d)4와 같이 화면을 `readiness`에 묻는다(`--command`는 그 터미널을 만들 때 준 값).
+  - `recreate_terminal / header_scrolled_out`: 긴 세션으로 머리글이 Orca 꼬리 밖으로 밀려났다. 기다려도 돌아오지 않는다(실측 T-007: 3회 연속 timeout, 새 터미널은 즉시 통과).
+    이전 Dispatch를 `worker-release` → 터미널 `close` → 결정의 `launch_command`로 새로 만들어 `tui-idle` → 새 handle로 `worker-start --terminal`.
+    **맥락은 잃는다** — 수정 Task spec이 리뷰 파일과 원본 명세 경로를 담고 있으므로 그것으로 충분해야 한다.
+    재생성 직후 첫 `worker-start`는 `agent_unconfigured`가 올 수 있다 — `startup`의 `wait_tui_idle`대로 `tui-idle`을 다시 걸고 재시도하면 통과한다(실측 2회).
+  - **`/clear`로 머리글을 되살리지 않는다.** 실측(2026-10-11, agy 1.3.3): `/clear` 뒤 머리글이 다시 찍혀 `tui-idle`은 통과하지만, 대화 맥락도 지워진다(기억시킨 단어를 `UNKNOWN`으로 답함). 맥락을 지키려는 재사용의 목적이 사라지므로 새 터미널보다 나을 것이 없다. 보내야 한다면 Git Bash에서 `MSYS_NO_PATHCONV=1`을 붙인다.
 - **`worker-start --terminal`로 재사용한다.** 정본이 정착 후 재사용에 지정한 경로이고, **cleanup 소유권이 새 Dispatch로 넘어가** 감독이 끊기지 않는다. `dispatch --inject`로 보내면 그 순간부터 비감독이 된다.
 - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다. 터미널이 이미 그 모델로 떠 있으므로 문제되지 않는다.
 - `--parent`로 원래 태스크에 묶으면 수정 라운드가 DAG에 기록된다.

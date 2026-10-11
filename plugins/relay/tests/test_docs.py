@@ -42,6 +42,18 @@ class SkillCallsExistingCommands(unittest.TestCase):
             self.assertIn("--yolo", c.split())
         self.assertNotIn("worker-start 응답의 launch.effective.model", SKILL)
 
+    def test_every_liveness_call_passes_the_screen(self):
+        # 회귀: 확인창은 화면에만 보인다(T-007, agentWait null) — 화면 없이 묻는 liveness 는 빈 대기 30분을 쓴다
+        calls = re.findall(r"relay_cli\.py\" liveness [^\n]*", SKILL)
+        self.assertTrue(calls)
+        for c in calls:
+            self.assertIn("--screen", c)
+            self.assertIn("--empty-waits", c)
+
+    def test_reused_terminal_is_checked_before_worker_start(self):
+        self.assertIn("재사용 전에 `tui-idle`부터 통과시킨다", SKILL)
+        self.assertIn("header_scrolled_out", SKILL)
+
     def test_severity_table_not_reintroduced(self):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
