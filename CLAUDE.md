@@ -17,6 +17,7 @@ Single-context: root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
 ## Git
 
 - 커밋 메시지: Conventional Commits (`feat|fix|docs|chore|refactor|test(scope): 설명`). 설명은 한국어, `~한다` 체.
+- 커밋 메시지는 ADHD가 있는 사람도 한눈에 이해하도록 쓴다. 제목은 "무엇이 어떻게 바뀌었는지"를 한 줄로 쓰고, 본문이 필요하면 짧은 불릿으로 나눈다. 모호한 표현·긴 문단·비유는 피한다.
 - scope는 대상 패키지/디렉터리 이름 (예: `relay`).
 - 브랜치: `hdmun/<주제>` 형식. `main`에 직접 작업하지 않고 브랜치에서 작업한 뒤 머지한다.
 - 커밋은 사용자 승인 없이 해도 된다. 푸시는 사용자가 요청할 때만 한다.
