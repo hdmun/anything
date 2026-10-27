@@ -1,0 +1,570 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.311",
+  "startedAt": "2026-10-26T23:58:38.951Z",
+  "durationSeconds": 73,
+  "costUsd": 1.3301538000000002,
+  "partial": false,
+  "suite": {
+    "root": "C:\\Users\\hdmun\\scripts\\plugins\\relay\\prototypes\\PROTOTYPE-references-read\\out\\v2-imperative",
+    "ablation": "none",
+    "judgeModel": "sonnet",
+    "threshold": 0,
+    "concurrency": 3,
+    "plugins": [
+      {
+        "name": "relay",
+        "version": "0.0.0-proto-v2-imperative",
+        "path": "C:\\Users\\hdmun\\scripts\\plugins\\relay\\prototypes\\PROTOTYPE-references-read\\out\\v2-imperative"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "gate-after-done",
+      "dir": "evals\\gate-after-done",
+      "source": "prose",
+      "promptMarkdown": "relay 진행 세션이야. T-012 구현 워커(agy)에서 `worker_done` 이 왔어. 워크트리는 `C:/wt/T-012`, base 는 `a1b2c3d`, spec 의 게이트 명령은 `bun run typecheck && bun run test` 야.\n워커 보고는 \"게이트 통과\" 래. 이제 진행자로서 무엇을 어떤 순서로 해야 해? 실행할 명령과 판단을 알려줘. 실행은 하지 마.",
+      "model": "sonnet",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "criteria",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the response:\r\n1. Runs `relay_cli.py commit-guard --worktree ... --base a1b2c3d` (or clearly checks that the worker did not commit itself) BEFORE re-running the gate.\r\n2. Re-runs the gate commands itself rather than trusting the worker report.\r\n3. Judges the gate commands' pass/fail by their exit code (e.g. `; echo \"exit=$?\"`), not by piping the gate command's output into `head`/`tail`. (Using grep/tail on a saved log or to extract a model label is fine.)\r\n4. Commits the implementation immediately after the gate passes, with an `Implemented-by:` trailer, without waiting for review.\r\n\r\nFAIL if any of the four is missing or contradicted.",
+          "config": {
+            "criteria": "PASS if the response:\r\n1. Runs `relay_cli.py commit-guard --worktree ... --base a1b2c3d` (or clearly checks that the worker did not commit itself) BEFORE re-running the gate.\r\n2. Re-runs the gate commands itself rather than trusting the worker report.\r\n3. Judges the gate commands' pass/fail by their exit code (e.g. `; echo \"exit=$?\"`), not by piping the gate command's output into `head`/`tail`. (Using grep/tail on a saved log or to extract a model label is fine.)\r\n4. Commits the implementation immediately after the gate passes, with an `Implemented-by:` trailer, without waiting for review.\r\n\r\nFAIL if any of the four is missing or contradicted.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "read-gate",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Read",
+            "input_match": "gate\\.md"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?relay\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.20370049999999998,
+            "judgeCostUsd": 0.027802,
+            "durationSeconds": 27,
+            "startedAt": "2026-10-26T23:58:39.189Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-CuLmz0\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`worker_done`을 받은 뒤 진행자가 할 일은 아래 순서입니다. 지금은 실행하지 않았고, 파일 두 개(스킬 본문과 `references/gate.md`)만 읽었습니다. `$RELAY`는 스킬 Base directory에서 두 단계 위(`.../plugins/.../relay`)입니다. `<wt>`는 `C:/wt/T-012`, `<base>`는 `a1b2c3d`입니다.\n\n**핵심 판단:** \"게이트 통과\"라는 워커 보고는 증거로 쓰지 않습니다. 진행자가 같은 게이트를 직접 다시 돌려 종료코드로 판정하고, 통과했을 때만 커밋합니다. 이 재검증은 셸 명령이라 LLM 비용이 0이므로, 워커가 정직해 보여도 생략하지 않습니다.\n\n## 순서\n\n**1. 워커가 직접 커밋하지 않았는지 확인합니다.**\n```bash\npython \"$RELAY/scripts/relay_cli.py\" commit-guard --worktree C:/wt/T-012 --base a1b2c3d ; echo \"exit=$?\"\n```\n- 종료코드가 1이면 `Implemented-by:` 트레일러가 없는 커밋이 있다는 뜻입니다. agy가 직접 커밋한 경우입니다.\n- 이때는 amend나 reset으로 고치지 않습니다. 이력이 증거입니다.\n- 대신 `orca orchestration worker-retain --dispatch <impl_dispatch_id> --json`으로 워커를 보존하고 사람을 부릅니다. 이후 단계는 진행하지 않습니다.\n\n**2. 게이트를 직접 재실행하고, 종료코드로 판정합니다.**\n```bash\ncd C:/wt/T-012\nbun run typecheck > typecheck.log 2>&1 ; echo \"typecheck exit=$?\"\nbun run test      > test.log      2>&1 ; echo \"test exit=$?\"\n```\n- spec의 `&&` 명령을 한 줄로 돌려도 되지만, 어느 단계가 실패했는지 보려고 둘로 나눠 각각 종료코드를 기록합니다.\n- `| head`나 `| tail`처럼 출력을 파이프로 넘기지 않습니다. 파이프를 쓰면 마지막 명령의 종료코드만 남아 실패가 통과로 읽힙니다.\n- 두 종료코드가 모두 0일 때만 통과로 봅니다.\n- `typecheck`가 `tsc -b`를 쓴다면, 증분 캐시 때문에 아무것도 검사하지 않고 끝날 수 있습니다. `package.json`의 스크립트를 확인합니다. 그렇다면 `./node_modules/.bin/tsc -b --force`로 한 번 더 확인합니다.\n- 오류 수를 센다면 `grep -cE \"error TS[0-9]+\"`처럼 파일 접두사 없는 줄도 잡히는 패턴을 씁니다.\n- `package.json`이나 lockfile이 바뀌었다면 먼저 `bun install`을 실행합니다. 이 워크트리의 기준선이 빨갛지 않았는지는 worker-start 전에 확인했어야 합니다. 확인하지 않았다면 여기서 환경 문제와 구현 문제를 구분해서 봅니다.\n- 변이 테스트 같은 장시간 게이트가 spec에 있으면 마지막에 백그라운드로 따로 돌립니다.\n\n**3. 판정에 따라 갈립니다.**\n- **둘 다 exit 0이면** 구현 커밋을 바로 만듭니다. 리뷰 결과를 기다리지 않습니다.\n  - 제목은 `feat(T-012): ...`입니다.\n  - 본문 끝에는 트레일러로 `Implemented-by: agy/<모델 라벨>`을 둡니다.\n  - 모델 라벨은 `grep -o 'label=\"[^\"]*\"' <최신 agy 로그> | tail -1`로 얻습니다. 라벨이 없으면 `agy/unknown`입니다. 모델명은 추측하지 않습니다.\n  - 산문 형식이 아니라 트레일러 형식이어야 합니다.\n  - 변이 게이트를 돌렸다면 `git status`가 깨끗해진 뒤에 커밋합니다.\n- **하나라도 0이 아니면** 워커 보고와 모순되는 상황입니다. 리뷰 워커를 띄우지 않고, 실패 로그를 근거로 구현자에게 수정을 요청합니다. 수정은 새 Task와 새 Dispatch로 만들고, 기존 터미널은 재사용합니다.\n\n**4. 리뷰 워커를 띄우기 전에 diff-guard를 돌립니다.**\n```bash\npython \"$RELAY/scripts/relay_cli.py\" diff-guard --worktree C:/wt/T-012 --base a1b2c3d ; echo \"exit=$?\"\n```\n- 종료코드가 1이면 리뷰 워커를 띄우지 않습니다. base가 틀렸거나 3단계의 커밋이 빠진 것입니다. 빈 diff를 리뷰어에게 넘기면 검증 없이 `pass`가 나오므로, 이 파이프라인에서 가장 비싼 실패입니다.\n\n**5. 리뷰 워커(codex)를 기동합니다.** 절차는 (d)의 리뷰 워커 절을 따릅니다.\n- `relay_cli.py model reviewer`로 모델을 확인합니다. 설정이 없으면 `human / reviewer_model_unset`이므로 사용자에게 알립니다.\n- `terminal create`, `tui-idle`, `worker-start --terminal` 순으로 띄웁니다.\n- Task spec에 `<base> = a1b2c3d`를 반드시 적습니다.\n- 응답은 `startup`으로 해석합니다.\n\n**6. 리뷰가 끝나면 `review-branch`로 분기합니다.**\n```bash\npython \"$RELAY/scripts/relay_cli.py\" review-branch --task T-012 --worktree C:/wt/T-012 --base a1b2c3d\n```\n- 리뷰 워커의 `worker_done` 뒤에도 `commit-guard`를 한 번 더 돌립니다.\n- `action`에 따라 처리합니다: `rewrite`, `success`, `fix_round`, `escalate`, `human`.\n- 성공하면 PR 생성(경로 A)이나 브랜치 보고(경로 B)로 갑니다. 머지는 사람이 합니다.\n- 마무리로 워커 해제와 `trust remove`를 한 뒤 `reclaimable`이 0인지 확인하고 세션을 폐기합니다.\n\n## 주의할 점\n- 출력 JSON은 필요한 필드만 추출해서 읽습니다. 원본 그대로 컨텍스트에 쌓지 않습니다.\n- 워커가 무응답이거나 확인창에서 멈춘 경우의 처리는 (e) 절을 따릅니다. 이 경우 프롬프트에 자동으로 응답하지 않습니다."
+              },
+              {
+                "name": "read-gate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Read called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0.6666666666666666,
+            "passed": false,
+            "turns": 4,
+            "costUsd": 0.20806370000000002,
+            "judgeCostUsd": 0.030063999999999994,
+            "durationSeconds": 31,
+            "startedAt": "2026-10-26T23:58:39.189Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-jO5M2c\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "\"게이트 통과\"라는 워커 보고는 증거로 쓰지 않고, 진행자가 직접 다시 검증합니다. 아래 명령은 하나도 실행하지 않았습니다. `<…>` 자리는 `worker_done`에서 채울 값입니다.\n\n## 순서\n\n**0. 세션 확인 (선택).** 이 세션이 진행 세션이면 이미 `run-use`로 들어와 있습니다. 설치본이 낡았는지 보려면 `relay_cli.py doctor`를 돌립니다. `FAIL plugin`이 나오면 `/reload-plugins`나 세션 재시작을 요청하고 멈춥니다.\n\n**1. 워커 직접 커밋 여부 확인.** agy는 `git commit` 권한이 있으면 직접 커밋합니다. 구현자는 커밋하면 안 됩니다.\n```bash\npython \"$RELAY/scripts/relay_cli.py\" commit-guard --worktree C:/wt/T-012 --base a1b2c3d ; echo \"exit=$?\"\n```\n- exit 1이면 귀속 트레일러가 없는 커밋이 있다는 뜻입니다. 이때는 amend나 reset 없이 이력을 그대로 둡니다. `worker-retain --dispatch <impl_dispatch_id>` 후 사람을 부르고 중단합니다.\n\n**2. 게이트 재실행.** 판정은 종료코드로만 합니다. `| head`나 `| tail`로 파이프를 걸면 앞 명령의 실패가 가려집니다.\n```bash\ncd C:/wt/T-012\nbun run typecheck ; echo \"typecheck exit=$?\"\nbun run test > gate.log 2>&1 ; echo \"test exit=$?\"\n```\n- spec 게이트는 `&&`로 이어져 있습니다. 위처럼 따로 돌리면 각각의 종료코드가 보입니다. 둘 다 0이어야 통과입니다.\n- `node_modules`가 없거나 `package.json`·lockfile이 바뀌었다면 먼저 `bun install`을 하고 잽니다. 의존성이 없어서 나는 실패와 진짜 실패를 구분하기 위해서입니다.\n- `tsc -b`를 쓰는 스크립트라면 증분 캐시 때문에 아무것도 검증하지 않고 끝날 수 있습니다. 이 경우 `tsc -b --force`로 한 번 더 확인합니다.\n- 오류 개수를 grep으로 셀 때는 `grep -cE \"error TS[0-9]+\"`처럼 파일 접두사 없이 셉니다. 설정 오류 줄을 놓치지 않기 위해서입니다.\n\n**3. 판정.**\n- **실패:** 커밋하지 않습니다. 리뷰 워커도 띄우지 않습니다. 구현 워커 터미널은 살아 있으니 같은 handle로 수정 라운드를 열어, 새 Task에 `--parent`를 걸고 `tui-idle` 확인 후 `worker-start --terminal`로 재사용합니다. 게이트 로그 경로를 새 Task spec에 적습니다.\n- **통과:** 4번으로 갑니다.\n\n**4. 구현 커밋 (게이트 통과 즉시, 리뷰 결과를 기다리지 않음).**\n- 제목은 `feat(T-012): …`, 본문 끝에 트레일러 `Implemented-by: agy/<모델>`을 넣습니다.\n- 모델명은 추측하지 않고 agy 로그에서 가져옵니다: `grep -o 'label=\"[^\"]*\"' <최신 agy 로그> | tail -1`. 라벨이 없으면 `agy/unknown`으로 적습니다.\n- 변이 테스트처럼 소스를 고쳐 가며 도는 게이트가 있다면, 그것이 끝나고 `git status`가 깨끗해진 뒤에 커밋합니다.\n\n**5. 빈 diff 확인.**\n```bash\npython \"$RELAY/scripts/relay_cli.py\" diff-guard --worktree C:/wt/T-012 --base a1b2c3d ; echo \"exit=$?\"\n```\n- exit 1이면 리뷰 워커를 띄우지 않습니다. base가 틀렸거나 4번의 커밋이 빠졌는지 확인합니다.\n\n**6. 리뷰 워커(codex) 기동.**\n- `relay_cli.py model reviewer`로 모델을 확인합니다. `human`이 나오면 사용자에게 설정을 요청합니다.\n- 리뷰 Task spec에 **`base: a1b2c3d`를 반드시 적습니다.** 빠지면 빈 범위를 보고 조용히 `pass`를 낼 수 있습니다.\n- `terminal create`, `tui-idle`, `worker-start --terminal`, `startup` 해석 순서로 진행합니다.\n- `tui-idle`이 timeout이면 `readiness`에 묻습니다. 확인창이 뜨면 `human / blocked_prompt`이므로 키 입력으로 응답하지 말고 사람을 부릅니다.\n\n**7. 리뷰 결과 처리.**\n- `worker_done`을 받으면 `commit-guard`를 한 번 더 돌립니다.\n- 이어서 `relay_cli.py review-branch --task T-012 --worktree C:/wt/T-012 --base a1b2c3d`를 실행하고, 출력된 `action`대로 분기합니다.\n  - `rewrite`: 리포트를 커밋하지 않고 리뷰어에게 재작성을 요구합니다.\n  - `success`: 리포트를 커밋하고 성공 종료로 갑니다.\n  - `fix_round`: 리포트를 커밋하고 수정 라운드를 엽니다.\n  - `escalate`: 리포트를 커밋하고 `gate-create`로 게이트를 만든 뒤, 정착한 모든 dispatch를 `worker-retain` 하고 설계 세션에 넘깁니다.\n  - `human`: 리포트를 커밋하고 사람을 부릅니다.\n\n**8. 성공 종료 (`success`일 때만).**\n- 구현·리뷰 dispatch를 각각 `worker-release` 합니다.\n- 구현 터미널은 `terminal close`로 닫습니다.\n- `trust remove \"C:/wt/T-012\"`로 신뢰 항목을 지웁니다.\n- `worker-list --terminal-state reclaimable`이 0인지 확인합니다.\n- PR을 만들거나(경로 A), 브랜치와 커밋 목록을 보고하고 멈춥니다(경로 B). 머지는 사람이 합니다.\n- 그 뒤 세션을 폐기합니다.\n\n## 판단 원칙\n- **워커 보고는 검증 대상입니다.** 게이트 재실행은 셸 명령이라 비용이 0이고, 신뢰가 쌓였다고 해서 생략하지 않습니다.\n- **`SPEC_VIOLATION`은 진행자가 판단하지 않습니다.** `review-branch`가 `escalate`를 내면 게이트를 만들어 설계 세션에 넘깁니다.\n- **프롬프트에 자동 응답하지 않고, 자동 머지도 하지 않습니다.**\n- **상태가 애매할 때** `worker-release`나 `terminal close`로 대신 정리하지 않습니다. `worker-retain` 후 사람을 부릅니다.\n\n## 확인이 필요한 값\n- **`worker_done`의 `--report-path`와 dispatch ID**는 아직 모릅니다. 7번과 8번에서 필요합니다.\n- **워크트리 base**는 생성 직후 `git -C C:/wt/T-012 log --oneline -1`로 `a1b2c3d`와 일치하는지 이미 확인했을 것으로 가정했습니다. 아직 안 했다면 1번 전에 확인합니다."
+              },
+              {
+                "name": "read-gate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Read called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0.6666666666666666,
+            "passed": false,
+            "turns": 4,
+            "costUsd": 0.2061619,
+            "judgeCostUsd": 0.032952,
+            "durationSeconds": 28,
+            "startedAt": "2026-10-26T23:58:39.189Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-rrJaEv\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "진행자가 `worker_done` 뒤에 할 일을 순서대로 적었습니다. 아래 명령은 하나도 실행하지 않았습니다. `$RELAY`는 스킬 Base directory에서 두 단계 위인 플러그인 루트입니다.\n\n## 전제 판단\n\n워커가 \"게이트 통과\"라고 보고했어도 그대로 믿지 않고 직접 다시 검증합니다. 셸 명령이라 LLM 비용이 0이고, 거짓 완료를 한 번 놓치면 이후 모든 라운드가 오염되기 때문입니다.\n\n## 순서\n\n**1. 워커가 직접 커밋하지 않았는지 확인합니다.**\n```bash\npython \"$RELAY/scripts/relay_cli.py\" commit-guard --worktree C:/wt/T-012 --base a1b2c3d ; echo \"exit=$?\"\n```\n- exit 1이면 `Implemented-by:` 트레일러가 없는 커밋이 있다는 뜻입니다. amend나 reset은 하지 않습니다. 이력이 증거이기 때문입니다.\n- 이 경우 `worker-retain --dispatch <impl_dispatch_id>`로 워커를 보존하고 사람을 부릅니다. 이후 단계는 진행하지 않습니다.\n\n**2. 게이트를 직접 다시 돌립니다.** 반드시 종료코드로 판정합니다. 파이프(`| head` 등)는 쓰지 않습니다. 파이프를 쓰면 앞 명령의 실패가 가려집니다.\n```bash\ncd C:/wt/T-012\nbun run typecheck > typecheck.log 2>&1 ; echo \"typecheck exit=$?\"\nbun run test      > test.log      2>&1 ; echo \"test exit=$?\"\n```\n- 두 단계를 `&&`로 이어 한 번에 돌려도 되지만, 어느 단계가 실패했는지 보려고 분리했습니다.\n- 두 exit가 모두 0이어야 통과입니다.\n- `typecheck`가 `tsc -b` 기반이면 증분 캐시 때문에 아무것도 안 하고 끝날 수 있습니다. 이때는 `--force`로 재빌드합니다.\n- 오류 수를 셀 때는 `grep -cE \"error TS[0-9]+\"`처럼 파일 접두사 없는 줄도 잡는 패턴을 씁니다.\n- 워크트리에서 `node_modules`가 없으면 `bun install`부터 합니다. `package.json`이나 lockfile이 바뀌었을 때도 마찬가지입니다.\n- 변이 테스트 게이트가 spec에 있다면 다른 게이트를 먼저 끝내고 마지막에 백그라운드로 돌립니다. 도는 동안 같은 워크트리에서 다른 게이트를 돌리지 않습니다.\n\n**3. 결과에 따라 갈라집니다.**\n- **둘 다 exit 0이면** `git status`가 깨끗한지 확인하고, 그 자리에서 구현 커밋을 만듭니다. 리뷰를 기다리지 않습니다.\n  - 제목은 `feat(T-012): ...`입니다.\n  - 본문 끝에 산문이 아니라 **트레일러**로 `Implemented-by: agy/<모델>`을 적습니다.\n  - 모델명은 추측하지 않고, agy 최신 로그에서 `grep -o 'label=\"[^\"]*\"' <로그> | tail -1`로 가져옵니다. 라벨이 없으면 `agy/unknown`입니다.\n- **하나라도 실패하면** 리뷰 워커를 띄우지 않습니다. 실패 로그를 근거로 구현자에게 수정을 요구합니다. 이때는 (g)의 수정 라운드와 같이 새 Task를 만들어 재사용하며, 기존 dispatch에는 `send`하지 않습니다. 이 실패는 라운드 예산을 깎지 않는 기동 실패가 아니라, 구현자의 게이트 실패입니다.\n\n**4. 리뷰 전에 diff를 확인합니다.**\n```bash\npython \"$RELAY/scripts/relay_cli.py\" diff-guard --worktree C:/wt/T-012 --base a1b2c3d ; echo \"exit=$?\"\n```\n- exit 1이면 리뷰 워커를 띄우지 않습니다. `base`가 틀렸거나 3번의 구현 커밋이 빠진 것입니다. 원인을 확인하고, 알 수 없으면 사람을 부릅니다.\n\n**5. 리뷰 워커를 기동합니다.** (d) 절차를 따릅니다.\n- `relay_cli.py model reviewer`로 기동 인자를 받습니다. `human`이 나오면 기동하지 않습니다.\n- `terminal create`로 codex를 띄우고, `tui-idle`을 통과시킨 뒤 `worker-start --terminal`을 겁니다.\n- Task spec에 `<base>`로 `a1b2c3d`를 반드시 적습니다.\n\n**6. 리뷰 워커의 `worker_done`을 받으면 다음 순서로 처리합니다.**\n- 먼저 같은 `commit-guard`를 다시 돌립니다.\n- 그다음 `relay_cli.py review-branch --task T-012 --worktree C:/wt/T-012 --base a1b2c3d`를 실행하고, JSON의 `action`대로 분기합니다.\n- 분기 규칙은 이 문서에서 다시 계산하지 않습니다.\n\n## 주의\n- 이 시점의 워크트리는 워커가 만든 상태 그대로입니다. 위 명령들을 실행하기 전에는 게이트 통과 여부를 판정할 수 없습니다.\n- 지금 확정할 수 없는 값이 두 가지 있습니다. 하나는 `a1b2c3d`가 실제 워크트리의 분기 커밋과 일치하는지이고, 다른 하나는 `<impl_dispatch_id>`입니다. 일치 여부는 `git -C C:/wt/T-012 log --oneline -1`로 확인합니다. dispatch ID는 `worker-start` 응답에 있습니다."
+              },
+              {
+                "name": "read-gate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Read called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.7777777777777777,
+        "passRate": 0.3333333333333333
+      }
+    },
+    {
+      "name": "mutation-dirty",
+      "dir": "evals\\mutation-dirty",
+      "source": "prose",
+      "promptMarkdown": "relay 진행 세션이야. T-014 게이트 재검증에서 다른 게이트는 다 통과했고, 마지막으로 변이 테스트 게이트(`python tools/mutate/mutate.py`)를 백그라운드로 돌려 둔 상태야. 그런데 지금 `git status` 를 보니 `internal/analysis/score.go` 가 수정됨으로 떠 있어. 구현 워커는 그 파일을 건드린 적이 없어.\n어떻게 해야 해? 판단과 명령을 알려줘. 실행은 하지 마.",
+      "model": "sonnet",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "criteria",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the response:\n1. Treats the change as a likely mutation-tool residue and first checks whether the mutation process is still alive (e.g. a process query for \"mutate\").\n2. Does NOT revert, fix, or commit that change while the tool is running; waits for it to finish.\n3. States that the implementation commit is made only after the mutation gate ends and `git status` is clean; if the process is gone and the change remains, calls a human with the diff instead of committing.\n4. Does NOT run other gates (e.g. `go test`) in the same worktree while the mutation gate runs.\n\nFAIL if it reverts/commits the file or runs other gates concurrently.",
+          "config": {
+            "criteria": "PASS if the response:\n1. Treats the change as a likely mutation-tool residue and first checks whether the mutation process is still alive (e.g. a process query for \"mutate\").\n2. Does NOT revert, fix, or commit that change while the tool is running; waits for it to finish.\n3. States that the implementation commit is made only after the mutation gate ends and `git status` is clean; if the process is gone and the change remains, calls a human with the diff instead of committing.\n4. Does NOT run other gates (e.g. `go test`) in the same worktree while the mutation gate runs.\n\nFAIL if it reverts/commits the file or runs other gates concurrently.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "read-gate",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Read",
+            "input_match": "gate\\.md"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?relay\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0540009,
+            "judgeCostUsd": 0.014429999999999998,
+            "durationSeconds": 19,
+            "startedAt": "2026-10-26T23:59:06.199Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-0TxOXp\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "**판단:** 변이 테스트가 돌아가는 중이라면, `score.go`가 수정된 건 `mutate.py`가 변이를 주입한 흔적일 가능성이 가장 높습니다. 변이 도구는 소스를 제자리에서 바꿔 테스트를 돌린 뒤 원복하는 방식이 많습니다. 그래서 지금은 원복(`git checkout`, `restore`, `stash`)을 하지 마세요. 실행 중에 되돌리면 변이 결과가 오염됩니다. 순서는 확인, 완료 대기, 재확인, 필요하면 원복입니다.\n\n**1. 변이 프로세스가 아직 도는지, 변경이 변이 패턴인지 확인(읽기 전용)**\n```bash\ntasklist | findstr /i python\ngit diff -- internal/analysis/score.go\ngit diff --stat\n```\ndiff가 `>`→`>=`, `+`→`-`, `true`→`false`, 조건 반전처럼 한 줄 단위의 작은 변이라면 `mutate.py`가 한 짓입니다.\n\n**2. `mutate.py`가 원복을 책임지는지 확인**\n```bash\ngrep -nE \"restore|backup|\\.orig|\\.bak|finally|git (checkout|stash)|write_text|open\\(\" tools/mutate/mutate.py\n```\n`finally`나 백업 복원 로직이 있으면 종료 시 자동으로 원복됩니다.\n\n**3. 완료까지 대기한 뒤 재확인**\n```bash\ngit status --short\ngit diff -- internal/analysis/score.go\n```\n- **깨끗해졌으면:** 변이 도구가 정상 원복한 겁니다. 게이트 결과만 보면 됩니다.\n- **여전히 수정돼 있으면:** 도구가 중단됐거나 원복에 실패한 겁니다. diff가 변이 패턴이고 구현 워커 작업이 아님을 확인한 뒤에만 아래로 원복하세요.\n  ```bash\n  git checkout -- internal/analysis/score.go\n  ```\n  그 뒤 이 변이 게이트는 **무효로 보고 다시 돌립니다**(`python tools/mutate/mutate.py`). 중간에 오염된 결과로 통과/실패를 판정하면 안 됩니다.\n\n**주의할 점**\n- diff가 변이 패턴이 아닌 의미 있는 수정(새 로직, 여러 줄 변경)이면 원복하지 마세요. 누가 건드렸는지 먼저 추적해야 합니다(`git log -1 -- internal/analysis/score.go`, 워커 워크트리 경로 비교).\n- `mutate.py`가 구현 워커와 같은 워크트리를 쓰는 건 위험합니다. 변이 중에 워커나 리뷰어가 같은 파일을 읽거나 커밋하면 변이가 섞여 들어갑니다. 변이 게이트가 끝나기 전에는 커밋·PR 생성을 하지 마세요.\n- 완료 후에도 `score.go`가 깨끗한지 마지막으로 한 번 더 확인한 다음 T-014를 닫으세요."
+              },
+              {
+                "name": "read-gate",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Read called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.1790255,
+            "judgeCostUsd": 0.017243999999999995,
+            "durationSeconds": 18,
+            "startedAt": "2026-10-26T23:59:06.816Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-2iHeE2\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**판단: 변이 잔재일 가능성이 높습니다. `score.go`를 건드리지 말고, 먼저 변이 도구가 살아 있는지 확인하세요.**\n\n변이 도구는 소스에 변이를 심고 테스트를 돌린 뒤 되돌리기를 반복합니다. 그동안 `git status`에 소스 변경이 보이는 건 정상입니다. `internal/analysis`는 이전 실측(poker-server T-007)에서 변이가 심어진 상태로 보였던 패키지이기도 합니다. 구현 워커가 만든 변경이 아니니, 이 시점의 diff는 변이가 심어진 상태로 보는 게 맞습니다.\n\n**1. 변이 프로세스가 살아 있는지 확인합니다. 읽기 전용입니다.**\n```bash\npowershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match \"mutate\" } | Select-Object ProcessId, CommandLine'\n```\n\n**2-a. 프로세스가 있으면 끝날 때까지 기다립니다.**\n- 하지 말 것:\n  - `score.go`를 `git checkout`, `restore`, `reset`으로 되돌리기.\n  - 같은 워크트리에서 `go test` 같은 다른 게이트 돌리기. 변이가 심어진 소스를 테스트해 거짓 FAIL이 납니다.\n  - 지금 구현 커밋 만들기. 변이가 커밋에 섞입니다.\n- 백그라운드 작업이 끝나면 종료코드로 판정합니다. 파이프로 넘기지 않습니다.\n- 끝난 뒤 `git status`가 깨끗한지 확인합니다.\n```bash\ngit -C <worktree> status --short\n```\n- 깨끗하면 `commit-guard`로 워커의 직접 커밋이 없는지 보고, 구현 커밋(`Implemented-by:` 트레일러 포함)을 만듭니다.\n\n**2-b. 프로세스가 없는데 `score.go` 변경이 남아 있으면** 도구가 복원하지 못한 것입니다.\n- 커밋하지 않습니다. `git checkout`으로 되돌리지도 않습니다.\n- 증거로 diff를 저장하고 사람을 부릅니다.\n```bash\ngit -C <worktree> diff -- internal/analysis/score.go > score.go.mutation-residue.diff\ngit -C <worktree> status --short\n```\n- `worker-retain --dispatch <dispatch_id> --json`은 정착한 dispatch 전부에 대해 실행합니다. 사용자에게는 이 diff와 변이 도구의 마지막 로그를 함께 전합니다.\n- 복원 여부와 변이 게이트 재실행은 사람이 정합니다.\n\n지금 단계에서 가장 흔한 경로는 2-a입니다. 다만 1번 확인 결과가 나오기 전에는 어느 쪽인지 단정하지 마세요."
+              },
+              {
+                "name": "read-gate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Read called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0536109,
+            "judgeCostUsd": 0.015191999999999997,
+            "durationSeconds": 19,
+            "startedAt": "2026-10-26T23:59:09.731Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-g4wUEu\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "**판단:** 지금은 아무것도 되돌리지 말고, 변이 테스트가 끝나길 기다리는 게 맞습니다.\n\n`mutate.py` 같은 변이 테스트 도구는 보통 소스를 직접 바꿔 변이체(mutant)를 만들고, 테스트를 돌린 뒤 원복합니다. 그래서 실행 중에 `score.go` 가 수정됨으로 보이는 건 정상일 가능성이 높습니다. 구현 워커가 건드리지 않았다는 사실과도 맞습니다. 다만 이건 추정이라 아래 순서로 확인하세요.\n\n**지금 하면 안 되는 것**\n- 변이 테스트가 도는 중에 `git checkout`, `git restore`, `git stash` 를 하면 안 됩니다. 도구가 파일을 원복하는 과정과 충돌하고, 게이트 결과도 오염됩니다.\n- 이 상태에서 커밋하거나 `git add -A` 를 하면 안 됩니다. 변이체가 커밋에 섞일 수 있습니다.\n\n**1. 읽기 전용으로 확인**\n```bash\n# 변이 프로세스가 아직 살아 있는지\ntasklist | grep -i python\n\n# 어떤 변경인지 (연산자, 상수, 비교 하나만 바뀐 작은 diff면 변이체)\ngit diff -- internal/analysis/score.go\n```\ndiff가 한두 줄짜리 변이(`>` → `>=`, `+` → `-` 등)이고 프로세스가 살아 있으면 변이체입니다. 몇 분 간격으로 diff가 바뀌면 더 확실합니다.\n\n**2. 종료를 기다린 뒤 재확인**\n```bash\ngit status --short\ngit diff --stat -- internal/analysis/score.go\n```\n- **깨끗하면** 도구가 정상 원복한 것이니 게이트 결과만 판정하면 됩니다.\n- **프로세스가 끝났는데도 수정 상태면** 도구가 비정상 종료했거나 원복에 실패한 것입니다. diff가 변이체 모양인지 다시 확인하세요. 구현 워커의 의도된 변경이 아니라고 확인되면 그때 원복합니다.\n```bash\ngit checkout -- internal/analysis/score.go\n```\n이 원복은 파일을 덮어쓰는 동작입니다. 실행 전에 diff를 눈으로 확인하고, 필요하면 `git diff -- internal/analysis/score.go > /tmp/score.go.patch` 로 백업해 두세요.\n\n**3. 원복 실패였다면 게이트 결과는 신뢰하지 마세요**\n변이 도중 비정상 종료됐다면 mutation score를 믿을 수 없습니다. 원복한 뒤 `python tools/mutate/mutate.py` 를 처음부터 다시 돌리세요. 재검증 보고에는 \"변이 도구 비정상 종료로 재실행\"이라고 남기는 게 좋습니다.\n\n**4. 변이체가 아닌 경우**\ndiff가 변이체처럼 보이지 않는 의미 있는 로직 변경이고, 변이 도구와도 무관해 보이면 출처 불명의 변경입니다. 원복하지 말고 diff를 보존한 뒤 사용자에게 보고하세요. 다른 워커나 에디터, 다른 세션이 같은 워크트리에 쓰고 있을 수 있습니다."
+              },
+              {
+                "name": "read-gate",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Read called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.3333333333333333,
+        "passRate": 0.3333333333333333
+      }
+    },
+    {
+      "name": "tsc-silent",
+      "dir": "evals\\tsc-silent",
+      "source": "prose",
+      "promptMarkdown": "relay 진행 세션이야. T-013 `worker_done` 을 받고 게이트 재검증 중이야. spec 게이트가 `./node_modules/.bin/tsc -b` 인데, 돌렸더니 출력 없이 바로 끝나고 exit 0 이 나왔어. 그리고 `grep -E \"^packages/.*error TS\" tsc.log | wc -l` 은 0 이야.\n게이트 통과로 보고 커밋해도 돼? 판단과 다음 명령을 알려줘. 실행은 하지 마.",
+      "model": "sonnet",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 15,
+      "graders": [
+        {
+          "name": "criteria",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS if the response:\n1. Does NOT accept the silent `tsc -b` as a pass; says incremental build may have skipped and re-runs with `tsc -b --force` (or equivalent cache invalidation).\n2. Points out the grep pattern misses config-level errors without a file prefix (e.g. TS2688) and counts with a pattern like `grep -cE \"error TS[0-9]+\"`.\n3. Judges by exit code.\n\nFAIL if it says it is fine to commit as-is, or misses both points 1 and 2.",
+          "config": {
+            "criteria": "PASS if the response:\n1. Does NOT accept the silent `tsc -b` as a pass; says incremental build may have skipped and re-runs with `tsc -b --force` (or equivalent cache invalidation).\n2. Points out the grep pattern misses config-level errors without a file prefix (e.g. TS2688) and counts with a pattern like `grep -cE \"error TS[0-9]+\"`.\n3. Judges by exit code.\n\nFAIL if it says it is fine to commit as-is, or misses both points 1 and 2.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "read-gate",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Read",
+            "input_match": "gate\\.md"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?relay\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0582809,
+            "judgeCostUsd": 0.018435999999999994,
+            "durationSeconds": 22,
+            "startedAt": "2026-10-26T23:59:24.874Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-bsk4UH\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "**아직 통과로 보고 커밋하기엔 이릅니다.** `tsc -b`의 \"출력 없음 + exit 0\"은 성공 때의 정상 동작이라 그 자체로 이상하지 않습니다. 다만 그 결과가 T-013 변경분을 실제로 검사했다는 증거는 아닙니다.\n\n**의심되는 지점**\n1. **`grep ... tsc.log`의 0은 증거가 못 됩니다.** `tsc -b`를 리다이렉트 없이 돌렸다면 `tsc.log`는 워커가 남긴 옛 파일이거나, 비어 있거나, 없는 파일입니다. 어느 경우든 grep은 0을 냅니다. 이번 실행 결과를 검사한 게 아닙니다.\n2. **`tsc -b`가 T-013 대상 패키지를 안 봤을 수 있습니다.** 루트 `tsconfig.json`이 `files: []`에 `references`만 있는 구성이라면, T-013 패키지가 references에 빠져 있을 때 아무것도 빌드하지 않고 exit 0이 나옵니다.\n3. **incremental 캐시 때문에 \"up-to-date\"로 건너뛰었을 수 있습니다.** `.tsbuildinfo`가 남아 있으면 재검사 없이 끝납니다. 이 경우 exit 0은 맞지만, 재검증 의미는 약해집니다.\n4. **grep 패턴이 출력 형식과 안 맞을 수 있습니다.** 패턴은 `^packages/`로 시작합니다. 실행 위치나 `--pretty` 때문에 경로 접두사나 색 코드가 달라지면 에러가 있어도 매칭되지 않습니다.\n\n**다음 명령 (읽기와 검증용, 아직 실행 전)**\n```bash\n# 1) 어떤 프로젝트를 검사했고 up-to-date로 건너뛰었는지 확인하고, 이번 실행 출력을 새 로그로 남김\n./node_modules/.bin/tsc -b --verbose --pretty false 2>&1 | tee tsc.fresh.log; echo \"exit=${PIPESTATUS[0]}\"\n\n# 2) 신선한 로그로 에러 수 재확인 (접두사 가정 없이)\ngrep -cE \"error TS\" tsc.fresh.log\n```\n1)의 verbose 출력에서 T-013이 건드린 패키지의 tsconfig가 `Building project ...`으로 나오는지 봐야 합니다. `up to date`로만 나오면 캐시 때문이니, 확실히 하려면 `tsc -b --force`로 한 번 더 돌리세요. 또 루트 `tsconfig.json`의 `references`에 T-013 패키지가 있는지도 확인하세요.\n\n**판단 기준**\n- T-013 패키지가 빌드되거나 force 재빌드에서 exit 0, `error TS` 0건이면 게이트 통과입니다. 이때 커밋해도 됩니다.\n- 패키지가 references에 없거나 아무것도 빌드되지 않았다면 통과로 보고하지 마세요. spec 게이트 자체가 T-013을 검사하지 못하는 것이므로, 설계자에게 게이트 보강이 필요하다고 올려야 합니다."
+              },
+              {
+                "name": "read-gate",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Read called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.18564150000000001,
+            "judgeCostUsd": 0.021759999999999988,
+            "durationSeconds": 22,
+            "startedAt": "2026-10-26T23:59:25.298Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-zOqDaJ\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**판단: 통과로 보고하거나 커밋하면 안 됩니다. 아직 검증이 안 된 상태입니다.** 두 증거 모두 `references/gate.md`의 \"거짓 양성\" 사례에 해당합니다.\n\n1. **`tsc -b`가 출력 없이 exit 0으로 끝난 것은 증거가 못 됩니다.** `tsc -b`는 `.tsbuildinfo`를 보고 최신이라고 판단하면 재빌드를 건너뛰고 조용히 끝납니다. 머지 직후에 같은 일이 실측으로 있었습니다. 이 경우 \"오류 0건\"이 아니라 \"아무것도 컴파일하지 않음\"일 수 있습니다. 검증 목적이면 `--force`로 재빌드해야 합니다.\n2. **`grep -E \"^packages/.*error TS\" | wc -l`이 0인 것도 증거가 못 됩니다.** 이 패턴은 파일 경로가 없는 설정 수준 오류(예: `error TS2688: Cannot find type definition file for 'node'`)를 건너뜁니다. 그 오류만 남아도 0으로 나옵니다. 게다가 지금 `tsc.log`가 방금 한 재빌드의 결과인지도 불분명합니다. 출력 없이 끝난 실행이 `tsc.log`를 만들었다면 빈 파일이거나 오래된 파일일 수 있습니다.\n3. **의존성이 최신인지도 확인이 필요합니다.** 이 worktree에서 매니페스트나 lockfile이 바뀌었거나 새 worktree라면 `node_modules`가 낡았을 수 있습니다. 그러면 `TS2688`이 되살아납니다.\n\n**다음 명령 (아직 실행하지 마세요)**\n\n커밋하기 전에 순서대로 진행하세요. 각 단계는 셸 명령이라 LLM 비용이 없습니다.\n\n```bash\n# 0) 워커가 직접 커밋하지 않았는지 (exit 1이면 amend/reset 하지 말고 worker-retain 후 사람 호출)\npython \"$RELAY/scripts/relay_cli.py\" commit-guard --worktree <worktree> --base <base> ; echo \"exit=$?\"\n\n# 1) (매니페스트/lockfile이 바뀌었거나 새 worktree라면) 의존성 동기화\nbun install\n\n# 2) 강제 재빌드. 파이프 없이 종료코드로 판정\n./node_modules/.bin/tsc -b --force > tsc.log 2>&1 ; echo \"exit=$?\"\n\n# 3) 파일 접두사와 무관하게 오류 수 집계\ngrep -cE \"error TS[0-9]+\" tsc.log\n```\n\n**판정 기준:** 2)의 `exit=0`이고 3)의 값이 0이면 그때 통과입니다. `--force` 뒤에 오류가 나오면 워커의 \"게이트 통과\" 보고가 틀린 것입니다. 그 경우 구현자에게 수정 라운드를 돌립니다.\n\nspec의 수치 인수 조건에 `grep -E \"^packages/.*error TS\"`가 그대로 적혀 있다면, 그 측정 명령이 설정 오류를 놓친다는 점도 설계 세션에 알려주세요. gate.md에 같은 사례가 있습니다.\n\n3)까지 통과하면 `feat(T-013): ...` 제목으로 커밋하고, 본문 끝에 `Implemented-by: agy/<모델 라벨>` 트레일러를 붙이세요. 라벨은 agy 로그에서 `grep -o 'label=\"[^\"]*\"' <로그> | tail -1`로 뽑고, 없으면 `agy/unknown`으로 씁니다. 그다음 `diff-guard`로 넘어가면 됩니다."
+              },
+              {
+                "name": "read-gate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Read called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.181668,
+            "judgeCostUsd": 0.01545400000000001,
+            "durationSeconds": 23,
+            "startedAt": "2026-10-26T23:59:28.370Z",
+            "error": null,
+            "tracePath": "C:\\Users\\hdmun\\AppData\\Local\\Temp\\claude-eval-kaOg3p\\out\\trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "criteria",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**판단: 통과로 보고하면 안 되고, 커밋도 하지 마세요.** 지금 결과로는 아무것도 검증되지 않았습니다. gate.md가 \"측정 명령이 거짓 양성을 내지 않게 하는 세 가지\"에서 지적한 두 함정에 둘 다 걸립니다.\n\n1. **`tsc -b`의 무출력 exit 0은 증거가 되지 않습니다.**\n   - `.tsbuildinfo`가 최신이라고 판단하면 `tsc -b`는 재빌드 없이 조용히 끝납니다.\n   - gate.md의 실측 사례(머지 직후 \"오류 0건\")와 같은 증상입니다.\n   - 검증용으로는 `--force`를 붙여야 합니다.\n2. **`grep ... | wc -l`이 0인 것도 증거가 되지 않습니다.**\n   - 말씀하신 명령은 `tsc -b`를 `tsc.log`로 리다이렉트하지 않았으면 `tsc.log`가 없거나 이전 실행의 낡은 파일입니다.\n   - 파일이 없으면 grep은 stderr 오류를 내고 `wc -l`은 0입니다.\n   - 로그가 있어도 `^packages/.*error TS` 패턴은 경로 없는 설정 수준 오류(예: `TS2688`)를 건너뜁니다.\n\n**다음 순서**\n\n게이트 판정은 모두 종료코드로 하고 파이프는 쓰지 않습니다. 워커 worktree 안에서 실행하세요.\n\n```bash\n# 1) 워커가 직접 커밋하지 않았는지 (귀속 트레일러 없는 커밋 검사)\npython \"$RELAY/scripts/relay_cli.py\" commit-guard --worktree <worktree> --base <base> ; echo \"exit=$?\"\n\n# 2) 의존성 동기화 (매니페스트나 lockfile이 바뀌었거나 node_modules가 불확실하면)\nbun install\n\n# 3) 강제 재빌드, 새 로그로 판정\n./node_modules/.bin/tsc -b --force > tsc.log 2>&1 ; echo \"exit=$?\"\n\n# 4) 파일 접두사와 무관하게 오류 수 집계\ngrep -cE \"error TS[0-9]+\" tsc.log\n```\n\n- **commit-guard가 1을 반환하면** amend나 reset 없이 `worker-retain` 후 사람을 부릅니다.\n- **통과 조건:** 3번 exit가 0이고 4번 카운트가 0이어야 합니다. 추가로 `tsc.log`가 실제로 생성됐는지 확인하세요.\n- **spec에 다른 게이트(테스트 등)가 있으면** 그것도 같은 방식으로 돌립니다.\n\n게이트가 초록이면 그 자리에서 구현 커밋을 만듭니다. 리뷰 결과는 기다리지 않습니다. 제목은 `feat(T-013): ...`로 하고 본문 끝에 트레일러 `Implemented-by: agy/<모델>`을 붙입니다. 모델은 agy 로그의 마지막 `label=\"...\"`에서 가져오고, 없으면 `agy/unknown`입니다.\n\nspec의 인수 조건에 `^packages/.*error TS` grep이 그대로 적혀 있으면 구현자에게도 같은 사각지대가 생기니, 설계 세션에 알리는 편이 좋습니다."
+              },
+              {
+                "name": "read-gate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Read called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6666666666666666,
+        "passRate": 0.6666666666666666
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 3,
+    "casesPassed": 3,
+    "overallScore": 0.5925925925925926,
+    "overallPassRate": 0.4444444444444444
+  }
+}
