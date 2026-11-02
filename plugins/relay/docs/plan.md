@@ -233,10 +233,11 @@
 - delivery-failed 첫 실행 1/3: `confirm_delivery` 의 `pending` 이 "보존 후 (h)" 였고 (h) 는 "기동 실패 2회에서 멈춘다" 라 1회째 재출발로 읽혔다. 채점도 답이 온 뒤의 `--retry-of` 계획까지 FAIL 로 봤다. 둘 다 고친 뒤 3/3.
 - update-prompt-blocked 첫 실행 2/3, 두 번째 0/3: 응답이 references 를 읽지 않고 불변식 "확인창은 사람을 부른다" 를 "허락받고 키를 보낸다" 로 해석했다. 불변식을 "사람이 터미널에서 직접 처리, 키를 묻지도 않는다, 예방책은 `doctor`" 로 고친 뒤 3/3.
 
-### 트랙 4 — 워커 템플릿 (Q5·Q9, 약 40분)
+### 트랙 4 — 워커 템플릿 (Q5·Q9, 약 40분) — 완료 (2026-11-03, `hdmun/relay-track4-templates`)
 
-1. [ ] `templates/implementer.md.tmpl`·`reviewer.md.tmpl`: "preamble 의 `orca orchestration ask` 를 그대로 쓴다" → "`orchestration` 스킬을 불러 워커 의무(heartbeat·ask·worker_done)를 따른다. preamble 이 정본이다".
-2. [ ] `test_roles.py` 갱신, `/relay:init --check` 로 드리프트가 잡히는지 확인.
+1. [x] `templates/implementer.md.tmpl`·`reviewer.md.tmpl`: "preamble 의 `orca orchestration ask` 를 그대로 쓴다" → "`orchestration` 스킬을 불러 워커 의무(heartbeat·ask·worker_done)를 따른다. preamble 이 정본이다".
+2. [x] `test_roles.py` 갱신, `/relay:init --check` 로 드리프트가 잡히는지 확인. — 옛 템플릿(main)으로 만든 임시 저장소에 새 템플릿 `roles --check` → 2개 파일 DRIFT, 종료코드 1.
+   역할 파일을 쓰는 저장소마다 배포 뒤 `/relay:init --force` 가 필요하다(트랙 5-5).
 
 ### 트랙 5 — 마무리와 배포 (약 1.5시간)
 
