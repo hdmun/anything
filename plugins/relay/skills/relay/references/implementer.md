@@ -68,7 +68,7 @@
 
    - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 **모델·effort는 `worker-start`가 아니라 agy 명령줄**(`launch_command`의 `--model`·`--effort`)로 준다. 설정 파일이 없으면 **agy 기본 모델**로 뜬다.
      (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
-   - `readiness`는 설정 파일을 직접 읽어 `recreate_terminal`의 `launch_command`에 같은 model·effort를 싣는다. 진행 세션이 인자를 다시 조립하지 않는다.
+   - `readiness`는 설정 파일을 직접 읽어 `recreate_terminal`의 `launch_command`에 같은 model·effort를 싣는다. 진행자 워커가 인자를 다시 조립하지 않는다.
    - **`worker-start` 응답은 `startup`에 해석시킨다.** `ok`는 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 온다(예: `failedStage: agent_readiness`, `dispatch: null`).
 
      ```bash

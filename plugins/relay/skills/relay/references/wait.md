@@ -7,10 +7,8 @@
 - Orca 가이드 「Canonical supervised loop」의 `check --wait` 로 기다린다. relay 값: `--types worker_done,escalation,question`, `--timeout-ms 600000`(SKILL.md 「Orca 기본과 다른 점」).
 - **stdout만 파이프할 것.** `--wait` 중 stderr로 keepalive(`{"_keepalive":true}`)가 나오므로 `2>&1`로 합치면 파서가 깨진다.
 - `question`이 오면 `reply`로 답하고, `check --ack <delivery_id> --wait`로 ack와 재대기를 한 번에 한다. 응답에서 `msg_id`와 `deliveryId`를 모두 뽑아 둔다. 명령 순서는 Orca 가이드 kernel을 따른다.
-
-```
-
-  워커의 질문에 답할 때는 **판단의 근거까지 적는다.** 워커는 spec과 역할 파일만 알고 이 대화를 모르므로, "승인"만 보내면 다음 유사 상황에서 또 물어본다. 어느 spec 항목에 근거했는지, 그 발견을 finding으로 올릴지 말지까지 함께 지시한다.
+  - **spec 해석이나 범위 판단이 필요한 질문은 진행자가 답을 짓지 않는다.** 같은 질문을 `ask`로 설계 세션에 올리고 — (h), 받은 답을 근거째 그대로 `reply`한다. spec을 쓴 쪽만 그 답의 옳고 그름을 가린다.
+  - 진행자가 직접 답할 때도 **판단의 근거까지 적는다.** 워커는 spec과 역할 파일만 알고 이 대화를 모르므로, "승인"만 보내면 다음 유사 상황에서 또 물어본다. 어느 spec 항목에 근거했는지, 그 발견을 finding으로 올릴지 말지까지 함께 지시한다.
 
 ### 빈손으로 돌아왔을 때
 
