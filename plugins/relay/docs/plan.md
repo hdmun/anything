@@ -112,18 +112,18 @@
 
 ### 트랙 0 — 측정 (약 2시간, 버리는 Run 에서)
 
-1. [ ] `smoke` 에 `worker-start` 경로 추가 (45분, TDD) — 지금 smoke 는 `terminal create` + 날 `terminal send` 라 Orca 기동 경로를 재지 않는다.
+1. [x] `smoke` 에 `worker-start` 경로 추가 (45분, TDD) — 지금 smoke 는 `terminal create` + 날 `terminal send` 라 Orca 기동 경로를 재지 않는다.
        `worker-start --spec <PING> --worktree <relay-smoke> --agent <a> [--model --effort]` → `startup` 해석 → `worker_done` 수신 또는 `worker-read` → `worker-release`.
-2. [ ] agy 3회 (설정 모델 있음·없음 섞어서): 준비 대기 통과, 전달(`turn_started` 관측 여부 / 로그 `HandleUserInput`), `launch.effective.model`, `worker_done` 도착.
-3. [ ] codex 3회 (`--model <reviewer model> --effort high`): Orca 가 `--yolo` 를 붙여 `worker_done` 이 막히지 않는가, `launch.effective`.
-4. [ ] 확인창 감지: codex 업데이트 프롬프트(`check_for_update_on_startup = true` 임시)·agy trust 프롬프트(trust 미등록 워크트리)를 일부러 띄워 `worker-start` 영수증(`failedStage`)과 `worker-list` 의 `projection.attention` 에 무엇이 나오는가. **자동 응답하지 않는다.**
-5. [ ] 진행자 워커 경로: `worker-start --agent claude --model sonnet --effort medium` 로 띄운 워커가
+2. [x] agy 3회 (설정 모델 있음·없음 섞어서): 준비 대기 통과, 전달(`turn_started` 관측 여부 / 로그 `HandleUserInput`), `launch.effective.model`, `worker_done` 도착.
+3. [x] codex 3회 (`--model <reviewer model> --effort high`): Orca 가 `--yolo` 를 붙여 `worker_done` 이 막히지 않는가, `launch.effective`.
+4. [~] 확인창 감지: codex 업데이트 프롬프트(`check_for_update_on_startup = true` 임시)·agy trust 프롬프트(trust 미등록 워크트리)를 일부러 띄워 `worker-start` 영수증(`failedStage`)과 `worker-list` 의 `projection.attention` 에 무엇이 나오는가. **자동 응답하지 않는다.**
+5. [~] 진행자 워커 경로: `worker-start --agent claude --model sonnet --effort medium` 로 띄운 워커가
        (a) spec 첫 줄 `relay 진행자: …` 로 relay 스킬을 부르는가, (b) Skill 도구로 Orca 스킬을 부르는가,
        (c) 그 안에서 `worker-start --spec … --agent antigravity` 가 깊이 제한(`nested_worker_depth_exceeded`) 없이 되는가,
        (d) `ask` → 설계 세션 `check --wait` 수신 → `reply` → 진행자 재개가 되는가,
        (e) "새 에이전트 탭" 설정이 채팅일 때 `worker-read --source auto` 로 읽히는가.
-6. [ ] 워커(agy·codex)가 `~/.agents/skills` 의 `orchestration` 스킬을 실제로 부르는가 (워커 transcript 로 확인).
-7. [ ] 결과를 이 파일 「측정」 절과 `verified-cli.json` 에 기록.
+6. [~] 워커(agy·codex)가 `~/.agents/skills` 의 `orchestration` 스킬을 실제로 부르는가 (워커 transcript 로 확인).
+7. [~] 결과를 이 파일 「측정」 절과 `verified-cli.json` 에 기록. — 「측정」 절은 아래. `verified-cli.json` 등록(agy 1.4.12, Orca 1.4.245)은 사람이 한다.
 
 판정:
 
@@ -133,6 +133,32 @@
 | 2 또는 3 이 3/3 미만 | 그 에이전트는 선기동 유지, SKILL.md 「Orca 기본과 다른 점」에 실패 증거 |
 | 4 에서 projection 이 확인창을 못 잡음 | Q8 후퇴안: `doctor` 가 "새 에이전트 탭 = 터미널"을 검사, 화면 검사 유지 |
 | 5(c) 또는 5(d) 실패 | **멈추고 사용자에게 묻는다** — ADR 0004 재검토 |
+
+### 측정 — `worker-start --agent` 경로 (2026-11-02, Orca 1.4.245·agy 1.4.12·codex 0.159.3)
+
+버리는 Run `run_2c97df2495b5`, 워크트리 `C:/Users/hdmun/scripts`, 새 에이전트 탭 설정 = 터미널.
+
+| 항목 | 결과 |
+|---|---|
+| 2 agy, 모델 없음 | 수동 1 + smoke 3 = **4/4**. 기동 6.7초, `worker_done` 까지 12.7초, `turnStart: observed`(antigravity `observation: supported`), `launch.effective.model: null` |
+| 2 agy, `--model gemini-3.8-flash --effort medium` | smoke **3/3**. 기동 6.6초, `worker_done` 14.3초, `launch.effective` 에 그대로 기록, agy 로그 라벨 `Gemini 3.8 Flash (Medium)` |
+| 3 codex, `--model gpt-6.1-sol --effort high` | 수동 1 + smoke 3 = **4/4**. 기동 17초, `worker_done` 25초. Orca 가 붙인 인자로 샌드박스 문제 없이 `worker_done` 도착 |
+| release | 매번 `processAction: closed_agent_terminal` — Orca 가 만든 터미널은 release 가 닫는다. 끝난 뒤 `reclaimable` 0 |
+| 4 agy trust 프롬프트 | **재현 불가.** `worker-start` 가 agy 를 띄우기 직전 Orca 가 그 워크트리를 `trustedWorkspaces` 에 직접 추가한다(settings.json 수정 시각 = 호출 시각, Orca 코드에 추가 함수만 있고 제거는 없다). `C:\Users\hdmun` 도 이미 신뢰 목록에 있다. agy 는 `toolPermission: always-proceed` 라 작업 중 권한 확인도 없다 |
+| 4 codex 업데이트 프롬프트 | **재현 불가.** `check_for_update_on_startup = true` 로 바꾸고(최신 0.166.0 > 0.159.3) 띄워도 프롬프트 없이 정상 기동·`worker_done`. 설정은 바로 되돌렸다 |
+| 5(a) relay 스킬 | Claude 워커(sonnet·medium)에 `relay:relay`·`relay:init` 이 보인다. **description 으로 실제 발동하는지는 eval 로 잰다(트랙 1-7)** |
+| 5(b) Orca 스킬 | Skill 도구로 `orchestration` 을 불러 껍데기 → `orca skills get` 순서로 읽었다 |
+| 5(c) 중첩 기동 | **실패.** `nested_worker_depth_exceeded`: "Sub-worker dispatch is not permitted at depth 2 (max 1)". Orca 설정 `nestedWorkerMaxDepth` 기본값 1 (Settings → Orchestration → "Nested worker depth") |
+| 5(d) ask/reply | 통과. 질문이 기동 26초 뒤 설계 세션 `check --wait` 에 `question` 으로 도착 → `reply` → ack → 워커 재개 → `worker_done` |
+| 5(e) 채팅 워커 | 미측정 — 사용자 설정을 바꿔야 한다. 영수증의 `mode.mode`(`terminal`/`chat`)로 런타임에 구분할 수 있다 |
+| 6 워커의 Orca 스킬 | codex 세션 기록의 스킬 목록에 `orchestration`·`orca-cli` 가 있다. agy 는 로그에 스킬 목록이 남지 않는다(사용자 확인: `~/.agents/skills` 를 읽는다) |
+
+트랙 3 에 반영할 사실:
+
+- `trust add` 는 `worker-start` 경로에서 필요 없다(Orca 가 한다). `trust remove`·`prune` 은 남긴다 — Orca 는 지우지 않아 단조 증가한다.
+- 성공 종료의 `terminal close` 는 필요 없다 — Orca 가 만든 터미널은 release 가 닫는다.
+- agy 를 모델 없이 띄우면 `launch.effective.model` 이 `null` 이다. `Implemented-by:` 트레일러는 `effective.model` → 없으면 agy 로그 라벨 순으로 읽는다.
+- antigravity 의 `turn_started` 를 Orca 가 관측한다 — agy 로그 `HandleUserInput` 전달 확인은 지운다.
 
 ### 트랙 1 — 세션 구조 (ADR 0004, 약 3시간)
 
