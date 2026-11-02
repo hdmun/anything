@@ -317,10 +317,10 @@ class DesignerModel(unittest.TestCase):
 class CoordinatorModel(unittest.TestCase):
     """진행자는 설계 세션이 worker-start --agent claude 로 띄우는 워커다 (ADR 0004) — 기동 인자를 돌려준다."""
 
-    def test_default_launches_sonnet_medium_worker(self):
+    def test_default_launches_opus_low_worker(self):
         d = orca.coordinator_model()
         self.assertEqual((d["action"], d["agent"], d["model"], d["effort"], d["source"]),
-                         ("launch", "claude", "sonnet", "medium", "default"))
+                         ("launch", "claude", "opus", "low", "default"))
         self.assertNotIn("command", d)      # 사람에게 안내할 claude 명령줄은 이제 없다
 
     def test_configured_values_win(self):
