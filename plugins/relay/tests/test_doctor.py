@@ -24,6 +24,8 @@ def facts(**kw):
         "agy_settings": {"trustedWorkspaces": [ROOT + r"\p\T-1"], "permissions": {"allow": ["command(git diff)"]}},
         "trust_root": ROOT,
         "exists": lambda p: True,
+        "orca_skills": {"orchestration": True, "orca-cli": True},
+        "nested_depth": 2,
     }
     f.update(kw)
     return f
@@ -138,6 +140,46 @@ class Doctor(unittest.TestCase):
         v = json.loads(doctor.VERIFIED_PATH.read_text(encoding="utf-8"))
         self.assertTrue(str(doctor.VERIFIED_PATH).startswith(str(PLUGIN_ROOT)))
         self.assertEqual(set(v) - {"$comment"}, {"codex", "antigravity", "orca"})
+
+
+class OrcaPrereqs(unittest.TestCase):
+    """Orca 스킬(가이드 통로, ADR 0003)과 워커 중첩 깊이(ADR 0004)."""
+
+    def test_missing_orca_skill_fails(self):
+        checks = doctor.evaluate(facts(orca_skills={"orchestration": True, "orca-cli": False}))
+        c = by_name(checks)
+        self.assertEqual(c["skill:orchestration"]["status"], "ok")
+        self.assertEqual(c["skill:orca-cli"]["status"], "fail")
+        self.assertIn("~/.agents/skills", c["skill:orca-cli"]["detail"])
+        self.assertEqual(doctor.exit_code(checks), 1)
+
+    def test_flat_nesting_fails_with_where_to_change_it(self):
+        c = by_name(doctor.evaluate(facts(nested_depth=1)))["orca:nested-depth"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("하위 에이전트 최대 생성 단계", c["fix"])
+
+    def test_deep_enough_nesting_is_ok(self):
+        for depth in (2, 3):
+            self.assertEqual(by_name(doctor.evaluate(facts(nested_depth=depth)))["orca:nested-depth"]["status"], "ok")
+
+    def test_unreadable_nesting_warns(self):
+        # Orca 내부 저장소라 버전마다 바뀔 수 있다 — 못 읽으면 막지 않고 직접 확인을 권한다
+        c = by_name(doctor.evaluate(facts(nested_depth=None)))["orca:nested-depth"]
+        self.assertEqual(c["status"], "warn")
+
+    def test_facts_without_orca_keys_skip_the_checks(self):
+        f = facts()
+        del f["orca_skills"], f["nested_depth"]
+        names = by_name(doctor.evaluate(f))
+        self.assertNotIn("orca:nested-depth", names)
+        self.assertNotIn("skill:orchestration", names)
+
+    def test_nested_depth_from_settings_payloads(self):
+        payloads = ["not json", '{"other": 1}', '{"settings": {"nestedWorkerMaxDepth": 2, "x": true}}']
+        self.assertEqual(doctor.nested_depth_from_payloads(payloads), 2)
+        self.assertEqual(doctor.nested_depth_from_payloads(['{"nestedWorkerMaxDepth": 1}']), 1)
+        self.assertIsNone(doctor.nested_depth_from_payloads(['{"other": 1}']))
+        self.assertIsNone(doctor.nested_depth_from_payloads(['{"nestedWorkerMaxDepth": "2"}']))
 
 
 class Warmup(unittest.TestCase):
