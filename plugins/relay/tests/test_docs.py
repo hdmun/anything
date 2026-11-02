@@ -101,6 +101,12 @@ class SessionStructure(unittest.TestCase):
         self.assertIn("relay 진행자: Run <run_id> / T-NNN", entry)
         self.assertNotIn("run-use로 기존 Run에 들어왔으면", SKILL_MD)
 
+    def test_escalation_goes_through_ask_not_decision_gates(self):
+        # decision gate 는 세션 종료를 전제로 한 설계라 폐기했다 (Q12). 진행자는 ask 로 설계 세션에 묻는다
+        self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
+        escalation = (SKILL_DIR / "references" / "escalation.md").read_text(encoding="utf-8")
+        self.assertIn("같은 메시지 ID로 resume", escalation)    # ask 30분 timeout 뒤 중복 질문을 만들지 않는다
+
 
 class SkillSkeleton(unittest.TestCase):
     def test_skill_md_stays_within_500_lines(self):
