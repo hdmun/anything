@@ -8,7 +8,7 @@
 
 **구현 워커(agy)**
 
-1. `orca worktree create --repo <sel> --name T-NNN --base-branch main --setup run --json` 으로 worktree 경로를 확보한다.
+1. `worktree create` 로 worktree 경로를 확보한다. relay 값: `--name T-NNN`, `--base-branch main`, `--setup run`.
    - **`--base-branch`를 반드시 명시한다.** 생략하면 repo의 `defaultBaseRef`를 쓰는데, 그 값이 `null`인 저장소에서는 엉뚱한 지점에서 분기된다.
    - 만든 직후 `git -C <worktree> log --oneline -1`로 base가 의도한 커밋인지 확인한다. 어긋났으면 `git -C <worktree> reset --hard <base>`로 맞춘다(추적되지 않은 파일은 보존된다).
    - **이 커밋 SHA를 적어둔다.** 리뷰 워커의 Task spec에 `<base>`로 넣어야 한다.
@@ -53,11 +53,9 @@
 
    `human / agy_model_invalid`면 설정이 agy와 맞지 않는 것이니(`detail`에 사유) 기동하지 말고 사용자에게 `detail`을 전한다. `launch`면 `launch_command`를 `--command`에 **그대로** 쓴다(설정이 있으면 `$null=1; agy --model … --effort …`):
 
-   ```bash
-   orca terminal create --worktree id:<wt> --title "T-NNN agy" --command '$null=1; agy' --json
-   orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
-   orca orchestration worker-start --task <id> [--retry-of <dispatch_id>] --worktree id:<wt> --terminal <h> --json
-   ```
+   1) `terminal create` — `--worktree id:<wt>`, `--title "T-NNN agy"`, `--command '$null=1; agy'`(설정이 있으면 결정기의 `launch_command`)
+   2) `terminal wait --for tui-idle --timeout-ms 30000` — Task 밖에서 통과시킨다
+   3) `worker-start --task <id> --worktree id:<wt> --terminal <h>` — 재출발이면 `--retry-of <dispatch_id>`
 
    - **`--command`는 `'$null=1; agy'`를 그대로 쓴다.** 맨 앞 토큰이 `agy`면 Orca가 시작 명령을 에이전트로 인식해 다른 경로로 띄우는데, 그 경로에선 입력창(`>` 줄)이 Orca가 보는 출력 스트림에 남지 않아 화면은 멀쩡해도 `tui-idle`이 영영 통과하지 못한다. 앞의 문장은 아무 일도 하지 않는 PowerShell 문장으로, 일반 셸 명령으로 실행되게 할 뿐이다. 작은따옴표는 bash가 `$null`을 펼치지 않게 하려는 것이다. 이 값의 정본은 `scripts/relaylib/orca.py`의 `AGY_LAUNCH_COMMAND`다.
    - **이유**: agy는 입력창이 준비되기 전에 들어온 입력을 **조용히 버린다.** Orca는 antigravity의 전달 여부를 관측하지 못해(`provider: unsupported`) 경고도 없다.
@@ -74,14 +72,14 @@
    - **`worker-start` 응답은 `startup`에 해석시킨다.** `ok`는 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 온다(예: `failedStage: agent_readiness`, `dispatch: null`).
 
      ```bash
-     orca orchestration worker-start ... --json > start.json
+     # worker-start 의 JSON 응답을 start.json 으로 받는다
      python "$RELAY/scripts/relay_cli.py" startup --response start.json [--prior-failures <이 태스크 계열의 이전 기동 실패 수>]
      ```
 
      | `action` | 할 일 |
      |---|---|
      | `ok` | `dispatch`를 기록하고 5번(전달 확인)으로 |
-     | `lookup_dispatch` | `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것 |
+     | `lookup_dispatch` | `dispatch-show --task <task_id>` 로 조회한다. 추측하지 말 것 |
      | `confirm_delivery` | (`turn_start_unobserved`) 입력은 썼는데 에이전트가 턴을 시작했는지 Orca가 못 봤다. 실패로 단정하지 않고 **전달부터 확인한다** — agy는 5번 로그 확인, codex는 60초 뒤 `dispatch-show`의 `status`. `pending`이면 전달 실패 = 기동 실패다(입력창이 비어 있는 경우다) — 재전송하지 말고 `worker-retain` 후 (h). `dispatched`/`completed`면 정상 |
      | `wait_tui_idle` | (`agent_unconfigured`) 터미널이 아직 에이전트로 태깅되지 않았다. Task는 멀쩡하다 — `tui-idle`부터 다시 |
      | `new_task` | 기동 실패 1회. **그 Task는 이미 `failed`다.** Task 밖에서 `tui-idle`을 통과시킨 뒤 **새 Task**로 재출발한다(통과하는 터미널이 있으면 그대로 `--terminal`로 재사용해도 된다) |
