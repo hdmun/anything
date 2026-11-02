@@ -7,7 +7,12 @@ from helpers import PLUGIN_ROOT
 
 import relay_cli
 
-SKILL = (PLUGIN_ROOT / "skills/relay/SKILL.md").read_text(encoding="utf-8")
+SKILL_DIR = PLUGIN_ROOT / "skills/relay"
+# 절차가 references/ 로 나뉘었으므로 SKILL.md 와 references/*.md 를 이은 텍스트를 검사한다
+SKILL = "\n".join(
+    p.read_text(encoding="utf-8")
+    for p in [SKILL_DIR / "SKILL.md", *sorted((SKILL_DIR / "references").glob("*.md"))]
+)
 
 
 def _subcommands():
