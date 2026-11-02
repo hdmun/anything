@@ -59,9 +59,9 @@
    |---|---|
    | `ok` | `dispatch`와 `model`(= `launch.effective.model`, 커밋 트레일러에 쓴다)을 기록하고 (e)의 대기로. Orca가 `turnStart: observed`로 전달을 확인했다 |
    | `lookup_dispatch` | `dispatch-show --task <task_id>` 로 조회한다. 추측하지 말 것 |
-   | `confirm_delivery` | (`turn_start_unobserved`) 입력은 썼는데 에이전트가 턴을 시작했는지 Orca가 못 봤다. 실패로 단정하지 않고 60초 뒤 `dispatch-show`의 `status`로 확인한다. `pending`이면 전달 실패 = 기동 실패다 — 재전송하지 말고 `worker-retain` 후 (h). `dispatched`/`completed`면 정상 |
+   | `confirm_delivery` | (`turn_start_unobserved`) 입력은 썼는데 에이전트가 턴을 시작했는지 Orca가 못 봤다. 실패로 단정하지 않고 60초 뒤 `dispatch-show`의 `status`로 확인한다. `pending`이면 전달 실패 = 기동 실패다 — 재전송하지 않고 `worker-retain` 후 사람이 필요한 것으로 (h). **기동 실패 예산이 남아 있어도 스스로 재출발하지 않는다** — 입력이 늦게 도착하면 같은 Task를 두 워커가 하게 된다. 재출발은 답이 온 뒤 아래 `retry` 행대로. `dispatched`/`completed`면 정상 |
    | `retry` | 기동 실패 1회. **그 Task는 이미 `failed`다.** 다시 띄우기 전에 Orca 가이드 `recovery-and-cleanup` reference를 읽고 그 replacement 절차(`--task <실패한 task_id> --retry-of <dispatch_id>`, 배치·`--agent` 인자를 다시 준다)를 따른다. 실패한 시도가 남긴 터미널은 영수증의 `worker-release`로 정리한다 |
-   | `human` | `startup_budget`(기동 실패 2회), `agent_prompt_blocked`(자동 응답 금지) 등 — (h) |
+   | `human` | `startup_budget`(기동 실패 2회), `agent_prompt_blocked` 등 — 사람이 필요한 것으로 (h). `agent_prompt_blocked`면 그 프롬프트는 사람이 워커 터미널에서 직접 처리한다 — 진행자는 키를 보내지 않고, 보낼 키를 선택지로 제안하지도 않는다. codex 업데이트 프롬프트면 예방책(`~/.codex/config.toml`의 `check_for_update_on_startup = false`, `reviewer.md`)을 질문에 함께 적는다 |
 
    - 기동 실패는 라운드로 세지 않는다 — (h) 「시도와 라운드」.
    - 전달 확인은 Orca의 `turnStart`로 한다. agy 로그를 직접 세던 절차(`HandleUserInput`)는 Orca 1.4.245가 antigravity의 턴 시작을 관측하면서 지웠다(plan 트랙 0).
