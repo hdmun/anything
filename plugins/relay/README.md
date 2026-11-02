@@ -4,17 +4,22 @@
 
 | 역할 | 실행 주체 | 하는 일 |
 |---|---|---|
-| 설계자 | Claude Code · Opus | spec 작성, Run/Task 생성, SPEC_VIOLATION 중재 |
-| 진행자 | Claude Code · Sonnet | 워커 기동, 대기, 게이트 재검증, 리뷰 분기, PR/브랜치 보고 |
-| 구현자 | agy (Antigravity CLI) | spec을 코드로 옮기고 게이트를 통과시킨다 |
-| 리뷰어 | codex | 커밋된 변경을 spec과 대조해 심각도별 JSON 리포트를 낸다 |
+| 역할 | 실행 주체 | 하는 일 |
+|---|---|---|
+| 설계자 | **설계 세션** — 사람이 relay 를 호출한 Claude Code 세션 (Opus·high) | spec 작성, Run/Task 생성, 태스크마다 진행자 워커를 띄워 감독, 진행자의 질문에 답하거나 사람에게 넘김 |
+| 진행자 | **진행자 워커** — 설계 세션이 태스크마다 띄우는 Claude Code 워커 (Opus·low) | 워크트리·기준선, 하위 워커 기동, 대기, 게이트 재검증, 리뷰 분기, PR/브랜치 보고 |
+| 구현자 | agy (Antigravity CLI) — 진행자의 하위 워커 | spec을 코드로 옮기고 게이트를 통과시킨다 |
+| 리뷰어 | codex — 진행자의 하위 워커 | 커밋된 변경을 spec과 대조해 심각도별 JSON 리포트를 낸다 |
 
-설계는 드물고 짧지만 판단이 무겁고, 진행은 잦고 길지만 대부분 조건 분기다. 그래서 둘을 다른 세션·다른 모델로 나눈다. 상태는 Orca(Run/Task/Dispatch)와 git이 소유하므로 진행 세션은 태스크마다 버린다.
+설계는 드물고 짧지만 판단이 무겁고, 진행은 잦고 길지만 대부분 조건 분기다. 그래서 진행은 effort 를 낮춘 워커에 맡기고, 태스크가 끝나면 그 워커를 해제해 컨텍스트가 다음 태스크로 넘어가지 않게 한다. 상태는 Orca(Run/Task/Dispatch)와 git이 소유한다. 워커는 모두 Orca 기본 경로(`worker-start --agent`)로 뜬다 ([ADR 0003](docs/adr/0003-delegate-launch-to-orca.md)·[0004](docs/adr/0004-design-session-supervises-coordinator.md)).
 
 ## 준비물
 
-1. **Orca** — `orca` CLI가 PATH에 있어야 한다. 진행 세션은 Orca 터미널 안에서 돈다.
-2. **agy** — 워크트리를 `~/.gemini/antigravity-cli/settings.json`의 `trustedWorkspaces`에 등록해야 한다(진행자가 기동 때 추가하고 성공 종료 때 지운다).
+1. **Orca** — `orca` CLI가 PATH에 있어야 한다. 설계 세션은 Orca 터미널 안에서 연다.
+   - **Orca 스킬** `orchestration`·`orca-cli`(`~/.agents/skills/`)가 있어야 한다. Orca 설치에 들어 있다. 설계 세션·진행자·구현자·리뷰어가 모두 이 스킬로 Orca 가이드를 읽는다.
+   - **워커 중첩 깊이 2 이상** — 설정 → 에이전트 오케스트레이션 → "하위 에이전트 최대 생성 단계"(영문 Settings → Orchestration → Nested worker depth). 기본값 1이면 진행자가 하위 워커를 띄우지 못한다(`nested_worker_depth_exceeded`).
+   - 둘 다 `relay_cli.py doctor` 가 검사한다(`skill:*`, `orca:nested-depth`).
+2. **agy** — trust 등록은 Orca가 한다(`worker-start`가 agy를 띄우기 직전에 워크트리를 `trustedWorkspaces`에 추가). Orca는 지우지 않으므로 진행자가 성공 종료 때 지운다.
 3. **codex** — `~/.codex/config.toml`에 아래 두 키가 필요하다. 없으면 Orca가 codex 기동을 감지하지 못하거나 업데이트 프롬프트에서 멈춘다.
 
    ```toml
@@ -59,36 +64,50 @@ relay를 쓸 저장소에서 한 번 실행한다. 워커가 읽는 역할 파�
 
 ### 진입 약속 — 첫 요청에 "relay"를 쓴다
 
-설계 세션이든 진행 세션이든 **첫 요청에 "relay"를 명시**해 스킬을 부른다. 스킬 description은 단계 중간의 질문에는 잘 발동하지 않으므로, 첫 턴에 불러 세션 내내 상주시키는 것을 전제로 한다.
+**사람은 첫 요청에 "relay"를 명시**해 스킬을 부른다. 그 세션이 설계 세션이다. 스킬 description은 단계 중간의 질문에는 잘 발동하지 않으므로, 첫 턴에 불러 세션 내내 상주시키는 것을 전제로 한다.
 
-- 예: "relay로 T-NNN 설계해줘", "relay Run `<run_id>` 진행해줘"
+- 예: "relay로 T-NNN 설계해줘", "relay Run `<run_id>` 이어서 감독해줘"
+- 진행자 워커는 사람이 열지 않는다. 설계 세션이 띄우고, Task spec 첫 줄 `relay 진행자: Run <run_id> / T-NNN` 이 워커 안에서 스킬을 부른다.
+- 세션 판정은 Orca preamble 하나로 한다 — 있으면 진행자 워커, 없으면 설계 세션. Run ID를 주며 "진행해줘"라고 해도 preamble이 없으면 설계 세션이다.
 - 스킬은 뼈대(SKILL.md)와 단계별 `references/`로 나뉘어 있다. 단계에 들어설 때마다 해당 파일을 읽는다.
 
-### 2. 설계 세션 (Opus)
+### 2. 설계 세션 — relay 를 호출한 세션
 
-"relay로 T-NNN 설계해줘"처럼 요청하면 `relay` 스킬이 발동한다.
-`.ai/specs/T-NNN-<슬러그>.md`를 쓰고 `run-create`/`task-create`까지 한 뒤 **Run ID를 알려주고 끝난다.**
-
-### 3. 진행 세션 (Sonnet)
-
-새 세션에서 `/model sonnet`으로 바꾸고 "relay Run `<run_id>` 진행해줘"라고 요청한다. 태스크 하나를 끝까지 몰고 간다.
+"relay로 T-NNN 설계해줘"처럼 요청한다. `.ai/specs/T-NNN-<슬러그>.md`를 쓰고 `run-create`/`task-create`를 한 뒤, **Run이 끝날 때까지 떠서 감독한다.**
 
 ```
-run-use → 워크트리·기준선 게이트 → agy 기동·전달 확인 → 대기
-→ 게이트 재검증 → 구현 커밋 → 빈 diff 확인 → codex 리뷰
-→ 심각도 분기 → 브랜치/PR 보고 → 워커 정리 → 세션 폐기
+ready 태스크마다 (순차):
+  model coordinator → worker-start --agent claude (진행자 워커)
+  → check --wait — 진행자의 question 에 답하거나 사람에게 넘김
+  → worker_done 확인 (commit-guard · 리뷰 리포트 · git log <base>..HEAD — 게이트는 다시 돌리지 않는다)
+  → worker-release → 사용자에게 한 줄 보고
 ```
 
-**머지는 하지 않는다.** 진행 세션은 브랜치와 커밋 목록(또는 PR)까지만 만들고, 머지는 사람이 한다.
+- 방금 끝난 태스크에 의존하는 태스크는 사람이 그 브랜치를 머지한 뒤 띄운다(진행자는 `main`에서 워크트리를 만든다).
+- 설계 세션의 컨텍스트가 커지면 태스크 경계에서 멈추고, 새 세션에서 "relay Run `<run_id>` 이어서 감독해줘"로 이어 간다(`run-use`).
 
-#### 진행 세션이 멈추고 사람을 부르는 경우
+### 3. 진행자 워커 — 태스크 하나
 
-| 상황 | 이유 |
+설계 세션이 띄운다. 태스크 하나를 끝까지 몰고 가서 `worker_done`으로 보고하고 끝난다.
+
+```
+preamble 확인 → Orca 스킬 → doctor → 워크트리·기준선 게이트 → 예열 → agy 기동(worker-start --agent antigravity) → 대기
+→ 게이트 재검증 → 구현 커밋 → 빈 diff 확인 → codex 리뷰(worker-start --agent codex)
+→ 심각도 분기 → 브랜치/PR → 하위 워커 정리 → 보고 파일 → worker_done
+```
+
+**머지는 하지 않는다.** 진행자는 브랜치와 커밋 목록(또는 PR)까지만 만들고, 머지는 사람이 한다. 보고 파일은 `~/.relay/reports/<run_id>/T-NNN.md` 다.
+
+#### 진행자가 설계 세션에 묻는 경우
+
+진행자는 사람과 직접 대화하지 않는다. 혼자 판단할 수 없는 것은 모두 Orca `ask`로 설계 세션에 묻고, 답을 기다린다(30분마다 같은 메시지 ID로 이어 기다린다).
+
+| 상황 | 누가 답하는가 |
 |---|---|
-| 같은 Task의 기동 실패 2회 | Orca는 3회째에 circuit-break한다. 원인을 해소한 뒤 새 Task로 재출발한다 |
-| 워커가 프롬프트에 멈춤 / 출력 정지(구현 5분·리뷰 10분) | 자동 응답은 금지다 |
-| 총 라운드 5회 초과 | 태스크를 중단한다 |
-| `SPEC_VIOLATION`, 같은 지적 반복, 리뷰 라운드 3회 초과 | 사람 대신 **설계 세션(Opus)** 으로 넘긴다 — Orca decision gate로 남긴다 |
+| `SPEC_VIOLATION`, 같은 지적 반복, 리뷰 라운드 3회 초과 | 설계 세션이 spec을 근거로 직접 답한다 |
+| 같은 Task의 기동 실패 2회, 전달 실패 | 사람 (설계 세션이 전한다). Orca는 3회째에 circuit-break한다 |
+| 워커가 확인창에 멈춤 / 출력 정지(구현 5분·리뷰 10분) | 사람. 확인창은 사람이 그 터미널에서 직접 처리한다(자동 응답 금지) |
+| 총 라운드 5회 초과 | 사람. 태스크를 중단할지 정한다 |
 
 ## 구조
 
@@ -222,8 +241,8 @@ done
 |---|---|---|
 | designer | 강제하지 못한다(사람이 연 세션). `relay_cli.py model designer` 가 `claude --model … --effort …` 를 알려 준다 | 사용자가 고른 세션 그대로 |
 | coordinator | 설계 세션이 진행자 워커를 `worker-start --agent claude --model … --effort …` 로 띄운다 | `opus` / `low` |
-| implementer (agy) | `agy --model … --effort …` 로 기동 | agy 기본 모델 |
-| reviewer (codex) | `codex --yolo -m … -c model_reasoning_effort=…` 로 기동 | `model` 은 **필수**(없으면 기동 거부), `effort` 는 `high` |
+| implementer (agy) | 진행자가 `worker-start --agent antigravity [--model … --effort …]` 로 띄운다 | agy 기본 모델 |
+| reviewer (codex) | 진행자가 `worker-start --agent codex --model … --effort …` 로 띄운다 | `model` 은 **필수**(없으면 기동 거부), `effort` 는 `high` |
 
 - **리뷰어 모델은 codex 의 `~/.codex/config.toml` 과 분리돼 있다.** `config.toml` 의 `model`(평소 용도)은 읽지 않고, 사전 조건 키(`check_for_update_on_startup`, `tui.terminal_title`)만 확인한다.
 - 구현자 `model` 은 `agy models` 의 기본 이름(`gemini-3.8-flash`)이다. `gemini-3.8-flash-low` 처럼 effort 가 이름에 든 모델에 `effort` 를 같이 주면 agy 가 거부하므로 doctor 와 결정기가 미리 막는다.
@@ -293,7 +312,7 @@ python "$P/scripts/relay_cli.py" models-init \
    # OK   reviewer-model  gpt-6-luna / high (codex 모델 목록에 있음)
    ```
 
-5. **실제로 뜨는지 본다.** 설정대로 `codex --yolo -m … -c model_reasoning_effort=…` 로 기동한다.
+5. **실제로 뜨는지 본다.** smoke 가 설정대로 `worker-start --agent codex --model … --effort …` 로 띄우고 `worker_done`·release 까지 확인한다.
 
    ```bash
    python scripts/relay_cli.py smoke --dir C:/Users/hdmun/scripts --agent codex
@@ -301,7 +320,7 @@ python "$P/scripts/relay_cli.py" models-init \
 
 6. **`config.toml` 에서 필요한 것은 사전 조건 키 두 개뿐**이다(위 「준비물」 3번). `model` 은 있어도 없어도 리뷰어에 영향이 없다.
 
-리뷰 리포트 커밋의 `Reviewed-by: codex/<모델>` 트레일러는 기동 명령에 준 `-m` 값, 즉 설정 파일의 `reviewer.model` 이다.
+리뷰 리포트 커밋의 `Reviewed-by: codex/<모델>` 트레일러는 `worker-start` 응답의 `launch.effective.model` — Orca가 실제로 띄운 모델이다.
 
 ### 구현자(agy) 모델 고르기
 
@@ -322,7 +341,7 @@ python "$P/scripts/relay_cli.py" models-init \
    | Gemini 3.8 Flash, 낮은 effort | `{"model": "gemini-3.8-flash", "effort": "low"}` |
    | Gemini 3.1 Pro, 높은 effort | `{"model": "gemini-3.1-pro", "effort": "high"}` |
    | Claude Sonnet 5.5, 중간 effort | `{"model": "claude-sonnet-5-5", "effort": "medium"}` |
-   | 모델은 agy 기본, effort 만 | `{"effort": "high"}` |
+   | 모델은 agy 기본, effort 만 | **안 된다** — Orca는 `--effort` 를 `--model` 없이 받지 않는다(`human / effort_needs_model`) |
    | 전부 agy 기본 | 이 키를 지운다 |
 
 3. **모델마다 지원하는 effort 가 다르다.** `gemini-3.1-pro` 는 `low`/`high` 만 있다. 없는 조합은 agy 가 거부하며 기동 실패 예산을 쓰므로, 적은 뒤에 반드시 `doctor` 로 확인한다.
@@ -339,15 +358,16 @@ python "$P/scripts/relay_cli.py" models-init \
    python scripts/relay_cli.py smoke --dir C:/Users/hdmun/scripts --agent antigravity
    ```
 
-   `"passed": true` 면 설정대로 기동되고 입력이 전달된 것이다. 같은 저장소의 설정을 바꾸지 않고 다른 값을 시험하려면 `--user-config <임시 파일>` 을 준다.
+   `"passed": true` 면 설정대로 기동되고 `worker_done` 까지 왔다는 뜻이다. 같은 저장소의 설정을 바꾸지 않고 다른 값을 시험하려면 `--user-config <임시 파일>` 을 준다.
 
-커밋 트레일러 `Implemented-by: agy/<모델>` 은 설정값이 아니라 agy 로그의 마지막 모델 라벨로 남는다. 설정이 실제로 적용됐는지 `git log` 에서 대조할 수 있다.
+커밋 트레일러 `Implemented-by: agy/<모델>` 은 `worker-start` 응답의 `launch.effective.model` 이다. agy 기본 모델로 띄워 그 값이 `null` 이면 agy 로그의 마지막 모델 라벨을 쓴다.
 
-## 1.3.0 으로 올리기 (다른 작업 경로·설정 디렉터리)
+## 2.0.0 으로 올리기 (다른 작업 경로·설정 디렉터리)
 
-1.3.0 은 `templates/` 를 바꾸지 않았다. **저장소의 역할 파일을 다시 렌더링할 필요가 없고**, 플러그인 설치본과 모델 설정 파일만 맞추면 된다.
+2.0.0 은 세션 구조와 기동 방식을 바꿨다 — 설계 세션이 진행자 워커를 감독하고(ADR 0004), 워커는 모두 `worker-start --agent` 로 뜬다(ADR 0003). **`templates/` 도 바뀌었으므로 저장소마다 역할 파일을 다시 렌더링한다.**
 
-1. **설정 디렉터리마다 플러그인을 갱신한다.** 마켓플레이스 소스가 로컬 폴더(`C:\Users\hdmun\scripts`)라 **main 이 체크아웃된 상태**여야 한다.
+1. **진행 중인 1.x Run 을 먼저 끝낸다.** 1.x 설계 세션이 만든 Task 는 spec 이 `relay 진행자:` 로 시작하지 않아 2.0.0 설계 세션이 맡기지 않는다. 끝내지 못한 것은 2.0.0 에서 새 Run 으로 다시 만든다.
+2. **설정 디렉터리마다 플러그인을 갱신한다.** 마켓플레이스 소스가 로컬 폴더(`C:\Users\hdmun\scripts`)라 **main 이 체크아웃된 상태**여야 한다.
 
    ```bash
    git -C C:/Users/hdmun/scripts branch --show-current          # main 이어야 한다
@@ -356,7 +376,7 @@ python "$P/scripts/relay_cli.py" models-init \
    CLAUDE_CONFIG_DIR=~/.claude-max claude plugin update relay    # ~/.claude-max
    ```
 
-2. **설치된 버전을 확인한다.** 둘 다 `1.3.0` 이어야 한다.
+3. **설치된 버전을 확인한다.** 둘 다 `2.0.0` 이어야 한다.
 
    ```bash
    for d in ~/.claude ~/.claude-max; do
@@ -364,37 +384,28 @@ python "$P/scripts/relay_cli.py" models-init \
    done
    ```
 
-3. **모델 설정 파일을 만든다.** 사용자 전역은 한 번만, 저장소별은 통일이 필요한 저장소에서만 한다. **리뷰어 `model` 은 필수**다(없으면 리뷰 단계에서 멈춘다).
-
-   ```bash
-   mkdir -p ~/.relay
-   cat > ~/.relay/models.json <<'JSON'
-   { "reviewer":    { "model": "gpt-6-luna", "effort": "high" },
-     "implementer": { "model": "gemini-3.8-flash", "effort": "low" } }
-   JSON
-   ```
-
-   저장소별 덮어쓰기는 같은 형식으로 `<저장소>/.ai/relay-models.json` 에 적고 커밋한다.
-
-4. **저장소마다 점검한다.** 저장소 루트에서 실행한다(약 10초). `FAIL` 이 없어야 한다.
+4. **Orca 설정을 확인한다.** 워커 중첩 깊이 2 이상(「준비물」 1). `doctor` 의 `orca:nested-depth`·`skill:orchestration`·`skill:orca-cli` 가 `OK` 여야 한다.
 
    ```bash
    P=$(ls -d ~/.claude/plugins/cache/hdmun-scripts/relay/*/ | sort -V | tail -1)
    cd <repo>
-   python "$P/scripts/relay_cli.py" doctor | grep -E "FAIL|plugin|models|codex"
-   python "$P/scripts/relay_cli.py" models
+   python "$P/scripts/relay_cli.py" doctor | grep -E "FAIL|plugin|skill|nested|models|codex"
    ```
 
-5. **진행 중인 relay 세션은 재시작한다.** `/reload-plugins` 또는 세션 재시작. 안 하면 `FAIL plugin`(낡은 절차) 이 나온다.
+5. **저장소마다 역할 파일을 갱신한다** — 「사용 중인 저장소 갱신」 절차. `--check` 가 `DRIFT` 를 내는 것이 정상이다.
+6. **진행자 모델을 바꾸려면** `~/.relay/models.json` 의 `coordinator` 에 적는다(기본 `opus`/`low`). 이제 파일 값이 그대로 진행자 워커의 `--model`·`--effort` 가 된다.
+7. **열려 있는 relay 세션은 재시작한다.** `/reload-plugins` 또는 세션 재시작. 안 하면 `FAIL plugin`(낡은 절차)이 나온다.
 
 ## 알려진 한계
 
-- 실전으로 아직 검증하지 못한 동작이 있다. 목록과 확인 계획은 [docs/plan.md](docs/plan.md)의 「미검증」에 있다.
+- 실전으로 아직 검증하지 못한 동작이 있다 — 수정 라운드의 같은 터미널 재사용, `--retry-of` 재출발, 살아 있는 워커의 `observation.agentWait`, 채팅으로 뜬 워커. 목록과 확인 계획은 [docs/plan.md](docs/plan.md)의 「미검증」에 있다.
+- 설계 세션은 Run 이 끝날 때까지 떠 있어야 한다. 닫히면 진행자의 `ask` 에 답할 주체가 없다 — 새 세션에서 `run-use` 로 이어 받는다.
 - 실행은 순차다. DAG(`--deps`)는 처음부터 정의하되 병렬 전환은 연속 5개 태스크가 에스컬레이션 없이 통과한 뒤에 한다.
 - Windows + Git Bash 기준으로 작성됐다. `/`로 시작하는 인자는 `MSYS_NO_PATHCONV=1`이 필요하다.
 
 ## 참고
 
 - 용어: [CONTEXT.md](CONTEXT.md)
-- 정책은 코드, orca 사용법은 Orca 가이드가 정본인 이유: [ADR 0001](docs/adr/0001-policy-in-code.md)
-- Orca orchestration 정본 가이드: `orca skills get orchestration`
+- 정책은 코드, orca 사용법은 Orca 가이드가 정본인 이유: [ADR 0001](docs/adr/0001-policy-in-code.md)·[ADR 0003](docs/adr/0003-delegate-launch-to-orca.md)
+- 설계 세션이 진행자 워커를 감독하는 이유: [ADR 0004](docs/adr/0004-design-session-supervises-coordinator.md)
+- Orca 가이드: Orca 스킬 `orchestration`·`orca-cli` 가 버전에 맞는 가이드를 불러온다

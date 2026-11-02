@@ -242,9 +242,28 @@
 ### 트랙 5 — 마무리와 배포 (약 1.5시간)
 
 1. [x] CONTEXT.md 「예열」 정의의 "워커 터미널을 만들기 전에" → "워커를 띄우기 전에" (트랙 3 이 선기동을 없앤 경우만).
-2. [ ] README: 진입 약속(relay 를 호출한 세션이 설계 세션), 진행 세션 절 → 진행자 워커, 준비물에 Orca 스킬, 「알려진 한계」.
-3. [ ] `docs/field-notes.md`: 버려진 우회(선기동·readiness 사다리)의 사례를 "역사" 로 표시.
-4. [ ] `plugin.json` 2.0.0, evals 전체(`--model sonnet`, threshold 1.0) 통과 확인.
+2. [x] README: 진입 약속(relay 를 호출한 세션이 설계 세션), 진행 세션 절 → 진행자 워커, 준비물에 Orca 스킬, 「알려진 한계」.
+3. [x] `docs/field-notes.md`: 버려진 우회(선기동·readiness 사다리)의 사례를 "역사" 로 표시.
+4. [~] `plugin.json` 2.0.0, evals 전체(`--model sonnet`, threshold 1.0) 통과 확인. — 2.0.0 으로 올렸다(사용자 결정). delivery-failed 만 2/3.
+
+   평가(2026-11-03, `--judge-model sonnet`, threshold 1.0, 트랙 5 합계 $7.38 — 전체 1회 + 떨어진 케이스 재실행 2회):
+
+   | 케이스 | 플러그인 있음 (마지막 실행) | 없음(기준선) |
+   |---|---|---|
+   | handoff-not-relay | 1.0 ×3 (발동하지 않아야 하는 케이스) | 1.0 ×3 |
+   | session-classify | 1.0 ×3 | 0 ×3 |
+   | spec-violation-escalate | 1.0 ×3 | 0 ×3 |
+   | tsc-silent | 1.0 ×3 | 0~0.5 |
+   | mutation-dirty | 1.0 ×3 | 0 ×3 |
+   | startup-no-dispatch | 1.0 ×3 | 0 ×3 |
+   | update-prompt-blocked | 1.0 ×3 | 0.5 ×3 |
+   | delivery-failed | **1, 1, 0** | 0 ×3 |
+
+   - 전체 실행에서 떨어진 4케이스: 채점 과엄격 2(delivery-failed·startup-no-dispatch — 응답은 옳았다, 기준을 명확히 함), eval 환경의 Read 권한 거부 1(mutation-dirty — 재실행 3/3), 실제 위반 1(update-prompt-blocked "Skip 은 보내도 된다" — 불변식 보강 뒤 3/3).
+   - delivery-failed 의 남은 실패는 **relay 스킬이 발동하지 않은 실행**이다(Skill 0회, 1턴). 문서 내용이 아니라 진행자 워커에서의 발동 문제 — 아래 후속 과제.
+   - 이 과정에서 SKILL.md 불변식 2줄이 늘었다: 확인창은 사람이 터미널에서 직접 처리(Skip 도 사람이), 전달 실패는 스스로 재출발하지 않는다.
+
+   **후속 과제 — 진행자 워커의 스킬 발동**: preamble 이 긴 프롬프트에서 `relay 진행자:` 줄만으로는 3회 중 1회 발동하지 않았다. 후보: (a) design.md 의 Task spec 형식에 "relay 스킬로 진행한다" 를 명시, (b) description 에서 preamble 조건을 앞으로. 바꾸면 delivery-failed 를 다시 잰다(약 $0.5).
 5. [ ] 배포: `claude plugin update relay` 를 설정 디렉터리마다 → 사용 중 저장소마다 `/relay:init` 로 역할 파일 갱신.
 
 ### 이번 범위가 아닌 것
@@ -355,4 +374,7 @@ T-007 은 v1.2.3 으로 성공 종료(구현 2·리뷰 2, r2 pass). 그 세션�
 - ~~`worker-release` 가 수동 생성 터미널을 닫는가~~ → 닫지 않는다(`retained / external_terminal`, 2026-10-10). (i) 의 `terminal close` 가 필요하다
 - `worker-start --agent` 경로에서 확인창(agy trust·codex 업데이트·`Hooks need review`)이 영수증과 `worker-list` projection 에 어떻게 잡히는가 — 2026-11-02 재현 불가(Orca 가 agy trust 를 미리 등록, agy `always-proceed`, codex 업데이트 프롬프트 없음). Q17: Orca 기능으로만 관찰하는 방식을 유지하고 `startup` 의 `agent_prompt_blocked` 처리는 남긴다. 실전에서 처음 만나면 영수증·`worker-list` 출력을 픽스처로 남긴다
 - 새 에이전트 탭 설정이 채팅일 때 워커를 `worker-read --source auto` 로 읽을 수 있는가 (트랙 0-5(e), 사용자 설정을 바꿔야 해서 미측정)
+- 수정 라운드의 같은 터미널 재사용 `worker-start --spec … --parent … --terminal <handle>` (트랙 3, `--help` 의 문법으로만 확인). 실패하면 새 워커로 띄우는 대안은 문서에 있다
+- 기동 실패 뒤 `worker-start --task <실패 Task> --retry-of <dispatch>` 재출발 (트랙 3, `--help`·Orca 가이드로만 확인)
+- 살아 있는 워커에서 `worker-show` 의 `observation.agentWait` 가 실제로 채워지는가 — 트랙 3 픽스처는 끝난 워커라 그 필드가 없다(`--help`: 없으면 "보지 않았다")
 - ~~agy `auto_updater` 차단~~ → 예열로 대응(2026-10-02). 실행 중 교체는 확인됨: 기존 파일을 `agy.exe.<숫자>.old` 로 옮기고 새 파일을 놓는다(1.2.14 세션이 떠 있는 동안 1.2.16 설치). 예열은 `agy update`(동기) 사용
