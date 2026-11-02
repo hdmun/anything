@@ -61,14 +61,15 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 
 모든 경로에 적용된다. 아래 단계 파일을 읽은 뒤에도 이 규칙이 우선한다.
 
-- 구현자는 `--command '$null=1; agy'` 그대로 띄운다 (단독 `agy` 금지).
+- 구현자는 `--command '$null=1; agy'`를 그대로 쓴다.
 - 리뷰어는 `codex --yolo -m <model> -c model_reasoning_effort=<effort>`로 띄운다 (`--yolo` 유지).
 - 구현·리뷰 워커 모두 `terminal create` → `tui-idle`(Task 밖) → `worker-start --terminal` 순서로 띄운다.
 - 게이트는 종료코드로 판정한다. 통과하면 즉시 구현 커밋을 만든다.
 - `<base>`는 spec과 리뷰 Task에 명시한다.
-- 자동 머지 금지. 프롬프트 자동 응답 금지.
+- 머지는 사람이 한다(자동 머지 금지). 확인창·프롬프트는 사람을 부른다(자동 응답 금지).
 - `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다.
-- Orca 가이드(`orca skills get orchestration`)와 충돌하면 relay 문서를 고친다.
+- Orca 가이드(`orca skills get orchestration`)와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다.
+- references Read가 "파일 없음"으로 실패하면 플러그인이 갱신된 것이다. `/reload-plugins` 후 (c)0부터 다시 한다.
 
 ## 단계 목록
 
@@ -95,7 +96,7 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 
 진행 세션이 반드시 지킬 것:
 
-1. **`orca ... --json` 출력을 원본 그대로 받지 말 것.** 항상 필요한 필드만 추출해서 읽는다. orca의 JSON 응답은 크고, 매 턴 재전송되어 비용이 누적된다.
+1. **`orca ... --json` 출력에서 필요한 필드만 추출해서 읽는다.** orca의 JSON 응답은 크고, 매 턴 재전송되어 비용이 누적된다.
 2. **태스크 하나가 끝나면 세션을 폐기한다.** 여러 태스크를 한 세션에서 돌리면 컨텍스트가 선형 누적되고, 재전송 비용은 그 누적의 합이라 제곱으로 늘어난다.
 3. 태스크 상태는 `task-list --ready`로 매번 조회한다. 컨텍스트에 들고 있지 않는다.
 
@@ -116,10 +117,10 @@ Orca가 상태(Run/Task/Dispatch)를 소유하므로 세션을 버려도 잃는 
 
 ## 이 스킬 자체를 고칠 때
 
-> **이 스킬 자체를 고칠 때**: 정본은 `scripts` 저장소의 `plugins/relay/` 이고, 설치본은 Claude Code가
+> **이 스킬 자체를 고칠 때**: 소스의 정본은 `scripts` 저장소의 `plugins/relay/` 이고, 설치본은 Claude Code가
 > `plugins/cache/hdmun-scripts/relay/<version>/` 에 버전 경로로 두는 관리 복사본이다. 직접 고치지 않는다.
 > 소스를 고친 뒤 `plugin.json` 의 `version` 을 올리고 `claude plugin update relay` 를 설정 디렉터리마다 실행한다.
 >
-> **저장소 쪽 역할 파일**(`.ai/roles/`)은 이 플러그인의 `templates/` 가 정본이다. 저장소에서 `/relay:init` 으로
+> **저장소 쪽 역할 파일**(`.ai/roles/`)은 이 플러그인의 `templates/` 가 역할 파일의 정본이다. 저장소에서 `/relay:init` 으로
 > 생성하고, 플러그인을 업데이트한 뒤에는 `/relay:init --check` 로 드리프트를 확인한다(종료코드 1이면 드리프트).
 > **역할 파일을 손으로 고치지 않는다** — 공유 규범은 `templates/` 를, 저장소 고유분은 `.ai/relay-roles.json` 을 고친다.
