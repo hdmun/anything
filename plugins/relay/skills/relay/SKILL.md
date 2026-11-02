@@ -1,6 +1,6 @@
 ---
 name: relay
-description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·구현자(agy)·리뷰어(codex) 4역할 파이프라인을 굴릴 때 사용한다. spec 작성부터 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. "relay", relay Run 감독, T-NNN spec 설계를 요청할 때, 그리고 Task 첫 줄이 "relay 진행자:" 인 Orca 워커로 떴을 때 쓴다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(handoff — 감독·리뷰 없이 맡기기)에는 쓰지 않는다.
+description: Orca orchestration 위에서 설계자·진행자(Claude)·구현자(agy)·리뷰어(codex) 4역할 파이프라인을 굴릴 때 사용한다. spec 작성부터 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. "relay", relay Run 감독, T-NNN spec 설계를 요청할 때, 그리고 Task 첫 줄이 "relay 진행자:" 인 Orca 워커로 떴을 때 쓴다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(handoff — 감독·리뷰 없이 맡기기)에는 쓰지 않는다.
 ---
 
 # relay
@@ -31,7 +31,7 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 | 역할 | 실행 주체 | 모델 계열 / effort | Orca에서의 위치 |
 |---|---|---|---|
 | 설계자 | Claude Code | Opus (`/model opus`) / high | 코디네이터 자신 (워커 아님) — 설계 세션 |
-| 진행자 | Claude Code | Sonnet / medium — `model coordinator` 가 `worker-start` 인자로 준다 | supervised worker, 태스크마다 새로 띄우고 해제 — 진행자 워커 |
+| 진행자 | Claude Code | Opus / low — `model coordinator` 가 `worker-start` 인자로 준다 | supervised worker, 태스크마다 새로 띄우고 해제 — 진행자 워커 |
 | 구현자 | agy (Antigravity CLI) | agy 기본 모델 — (d) 참조 | supervised worker |
 | 리뷰어 | codex | 모델 설정 파일의 `reviewer.model` (필수) / high | supervised worker |
 
@@ -49,7 +49,7 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
                        run-create / task-create --deps
                        ready 태스크마다(순차): 진행자 워커 기동 → 대기·question 에 답 → worker_done 확인 → release
                                ↓ worker-start --agent claude
-[진행자 워커 Sonnet·med] preamble 의 Task → 워크트리·기준선 → 구현 워커 기동
+[진행자 워커 Opus·low]   preamble 의 Task → 워크트리·기준선 → 구현 워커 기동
                                ↓
 [구현 agy]             구현 + 자체 게이트 루프
                                ↓
@@ -82,7 +82,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 워커 터미널을 먼저 만들고 `tui-idle` 을 Task 밖에서 통과시킨 뒤 `worker-start --terminal` 로 감독을 건다 (구현·리뷰 모두) | `worker-start --agent` | 준비 감지 실패 한 번으로 Task 가 `failed` 가 됐다(Orca 1.4.216~1.4.224, T-005·T-006). 1.4.245 에서 `--agent` 경로가 agy 7/7·codex 4/4 통과 — plan 트랙 3 에서 이 행과 아래 두 행을 지운다 |
 | 구현자 터미널은 `--command '$null=1; agy'` (설정이 있으면 `model implementer` 의 `launch_command`) | — | 맨 앞 토큰이 `agy` 면 Orca 가 에이전트 경로로 띄워 `tui-idle` 이 통과하지 못한다(agy 1.3.3, 11/11 실패) |
 | 리뷰어 터미널은 `--command 'codex --yolo -m <model> -c model_reasoning_effort=<effort>'` | `--agent codex` 가 같은 인자를 붙인다 | 직접 띄우면서 `--yolo` 를 빼면 샌드박스 안에서 `worker_done` 이 멈춘다(2026-10-11) |
-| 진행자 워커는 `--model`·`--effort` 를 늘 준다 (`model coordinator`, 설정이 없으면 `sonnet`/`medium`) | 사용자가 모델을 고르지 않았으면 생략해 기본 모델을 물려받는다 | 잦고 긴 진행 루프를 싼 모델에 두는 것이 세션을 나눈 이유다(ADR 0004). `--effort` 는 `--model` 없이 쓸 수 없다 |
+| 진행자 워커는 `--model`·`--effort` 를 늘 준다 (`model coordinator`, 설정이 없으면 `opus`/`low`) | 사용자가 모델을 고르지 않았으면 생략해 기본 모델을 물려받는다 | 잦고 긴 진행 루프는 effort 를 낮춰 둔다 — 생략하면 사용자 기본 effort 로 뜬다. `--effort` 는 `--model` 없이 쓸 수 없다. 기본값은 2026-11-02 사용자 결정, 바꾸려면 모델 설정 파일 |
 | 워크트리는 `worker-start` 에 합치지 않고 먼저 만든다 | `worker-start --worktree new-…` | 워커를 띄우기 전에 기준선 게이트를 돌려야 한다 — (d) |
 | 진행자 워커가 `ask` 로 설계 세션의 답을 기다리는 동안, 정착한 하위 워커의 재사용·보존·해제와 그 ack 를 미룬다 | 정착을 받으면 곧바로 셋 중 하나를 정하고 ack | 답이 정한다 — 수정 라운드면 재사용, 중단이면 보존, 성공이면 해제 — (h). 2026-11-02 결정(Q12) |
 | 진행자 워커가 하위 워커를 기다리는 `check --wait` 는 `--timeout-ms 600000` | 가이드 예시 900000 | 빈 대기마다 화면·liveness 를 보는 체크포인트 간격이다 — (e). 설계 세션의 대기는 가이드 기본 그대로 |
@@ -128,7 +128,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 Claude Code는 매 턴 전체 컨텍스트를 재전송하므로 비용은 (컨텍스트 크기 × 턴 수)에 비례한다.
 진행 루프는 태스크당 10~20턴인데 판단 함량이 거의 없다(대부분 조건 분기).
 반면 설계·명세·중재는 턴 수가 적고 판단 함량이 최대다.
-따라서 잦고 긴 구간은 Sonnet 진행자 워커에, 드물고 짧은 구간은 Opus 설계 세션에 배치한다.
+따라서 잦고 긴 구간은 effort 가 낮은 진행자 워커에, 드물고 짧은 구간은 effort 가 높은 설계 세션에 배치한다. 기본은 둘 다 Opus 계열이고 effort 만 다르다(설계 high, 진행 low). 역할별 값은 모델 설정 파일에서 바꾼다.
 
 **진행자 워커를 태스크마다 새로 띄우는 이유**: 진행 루프의 컨텍스트(워커 JSON, 게이트 로그, 리뷰 리포트)는 다음 태스크에 쓸모가 없다. 태스크가 끝날 때 워커를 해제하면 그 컨텍스트가 통째로 사라지고, 설계 세션에는 `worker_done` 요약과 답한 질문만 남는다. 그래서 설계 세션은 Run 끝까지 떠 있어도 태스크 수만큼 비대해지지 않는다.
 Orca가 상태(Run/Task/Dispatch)를 소유하므로 진행자 워커를 버려도 잃는 것이 없다. 설계 세션 자신도 컨텍스트가 커지면 새 세션에서 `run-use`로 이어 간다(ADR 0004).
