@@ -5,7 +5,8 @@
 ## (b) 설계 세션 절차
 
 0. **Skill 도구로 Orca 스킬 `orchestration` 을 불러 Orca 가이드를 읽는다.** 설계 세션은 Run·Task·진행자 워커 감독만 다루므로 다른 Orca 스킬은 부르지 않는다(워크트리·터미널은 진행자 워커의 몫). 명령 문법은 가이드를 따른다.
-   그리고 머신을 점검한다 — `python "$RELAY/scripts/relay_cli.py" doctor`. `FAIL`이면 진행자 워커를 띄우지 않고 출력의 `→` 줄을 사용자에게 전한다. 특히 `FAIL orca:nested-depth`면 진행자가 하위 워커를 띄울 수 없다(ADR 0004).
+   그리고 머신을 점검한다 — `python "$RELAY/scripts/relay_cli.py" doctor`. `FAIL`이면 진행자 워커를 띄우지 않고 출력의 `→` 줄을 사용자에게 전한다. 특히 `FAIL orca:nested-depth`면 진행자가 하위 워커를 띄울 수 없다(ADR 0004). `FAIL plugin`이면 이 세션이 읽은 SKILL.md가 설치본보다 낡았다 — 사용자에게 `/reload-plugins`나 세션 재시작을 요청하고 멈춘다.
+   `WARN version:*`(미검증 버전)이면 사용자에게 알리고 `relay_cli.py smoke --dir <trust 등록된 디렉터리>`를 권한다. smoke가 실패한 CLI로는 진행자 워커를 띄우지 않는다. 그 밖의 `WARN`은 보고만 하고 진행한다.
 1. `grill-with-docs` 발동 기준: **새 개념/용어가 등장하거나, 되돌리기 어려운 결정이 포함되거나, spec을 쓰다 두 번 이상 막힐 때.** 그 외에는 바로 spec을 쓴다. 오탈자 수정 같은 것에까지 grilling을 걸지 않는다.
 2. `.ai/specs/T-NNN-<슬러그>.md` 작성 — `references/spec-template.md`를 따른다.
    - **채번**: `NNN`은 `.ai/specs/` 안의 기존 파일 중 가장 큰 번호 + 1. 세 자리 0 패딩(`T-001`).

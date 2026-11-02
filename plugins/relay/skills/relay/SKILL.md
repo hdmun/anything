@@ -71,7 +71,7 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 - 진행자 워커는 혼자 판단할 수 없는 것(SPEC_VIOLATION, 반복 지적, 라운드 한도, 사람이 필요한 상황)을 **모두 `ask`로 설계 세션에 묻는다.** 사람 호출도 이 `ask`이고, 설계 세션이 사람에게 전한다. decision gate는 쓰지 않는다.
 - `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다. `$RELAY`는 이 스킬을 불러왔을 때 표시되는 *Base directory*에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
 - Orca 가이드와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다. 일부러 다르게 하는 것은 아래 「Orca 기본과 다른 점」에만 둔다.
-- references Read가 "파일 없음"으로 실패하면 플러그인이 갱신된 것이다. `/reload-plugins` 후 (c)0부터 다시 한다.
+- references Read가 "파일 없음"으로 실패하면 플러그인이 갱신된 것이다. 설계 세션은 `/reload-plugins` 후 처음 Read 한 단계 파일부터 다시 한다. 진행자 워커는 사람이 필요한 것으로 `ask` 한다.
 
 ## Orca 기본과 다른 점
 
@@ -93,7 +93,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 단계 | 하는 일 | 먼저 Read 할 파일 |
 |---|---|---|
 | 설계 (b) | spec 작성, run/task 생성, 진행자 워커 감독 | `references/design.md` (+ `spec-template.md`) |
-| 시작 (c) 0~2 | 진행자 워커: preamble 확인, Orca 스킬, doctor, Task 읽기 | `references/start.md` |
+| 시작 (c) 0~3 | 진행자 워커: preamble 확인, Orca 스킬, doctor, spec 읽기 | `references/start.md` |
 | 구현 워커 (d) | worktree·기준선·trust·예열·기동·전달 확인 | `references/implementer.md` |
 | 리뷰 워커 (d) | model reviewer·diff-guard·기동 | `references/reviewer.md` |
 | 대기 (e) | 대기와 무응답 판정 | `references/wait.md` |
