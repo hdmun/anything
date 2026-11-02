@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "relay",
-  "version": "1.4.0",
-  "description": "Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·구현자(agy)·리뷰어(codex) 4역할 파이프라인을 굴린다. spec 작성부터 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지.",
+  "version": "2.0.0",
+  "description": "Orca orchestration 위에서 설계 세션·진행자 워커(Claude)·구현자(agy)·리뷰어(codex) 4역할 파이프라인을 굴린다. spec 작성부터 진행자 워커 감독, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지.",
   "author": {
     "name": "hdmun"
   },
