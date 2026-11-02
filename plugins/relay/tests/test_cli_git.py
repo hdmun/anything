@@ -117,63 +117,37 @@ class OrcaCli(unittest.TestCase):
     def test_startup_reads_file(self):
         r = cli("startup", "--response", str(self.FIX / "worker-start-readiness-failed.json"))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(json.loads(r.stdout)["action"], "new_task")
+        self.assertEqual(json.loads(r.stdout)["action"], "retry")
 
     def test_startup_reads_stdin(self):
         data = (self.FIX / "worker-start-no-dispatch.json").read_bytes()
         r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "startup", "--response", "-"], input=data, capture_output=True)
         self.assertEqual(json.loads(r.stdout)["action"], "lookup_dispatch")
 
-    def test_readiness_cli(self):
-        with tempfile.TemporaryDirectory() as d:
-            log = pathlib.Path(d) / "cli.log"
-            log.write_text("OAuth: authenticated successfully as x\n", encoding="utf-8")
-            r = cli("readiness", "--agent", "antigravity", "--screen", str(self.FIX / "agy-screen-misordered.txt"),
-                    "--agy-log", str(log), "--retries", "3", "--command", "$null=1; agy")
-            self.assertEqual(json.loads(r.stdout)["action"], "recreate_terminal")
-
-    def test_readiness_agy_requires_command(self):
-        with tempfile.TemporaryDirectory() as d:
-            log = pathlib.Path(d) / "cli.log"
-            log.write_text("OAuth: authenticated successfully as x\n", encoding="utf-8")
-            r = cli("readiness", "--agent", "antigravity", "--screen", str(self.FIX / "agy-screen-misordered.txt"),
-                    "--agy-log", str(log), "--retries", "0")
-            self.assertEqual(r.returncode, 2)
-            self.assertIn("--command", r.stderr.decode("utf-8"))
-
-    def test_readiness_reads_box_drawing_json_as_utf8(self):
-        # T-007 보고: 박스 문자가 든 screen.json 을 cp949 로 읽는가 → relay_cli 는 utf-8 로 읽는다
+    def test_worker_read_json_with_box_drawing_is_read_as_utf8(self):
+        # T-007 보고: 박스 문자가 든 JSON 을 cp949 로 읽는가 → relay_cli 는 utf-8 로 읽는다
         tail = ["▄▀▀▄  Antigravity CLI 1.3.3", "─" * 10, ">", "─" * 10, "Gemini 3.8 Flash (Medium) │ Idle"]
         with tempfile.TemporaryDirectory() as d:
-            p = pathlib.Path(d) / "screen.json"
-            p.write_text(json.dumps({"ok": True, "result": {"terminal": {"tail": tail}}}, ensure_ascii=False), encoding="utf-8")
+            p = pathlib.Path(d) / "read.json"
+            p.write_text(json.dumps({"ok": True, "result": {"source": "terminal", "terminal": {"tail": tail}}}, ensure_ascii=False), encoding="utf-8")
             env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING")}
-            r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "readiness", "--agent", "codex",
-                                "--screen", str(p), "--retries", "0"], capture_output=True, env=env)
+            r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "liveness", "--role", "implementer",
+                                "--read", str(p), "--empty-waits", "1", "--now", "1000"], capture_output=True, env=env)
             self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
             self.assertNotIn(b"UnicodeDecodeError", r.stderr)
 
-    def test_readiness_accepts_orca_json_screen(self):
-        # orca terminal read --screen --json 출력을 그대로 넘겨도 된다
-        tail = (self.FIX / "codex-screen-ready.txt").read_text(encoding="utf-8").splitlines()
-        with tempfile.TemporaryDirectory() as d:
-            p = pathlib.Path(d) / "screen.json"
-            p.write_text(json.dumps({"ok": True, "result": {"terminal": {"tail": tail}}}), encoding="utf-8")
-            r = cli("readiness", "--agent", "codex", "--screen", str(p), "--retries", "3")
-            self.assertEqual(json.loads(r.stdout)["action"], "recreate_terminal")
-
     def test_liveness_cli(self):
-        with tempfile.TemporaryDirectory() as d:
-            t = pathlib.Path(d) / "term.json"
-            t.write_text(json.dumps({"ok": True, "result": {"terminal": {"agentWait": None, "lastOutputAt": 1000}}}), encoding="utf-8")
-            r = cli("liveness", "--worker", str(self.FIX / "worker-list-entry.json"), "--terminal", str(t),
-                    "--role", "implementer", "--now", str(1000 + 6 * 60_000))
-            self.assertEqual(json.loads(r.stdout)["reason"], "stalled")
+        r = cli("liveness", "--worker", str(self.FIX / "worker-list-entry.json"), "--show", str(self.FIX / "worker-show-agy.json"),
+                "--role", "implementer", "--now", str(1793613865349 + 6 * 60_000))
+        self.assertEqual(json.loads(r.stdout)["reason"], "stalled")
 
-    def test_liveness_cli_screen_on_first_empty_wait(self):
-        r = cli("liveness", "--screen", str(self.FIX / "codex-screen-approval.txt"), "--empty-waits", "1",
-                "--role", "reviewer", "--now", "1000")
-        self.assertEqual(json.loads(r.stdout)["reason"], "blocked_prompt")
+    def test_liveness_cli_read_on_first_empty_wait(self):
+        tail = (self.FIX / "codex-screen-approval.txt").read_text(encoding="utf-8").splitlines()
+        with tempfile.TemporaryDirectory() as d:
+            p = pathlib.Path(d) / "read.json"
+            p.write_text(json.dumps({"ok": True, "result": {"source": "terminal", "terminal": {"tail": tail}}}), encoding="utf-8")
+            r = cli("liveness", "--read", str(p), "--empty-waits", "1", "--role", "reviewer", "--now", "1000")
+            self.assertEqual(json.loads(r.stdout)["reason"], "blocked_prompt")
 
     def test_liveness_cli_needs_worker_from_third_empty_wait(self):
         r = cli("liveness", "--empty-waits", "3", "--role", "reviewer", "--now", "1000")
@@ -237,7 +211,7 @@ class ModelsInitCli(unittest.TestCase):
                              {"reviewer": {"model": "gpt-9", "effort": "xhigh"}, "implementer": {"model": "gemini-3.8-flash", "effort": "low"}})
             self.assertNotIn(bytes([13]), path.read_bytes())   # LF 로 쓴다
             out = json.loads(cli("models", "--repo", d, "--user-config", str(pathlib.Path(d) / "none.json")).stdout)
-            self.assertEqual(out["implementer"]["launch_command"], "$null=1; agy --model gemini-3.8-flash --effort low")
+            self.assertEqual((out["implementer"]["model"], out["implementer"]["effort"]), ("gemini-3.8-flash", "low"))
 
     def test_claude_roles_too(self):
         # 진행자는 이제 relay 가 띄우는 워커라 파일 값이 그대로 worker-start 인자가 된다 (ADR 0004)

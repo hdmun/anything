@@ -3,7 +3,7 @@ import json
 import unittest
 
 from helpers import PLUGIN_ROOT
-from relaylib import doctor, orca, smoke
+from relaylib import doctor
 
 GOOD_CODEX = 'model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n[tui]\nterminal_title = ["app-name"]\n'
 ROOT = r"C:\Users\x\orca\workspaces"
@@ -207,81 +207,6 @@ class ParseVersion(unittest.TestCase):
         self.assertEqual(doctor.parse_version("[1001/200555:ERROR:crashpad] x\n1.4.216"), "1.4.216")
         self.assertIsNone(doctor.parse_version("command not found"))
 
-
-class FakeOrca(object):
-    """smoke 러너용 가짜 — 호출된 명령을 기록하고 정해진 응답을 준다."""
-
-    def __init__(self, idle_ok=True, screen="", log=""):
-        self.calls, self.idle_ok, self.screen, self.log = [], idle_ok, screen, log
-
-    def run(self, argv):
-        self.calls.append(argv)
-        sub = argv[1:3]
-        if sub == ["terminal", "create"]:
-            return 0, json.dumps({"ok": True, "result": {"terminal": {"handle": "term_x"}}})
-        if sub == ["terminal", "wait"]:
-            return (0, '{"ok": true}') if self.idle_ok else (1, '{"ok": false, "error": {"code": "timeout"}}')
-        if sub == ["terminal", "read"]:
-            return 0, json.dumps({"ok": True, "result": {"terminal": {"tail": self.screen.splitlines()}}})
-        return 0, '{"ok": true}'
-
-
-class Smoke(unittest.TestCase):
-    def test_agy_pass(self):
-        o = FakeOrca(log="HandleUserInput called with text: %s ..." % smoke.PING)
-        r = smoke.run_agent("antigravity", "C:/w", o.run, read_log=lambda: o.log, sleep=lambda s: None, version="1.2.16")
-        self.assertTrue(r["passed"], r)
-        self.assertEqual(o.calls[-1][1:3], ["terminal", "close"])
-
-    def test_tui_idle_timeout_fails_and_still_closes(self):
-        o = FakeOrca(idle_ok=False)
-        r = smoke.run_agent("codex", "C:/w", o.run, read_log=lambda: "", sleep=lambda s: None, version="0.159.3")
-        self.assertFalse(r["passed"])
-        self.assertEqual(r["failed_at"], "tui_idle")
-        self.assertEqual(r["attempts"], ["tui_idle"] * smoke.ATTEMPTS)
-        self.assertEqual(o.calls[-1][1:3], ["terminal", "close"])
-        creates = [c for c in o.calls if c[1:3] == ["terminal", "create"]]
-        closes = [c for c in o.calls if c[1:3] == ["terminal", "close"]]
-        self.assertEqual(len(creates), len(closes), "시도마다 만든 터미널을 닫는다")
-
-    def test_flaky_readiness_passes_on_retry(self):
-        o = FakeOrca(screen="› %s" % smoke.PING)
-        results = iter([(1, '{"ok": false}'), (0, '{"ok": true}')])
-        orig = o.run
-
-        def run(argv):
-            if argv[1:3] == ["terminal", "wait"]:
-                o.calls.append(argv)
-                return next(results)
-            return orig(argv)
-
-        r = smoke.run_agent("codex", "C:/w", run, read_log=lambda: "", sleep=lambda s: None, version="0.159.3")
-        self.assertTrue(r["passed"])
-        self.assertEqual(r["attempts"], ["tui_idle", "passed"])
-
-    def test_codex_delivery_via_screen(self):
-        o = FakeOrca(screen="› %s\n• OK" % smoke.PING)
-        r = smoke.run_agent("codex", "C:/w", o.run, read_log=lambda: "", sleep=lambda s: None, version="0.159.3")
-        self.assertTrue(r["passed"], r)
-
-    def test_agy_not_delivered(self):
-        o = FakeOrca(log="nothing")
-        r = smoke.run_agent("antigravity", "C:/w", o.run, read_log=lambda: o.log, sleep=lambda s: None, version="1.2.16")
-        self.assertEqual((r["passed"], r["failed_at"]), (False, "delivery"))
-
-    def test_agy_is_not_launched_as_a_bare_command(self):
-        # 맨 앞 토큰이 agy 면 Orca 가 에이전트 시작 경로로 띄워 입력창이 스트림에 남지 않는다
-        o = FakeOrca(log=smoke.PING + " HandleUserInput called with text:")
-        smoke.run_agent("antigravity", "C:/w", o.run, read_log=lambda: o.log, sleep=lambda s: None, version="1")
-        create = next(c for c in o.calls if c[1:3] == ["terminal", "create"])
-        command = create[create.index("--command") + 1]
-        self.assertEqual(command, orca.AGY_LAUNCH_COMMAND)
-        self.assertNotEqual(command.split()[0], "agy")
-
-    def test_commands_start_with_orca(self):
-        o = FakeOrca(log=smoke.PING + " HandleUserInput called with text:")
-        smoke.run_agent("antigravity", "C:/w", o.run, read_log=lambda: o.log, sleep=lambda s: None, version="1")
-        self.assertTrue(all(c[0] == "orca" for c in o.calls))
 
 
 if __name__ == "__main__":

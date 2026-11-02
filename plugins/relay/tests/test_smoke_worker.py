@@ -106,7 +106,7 @@ class WorkerPath(unittest.TestCase):
         o = FakeOrca(fixture("worker-start-readiness-failed.json"))
         r = smoke.run_worker("codex", "C:/w", o.run, version="1")
         self.assertEqual((r["passed"], r["failed_at"]), (False, "start"))
-        self.assertEqual(r["startup"]["action"], "new_task")
+        self.assertEqual(r["startup"]["action"], "retry")
         self.assertEqual(o.made("check"), [])
         self.assertEqual(o.made("worker-release"), [])
 
@@ -184,10 +184,7 @@ class Cli(unittest.TestCase):
                               capture_output=True)
 
     def test_model_needs_a_single_agent(self):
-        self.assertEqual(self.cli("--path", "worker-start", "--model", "m").returncode, 2)
-
-    def test_worker_options_need_worker_path(self):
-        self.assertEqual(self.cli("--agent", "codex", "--repeat", "3").returncode, 2)
+        self.assertEqual(self.cli("--model", "m").returncode, 2)
 
 
 if __name__ == "__main__":

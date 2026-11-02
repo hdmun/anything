@@ -1,0 +1,23 @@
+{
+ "ok": true,
+ "result": {
+  "dispatch": {
+   "id": "ctx_0c37734dc52d",
+   "taskId": "task_34cdfa73b777",
+   "status": "completed",
+   "creatorDispatchId": "ctx_9c971963d3ef",
+   "depth": 2
+  },
+  "observation": {
+   "status": "exited",
+   "exactWorker": true
+  },
+  "terminal": {
+   "handle": "term_60b67961-65d6-455f-99d3-95b7b3f9061a",
+   "connected": false,
+   "writable": false,
+   "lastOutputAt": 1793613865349,
+   "preview": "Thought for 4s\norca orchestration send 완료 (m\n⣾  I'm thinking through how to approach this....\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n>"
+  }
+ }
+}

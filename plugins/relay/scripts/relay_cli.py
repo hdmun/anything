@@ -10,16 +10,15 @@
   python relay_cli.py review-branch --task T-NNN --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
   python relay_cli.py startup --response <file|-> [--prior-failures N]  (결정기)
-  python relay_cli.py readiness --agent antigravity|codex --screen <file> [--agy-log <file>] --retries N [--recreated]   (결정기)
-  python relay_cli.py liveness --worker <file> [--terminal <file>] --role implementer|reviewer [--now <ms>]   (결정기)
+  python relay_cli.py liveness [--worker <file>] [--show <file>] [--read <file>] --empty-waits N --role implementer|reviewer   (결정기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
   python relay_cli.py models-init [--repo <dir> | --user] [--<역할>-model M] [--<역할>-effort E] ...
                                   [--force] [--print] [--no-verify]   (설정 파일 생성, 역할: designer|coordinator|implementer|reviewer)
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
-  python relay_cli.py smoke --dir <trusted dir> [--agent antigravity|codex|all]   (검사기 — 실제 CLI 리허설, 수동)
-                            [--path terminal|worker-start] [--repeat N] [--run <id>] [--model M] [--effort E]
+  python relay_cli.py smoke --dir <orca worktree> [--agent antigravity|codex|all]   (검사기 — worker-start 리허설, 수동)
+                            [--repeat N] [--run <id>] [--model M] [--effort E]
 
 규약 (docs/adr/0001):
   검사기 — 종료코드 0 통과 / 1 실패, 사유는 출력
@@ -153,43 +152,13 @@ def _read_json_arg(path):
     return json.loads(text)
 
 
-def _unwrap_terminal(doc):
-    # orca ... --json 출력({ok, result:{terminal:{...}}})과 맨 객체 둘 다 받는다
-    if isinstance(doc, dict) and "result" in doc:
-        doc = doc["result"]
-    if isinstance(doc, dict) and "terminal" in doc:
-        doc = doc["terminal"]
-    return doc
+def _result(doc):
+    # orca ... --json 출력({ok, result:{...}})과 맨 객체 둘 다 받는다
+    return doc["result"] if isinstance(doc, dict) and "result" in doc else doc
 
 
 def cmd_startup(a):
     return _emit(orca.startup(_read_json_arg(a.response), prior_failures=a.prior_failures))
-
-
-def _read_screen(path):
-    """terminal read --screen --json 출력(또는 화면 텍스트) 파일 → 화면 텍스트."""
-    raw = pathlib.Path(path).read_text(encoding="utf-8")
-    try:
-        t = _unwrap_terminal(json.loads(raw))
-        return "\n".join(t["tail"]) if isinstance(t, dict) and "tail" in t else raw
-    except ValueError:
-        return raw
-
-
-def cmd_readiness(a):
-    screen = _read_screen(a.screen)
-    if a.agent == "antigravity" and not a.agy_log:
-        raise InputError("antigravity 는 --agy-log(최신 cli-*.log)가 필요하다 — 로그인 여부를 거기서 본다")
-    if a.agent == "antigravity" and a.command is None:
-        raise InputError("antigravity 는 --command(terminal create 에 준 --command 값)가 필요하다 — 단독 agy 면 기다려도 안 풀린다")
-    log = pathlib.Path(a.agy_log).read_text(encoding="utf-8", errors="replace") if a.agy_log else None
-    launch = None
-    if a.agent == "antigravity":
-        cfg, _used = _models_cfg(a)
-        r = models.resolve("implementer", cfg)
-        launch = orca.agy_launch_command(r["model"], r["effort"])
-    return _emit(orca.readiness(screen, a.agent, a.retries, log=log, recreated=a.recreated, command=a.command,
-                                launch_command=launch))
 
 
 def cmd_liveness(a):
@@ -198,12 +167,12 @@ def cmd_liveness(a):
         r = worker["result"]
         ws = r.get("workers") if isinstance(r, dict) else r
         worker = ws[0] if isinstance(ws, list) and ws else r
-    term = _unwrap_terminal(_read_json_arg(a.terminal)) if a.terminal else {}
+    show = _result(_read_json_arg(a.show)) if a.show else {}
+    read = _result(_read_json_arg(a.read)) if a.read else None
     now = a.now if a.now is not None else int(time.time() * 1000)
-    screen = _read_screen(a.screen) if a.screen else None
     if not a.worker and (a.empty_waits is None or a.empty_waits >= orca.LAYER1_EMPTY_WAITS):
         raise InputError("빈 대기 %d회째부터는 --worker(worker-list --json 출력)가 필요하다" % orca.LAYER1_EMPTY_WAITS)
-    return _emit(orca.liveness(worker, term, a.role, now, screen=screen, empty_waits=a.empty_waits))
+    return _emit(orca.liveness(worker, show, a.role, now, read=read, empty_waits=a.empty_waits))
 
 
 def _models_cfg(a):
@@ -315,11 +284,6 @@ def _cli_version(agent):
 
 def _verified():
     return json.loads(doctor.VERIFIED_PATH.read_text(encoding="utf-8"))
-
-
-def _newest_agy_log():
-    logs = sorted(AGY_LOG_DIR.glob("cli-*.log"), key=lambda p: p.stat().st_mtime) if AGY_LOG_DIR.is_dir() else []
-    return logs[-1].read_text(encoding="utf-8", errors="replace") if logs else ""
 
 
 def _plugin_version():
@@ -451,22 +415,7 @@ def cmd_smoke(a):
     if (a.model or a.effort) and len(agents) > 1:
         raise InputError("--model·--effort 는 --agent 하나와 함께 쓴다")
     cfg, _used = _models_cfg(a)
-    if a.path == "worker-start":
-        return cmd_smoke_worker(a, agents, cfg)
-    if a.model or a.effort or a.repeat != 1 or a.run:
-        raise InputError("--model·--effort·--repeat·--run 은 --path worker-start 에서만 쓴다")
-    impl = models.resolve("implementer", cfg)
-    cmds = {"antigravity": orca.agy_launch_command(impl["model"], impl["effort"])}   # 설정이 있으면 그 model·effort 로 리허설한다
-    rev = _decide_model("reviewer", cfg)
-    if rev["action"] == "launch":
-        cmds["codex"] = orca.codex_launch_command(rev["model"], rev["effort"])
-    results = [smoke.run_agent(ag, a.dir.replace("\\", "/"), lambda argv: _run(argv, timeout=180),
-                               read_log=_newest_agy_log, version=_cli_version(ag), command=cmds.get(ag)) for ag in agents]
-    verified = _verified()
-    for r in results:
-        r["verified"] = r["version"] in verified.get(r["agent"], [])
-        print(json.dumps(r, ensure_ascii=False))
-    return 0 if all(r["passed"] for r in results) else 1
+    return cmd_smoke_worker(a, agents, cfg)
 
 
 def _add_models_args(p):
@@ -520,21 +469,11 @@ def build_parser():
     s.add_argument("--prior-failures", type=int, default=0, help="이 태스크 계열의 이전 기동 실패 수")
     s.set_defaults(func=cmd_startup)
 
-    rd = sub.add_parser("readiness", help="tui-idle timeout 이후 다음 행동")
-    rd.add_argument("--agent", required=True, choices=("antigravity", "codex"))
-    rd.add_argument("--screen", required=True, help="terminal read --screen 출력(텍스트 또는 --json)")
-    rd.add_argument("--agy-log", help="agy 최신 cli-*.log")
-    rd.add_argument("--retries", type=int, required=True, help="이미 다시 건 tui-idle 횟수")
-    rd.add_argument("--recreated", action="store_true", help="이미 한 번 재생성했다")
-    rd.add_argument("--command", help="terminal create 에 준 --command 값 (antigravity 필수)")
-    _add_models_args(rd)
-    rd.set_defaults(func=cmd_readiness)
-
     lv = sub.add_parser("liveness", help="빈 대기 뒤 무응답 판정")
     lv.add_argument("--worker", help="worker-list --json 출력(또는 그 항목) 파일, - 면 stdin. 빈 대기 3회째부터 필요")
-    lv.add_argument("--terminal", help="terminal show --json 출력 파일")
+    lv.add_argument("--show", help="worker-show --json 출력 파일 — observation.agentWait, terminal.lastOutputAt")
     lv.add_argument("--role", required=True, choices=tuple(orca.STALL_MS))
-    lv.add_argument("--screen", help="terminal read --screen --json 출력 파일 — 확인창에서 멈췄는지 본다")
+    lv.add_argument("--read", help="worker-read --json 출력 파일 — 터미널로 읽히면 확인창에서 멈췄는지 본다")
     lv.add_argument("--empty-waits", type=int, help="연속 빈 대기 횟수. 3 미만이면 화면만 보고 기다린다")
     lv.add_argument("--now", type=int, help="epoch ms (테스트용)")
     lv.set_defaults(func=cmd_liveness)
@@ -571,15 +510,13 @@ def build_parser():
     w.add_argument("agent", choices=("agy",))
     w.set_defaults(func=cmd_warmup)
 
-    sm = sub.add_parser("smoke", help="Task 없이 실제 기동·전달 확인 (수동)")
-    sm.add_argument("--dir", required=True, help="agy trustedWorkspaces 에 등록된 디렉터리")
+    sm = sub.add_parser("smoke", help="smoke 전용 Run 에서 worker-start --agent 기동·worker_done·release 확인 (수동)")
+    sm.add_argument("--dir", required=True, help="Orca 에 등록된 워크트리 경로")
     sm.add_argument("--agent", default="all", choices=("antigravity", "codex", "all"))
-    sm.add_argument("--path", default="terminal", choices=("terminal", "worker-start"),
-                    help="terminal: 터미널 선기동 리허설(Task 없음) / worker-start: Orca 기본 기동을 smoke Run 에서 끝까지 (ADR 0003)")
-    sm.add_argument("--repeat", type=int, default=1, help="worker-start 경로 반복 횟수 — 전부 통과해야 통과")
-    sm.add_argument("--run", help="worker-start 경로에서 재사용할 smoke Run. 없으면 새로 만든다")
-    sm.add_argument("--model", help="worker-start 경로에서 설정 파일 대신 쓸 model")
-    sm.add_argument("--effort", help="worker-start 경로에서 설정 파일 대신 쓸 effort (--model 필요)")
+    sm.add_argument("--repeat", type=int, default=1, help="반복 횟수 — 전부 통과해야 통과")
+    sm.add_argument("--run", help="재사용할 smoke Run. 없으면 새로 만든다")
+    sm.add_argument("--model", help="설정 파일 대신 쓸 model")
+    sm.add_argument("--effort", help="설정 파일 대신 쓸 effort (--model 필요)")
     _add_models_args(sm)
     sm.set_defaults(func=cmd_smoke)
     return ap
