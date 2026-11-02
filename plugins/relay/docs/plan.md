@@ -312,4 +312,6 @@ T-007 은 v1.2.3 으로 성공 종료(구현 2·리뷰 2, r2 pass). 그 세션�
 - `--command '$null=1; agy --model … --effort …'` 로 모델 핀 — 플래그는 `-p` 모드에서 실측(1.3.3), Orca `tui-idle` 통과는 smoke 1/1 (위 「기능」), 표본 추가 필요. codex `--terminal` 경로는 v1.2.5 에서 확인
 - ~~`worker-release` 가 수동 생성 터미널을 닫는가~~ → 닫지 않는다(`retained / external_terminal`, 2026-10-10). (i) 의 `terminal close` 가 필요하다
 - 정착한 Task 에 decision gate 가 걸리는가
+- `worker-start --agent` 경로에서 확인창(agy trust·codex 업데이트·`Hooks need review`)이 영수증과 `worker-list` projection 에 어떻게 잡히는가 — 2026-11-02 재현 불가(Orca 가 agy trust 를 미리 등록, agy `always-proceed`, codex 업데이트 프롬프트 없음). Q17: Orca 기능으로만 관찰하는 방식을 유지하고 `startup` 의 `agent_prompt_blocked` 처리는 남긴다. 실전에서 처음 만나면 영수증·`worker-list` 출력을 픽스처로 남긴다
+- 새 에이전트 탭 설정이 채팅일 때 워커를 `worker-read --source auto` 로 읽을 수 있는가 (트랙 0-5(e), 사용자 설정을 바꿔야 해서 미측정)
 - ~~agy `auto_updater` 차단~~ → 예열로 대응(2026-10-02). 실행 중 교체는 확인됨: 기존 파일을 `agy.exe.<숫자>.old` 로 옮기고 새 파일을 놓는다(1.2.14 세션이 떠 있는 동안 1.2.16 설치). 예열은 `agy update`(동기) 사용
