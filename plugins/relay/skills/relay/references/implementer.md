@@ -4,21 +4,18 @@
 
 ## (d) 워커 부트스트랩
 
-**구현·리뷰 워커 모두 `worker-start`로 띄운다.** 정본은 이것을 정상 경로로 규정하고, `dispatch --inject`는
-*"leaves an operator-created process unsupervised and is only for an expressiveness gap"* 라고 못박는다.
-감독 워커라야 `worker-list`의 fleet projection, `worker-read`, `worker-release`가 열리며 — (e)와 (i)가 그것을 전제한다.
-비감독 Dispatch는 Orca가 terminal state `retained`로 고정해 회수 대상에서 아예 빠진다.
+**구현·리뷰 워커 모두 `worker-start`로 띄운다.** 감독 워커라야 `worker-list`의 fleet projection, `worker-read`, `worker-release`가 열리며 — (e)와 (i)가 그것을 전제한다.
 
 **구현 워커(agy)**
 
 1. `orca worktree create --repo <sel> --name T-NNN --base-branch main --setup run --json` 으로 worktree 경로를 확보한다.
-   - **`--base-branch`를 반드시 명시한다.** 생략하면 repo의 `defaultBaseRef`를 쓰는데, 그 값이 `null`인 저장소에서는 엉뚱한 지점에서 분기된다. 실측 사례: `defaultBaseRef: null`인 저장소에서 최신 `main`이 아니라 **최초 커밋**에서 분기되어, 워크트리에 소스가 거의 없는 상태로 만들어졌다.
+   - **`--base-branch`를 반드시 명시한다.** 생략하면 repo의 `defaultBaseRef`를 쓰는데, 그 값이 `null`인 저장소에서는 엉뚱한 지점에서 분기된다.
    - 만든 직후 `git -C <worktree> log --oneline -1`로 base가 의도한 커밋인지 확인한다. 어긋났으면 `git -C <worktree> reset --hard <base>`로 맞춘다(추적되지 않은 파일은 보존된다).
    - **이 커밋 SHA를 적어둔다.** 리뷰 워커의 Task spec에 `<base>`로 넣어야 한다.
 
    **그리고 worker-start 전에 게이트를 한 번 돌려 기준선이 녹색인지 확인한다.** 이것이 (d) 전체에서 가장 자주 걸리는 함정이다.
 
-   - **fresh worktree에는 의존성이 설치되어 있지 않다.** 실측: 새로 만든 워크트리에서 `bun run test`가 `exit 1`이었고, 원인은 `node_modules` 부재였다. `bun install`(약 34초) 후 `exit 0`이 되었다.
+   - **fresh worktree에는 의존성이 설치되어 있지 않다.**
    - `--setup run`은 저장소에 setup 훅이 있을 때만 이 일을 대신한다. 훅이 없거나 `--setup skip`을 썼다면 직접 준비한다.
    - **기준선이 빨간 상태로 워커를 띄우면 안 된다.** 구현자가 자기 잘못과 환경 문제를 구분할 수 없고, 게이트 자체 루프 3회를 환경 문제로 소진한 뒤 `escalation`을 올린다. 라운드 하나가 통째로 낭비된다.
    - 종료코드로 판정한다. 파이프로 넘기면 실패가 사라진다 — (f) 참조.
@@ -45,7 +42,7 @@
    - `unverified: true`면 그 버전은 smoke를 통과한 적이 없다. 사용자에게 알리고 `relay_cli.py smoke --agent antigravity`를 먼저 돌린다. 실패하면 워커를 띄우지 않고 사람을 부른다.
    - `human`이면 업데이트 실패 — 사람.
 
-4. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** `worker-start --agent antigravity`로 한 번에 띄우지 않는다.
+4. **터미널을 먼저 띄우고, 준비된 뒤에 감독을 건다.** 터미널 → `tui-idle` → `worker-start --terminal` 순서로 띄운다.
 
    먼저 구현자 기동 인자를 결정기에 묻는다. 설정 파일이 없으면 `launch_command`는 아래 기본값 `$null=1; agy` 그대로다:
 
@@ -62,10 +59,8 @@
    orca orchestration worker-start --task <id> [--retry-of <dispatch_id>] --worktree id:<wt> --terminal <h> --json
    ```
 
-   - **`--command`는 `'$null=1; agy'` 그대로 쓴다 — 단독 `agy`로 바꾸지 않는다.** 맨 앞 토큰이 `agy`면 Orca가 시작 명령을 에이전트로 인식해 다른 경로로 띄우는데, 그 경로에선 입력창(`>` 줄)이 Orca가 보는 출력 스트림에 남지 않아 화면은 멀쩡해도 `tui-idle`이 영영 통과하지 못한다. 앞의 문장은 아무 일도 하지 않는 PowerShell 문장으로, 일반 셸 명령으로 실행되게 할 뿐이다. 작은따옴표는 bash가 `$null`을 펼치지 않게 하려는 것이다. 정본: `scripts/relaylib/orca.py`의 `AGY_LAUNCH_COMMAND`.
-     실측(2026-10-10, Orca 1.4.222): 단독 `agy` — 1.3.3 11/11 실패, 1.2.17 간헐 실패. 위 명령 — 1.2.17·1.3.3 7/7 통과(2~3초), `worker-start --terminal` 연결과 `worker_done`까지 정상.
+   - **`--command`는 `'$null=1; agy'`를 그대로 쓴다.** 맨 앞 토큰이 `agy`면 Orca가 시작 명령을 에이전트로 인식해 다른 경로로 띄우는데, 그 경로에선 입력창(`>` 줄)이 Orca가 보는 출력 스트림에 남지 않아 화면은 멀쩡해도 `tui-idle`이 영영 통과하지 못한다. 앞의 문장은 아무 일도 하지 않는 PowerShell 문장으로, 일반 셸 명령으로 실행되게 할 뿐이다. 작은따옴표는 bash가 `$null`을 펼치지 않게 하려는 것이다. 이 값의 정본은 `scripts/relaylib/orca.py`의 `AGY_LAUNCH_COMMAND`다.
    - **이유**: agy는 입력창이 준비되기 전에 들어온 입력을 **조용히 버린다.** Orca는 antigravity의 전달 여부를 관측하지 못해(`provider: unsupported`) 경고도 없다.
-     실측(poker-server T-004): `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다 — 2회 연속.
    - `tui-idle`을 건너뛰고 바로 `worker-start --terminal`을 걸면 `agent_unconfigured`로 거부된다. Orca가 터미널에 `agentIdentity: antigravity`를 태깅하기 전이기 때문이다.
    - **`worker-start` 직전에 `tui-idle`이 `satisfied: true`여야 한다.** `worker-start`가 안에서 같은 `tui-idle` 대기를 한 번 더 하고, 거기서 실패하면 **그 Task가 곧바로 `failed`가 된다**(`task_not_startable` — 같은 Task로는 다시 `worker-start`할 수 없다). 그래서 `tui-idle`을 Task 밖에서 먼저 통과시키는 것이 유일한 안전장치다.
 
@@ -76,7 +71,7 @@
    - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없으므로 **모델·effort는 `worker-start`가 아니라 agy 명령줄**(`launch_command`의 `--model`·`--effort`)로 준다. 설정 파일이 없으면 **agy 기본 모델**로 뜬다.
      (`worker-start --agent antigravity --model`은 이제 Orca가 지원하지만, 위의 유실 문제 때문에 그 경로를 쓰지 않는다.)
    - `readiness`는 설정 파일을 직접 읽어 `recreate_terminal`의 `launch_command`에 같은 model·effort를 싣는다. 진행 세션이 인자를 다시 조립하지 않는다.
-   - **`worker-start` 응답은 `startup`에 해석시킨다.** `ok`는 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 온다(실측: `failedStage: agent_readiness`, `dispatch: null`).
+   - **`worker-start` 응답은 `startup`에 해석시킨다.** `ok`는 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 온다(예: `failedStage: agent_readiness`, `dispatch: null`).
 
      ```bash
      orca orchestration worker-start ... --json > start.json
@@ -87,7 +82,7 @@
      |---|---|
      | `ok` | `dispatch`를 기록하고 5번(전달 확인)으로 |
      | `lookup_dispatch` | `orca orchestration dispatch-show --task <task_id> --json`으로 조회한다. 추측하지 말 것 |
-     | `confirm_delivery` | (`turn_start_unobserved`) 입력은 썼는데 에이전트가 턴을 시작했는지 Orca가 못 봤다. 실패로 단정하지 않고 **전달부터 확인한다** — agy는 5번 로그 확인, codex는 60초 뒤 `dispatch-show`의 `status`. `pending`이면 전달 실패 = 기동 실패다(실측: 입력창이 비어 있었다) — 재전송하지 말고 `worker-retain` 후 (h). `dispatched`/`completed`면 정상 |
+     | `confirm_delivery` | (`turn_start_unobserved`) 입력은 썼는데 에이전트가 턴을 시작했는지 Orca가 못 봤다. 실패로 단정하지 않고 **전달부터 확인한다** — agy는 5번 로그 확인, codex는 60초 뒤 `dispatch-show`의 `status`. `pending`이면 전달 실패 = 기동 실패다(입력창이 비어 있는 경우다) — 재전송하지 말고 `worker-retain` 후 (h). `dispatched`/`completed`면 정상 |
      | `wait_tui_idle` | (`agent_unconfigured`) 터미널이 아직 에이전트로 태깅되지 않았다. Task는 멀쩡하다 — `tui-idle`부터 다시 |
      | `new_task` | 기동 실패 1회. **그 Task는 이미 `failed`다.** Task 밖에서 `tui-idle`을 통과시킨 뒤 **새 Task**로 재출발한다(통과하는 터미널이 있으면 그대로 `--terminal`로 재사용해도 된다) |
      | `human` | `startup_budget`(기동 실패 2회), `agent_prompt_blocked`(자동 응답 금지) 등 — (h) |
@@ -101,6 +96,6 @@
 
    - 1 이상이면 전달됨 — (e)의 대기로 넘어간다.
    - 0이면 **전달 실패 = 기동 실패**다. 재시도하지 않고 `worker-retain` 후 사람을 부른다 — (h).
-     이 단계가 없으면 빈 대기 3회(30분)를 다 쓰고 나서야 유실을 알게 된다(T-004 실측).
+     이 단계가 없으면 빈 대기 3회(30분)를 다 쓰고 나서야 유실을 알게 된다.
 
 **Git Bash 주의** — `terminal send --text "/clear"` 처럼 `/`로 시작하는 인자는 Git Bash가 `C:/Program Files/Git/clear`로 경로 변환한다. `MSYS_NO_PATHCONV=1`을 앞에 붙인다.

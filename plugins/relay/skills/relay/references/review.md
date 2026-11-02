@@ -34,7 +34,7 @@ Reviewed-by: codex/<리뷰 워커 codex 명령줄에 준 -m 값>
 
 ### 수정 라운드는 새 Task + 새 Dispatch로 만든다
 
-**워커가 `worker_done`을 보내는 순간 그 Dispatch는 `completed`가 되고, `send --to dispatch:<id>`는 `dispatch_inactive`로 거부된다.** Orca가 *"its worker will never read that mailbox"* 라며 명시적으로 막는다. 실측으로 확인된 동작이다. 따라서 수정 지시를 기존 dispatch에 보내려는 시도는 반드시 실패한다.
+**워커가 `worker_done`을 보내면 그 Dispatch는 `completed`가 되고, `send --to dispatch:<id>`는 `dispatch_inactive`로 거부된다.** 수정 지시는 새 Task와 새 Dispatch로 보낸다.
 
 ```bash
 orca orchestration task-create \
@@ -50,12 +50,12 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
 - **워커 터미널은 살아 있으므로 같은 handle을 재사용한다.** 세션 컨텍스트가 유지되어 배경을 다시 설명할 필요가 없다.
 - **재사용 전에 `tui-idle`부터 통과시킨다.** `worker-start`는 안에서 같은 준비 대기를 하고, 실패하면 새 Task가 바로 `failed`가 된다.
   timeout이면 (d)4와 같이 화면을 `readiness`에 묻는다(`--command`는 그 터미널을 만들 때 준 값).
-  - `recreate_terminal / header_scrolled_out`: 긴 세션으로 머리글이 Orca 꼬리 밖으로 밀려났다. 기다려도 돌아오지 않는다(실측 T-007: 3회 연속 timeout, 새 터미널은 즉시 통과).
+  - `recreate_terminal / header_scrolled_out`: 긴 세션으로 머리글이 Orca 꼬리 밖으로 밀려났다. 기다려도 돌아오지 않는다.
     이전 Dispatch를 `worker-release` → 터미널 `close` → 결정의 `launch_command`로 새로 만들어 `tui-idle` → 새 handle로 `worker-start --terminal`.
     **맥락은 잃는다** — 수정 Task spec이 리뷰 파일과 원본 명세 경로를 담고 있으므로 그것으로 충분해야 한다.
-    재생성 직후 첫 `worker-start`는 `agent_unconfigured`가 올 수 있다 — `startup`의 `wait_tui_idle`대로 `tui-idle`을 다시 걸고 재시도하면 통과한다(실측 2회).
-  - **`/clear`로 머리글을 되살리지 않는다.** 실측(2026-10-11, agy 1.3.3): `/clear` 뒤 머리글이 다시 찍혀 `tui-idle`은 통과하지만, 대화 맥락도 지워진다(기억시킨 단어를 `UNKNOWN`으로 답함). 맥락을 지키려는 재사용의 목적이 사라지므로 새 터미널보다 나을 것이 없다. 보내야 한다면 Git Bash에서 `MSYS_NO_PATHCONV=1`을 붙인다.
-- **`worker-start --terminal`로 재사용한다.** 정본이 정착 후 재사용에 지정한 경로이고, **cleanup 소유권이 새 Dispatch로 넘어가** 감독이 끊기지 않는다. `dispatch --inject`로 보내면 그 순간부터 비감독이 된다.
+    재생성 직후 첫 `worker-start`는 `agent_unconfigured`가 올 수 있다 — `startup`의 `wait_tui_idle`대로 `tui-idle`을 다시 걸고 재시도하면 통과한다.
+  - **머리글은 새 터미널로 되살린다.** `/clear`도 머리글을 다시 찍지만 대화 맥락까지 지워서 재사용의 목적이 사라진다. 보내야 한다면 Git Bash에서 `MSYS_NO_PATHCONV=1`을 붙인다.
+- **`worker-start --terminal`로 재사용한다.** 정착 후 재사용의 정해진 경로이고, **cleanup 소유권이 새 Dispatch로 넘어가** 감독이 끊기지 않는다. `dispatch --inject`로 보내면 그 순간부터 비감독이 된다.
 - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다. 터미널이 이미 그 모델로 떠 있으므로 문제되지 않는다.
 - `--parent`로 원래 태스크에 묶으면 수정 라운드가 DAG에 기록된다.
 - **조치가 필요 없는 단순 안내**라면 Task를 만들지 말고 `orca terminal send --terminal <handle> --text "..." --enter` 로 직접 보낸다.

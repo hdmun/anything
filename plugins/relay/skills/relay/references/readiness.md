@@ -17,7 +17,7 @@
      | `human` | `reason`과 함께 사람 호출: `blocked_prompt`(trust·update·permission·codex 승인창 — 자동 응답 금지), `not_signed_in`(로그에 로그인 기록 없음), `no_prompt`(입력창이 아직 없다), `recreate_failed`(재생성도 실패), `bare_launch_command`(재생성한 뒤에도 단독 `agy`로 띄웠다), `header_scrolled_out`(새 터미널에서도 머리글이 없다) |
 
      사다리(로그인 확인 → 재시도 3회 → 1회 재생성 → 사람)의 정본은 `scripts/relaylib/orca.py`다.
-     - **이 사다리는 예비 수단이다.** poker-server T-004·T-005와 2026-10-05 smoke에서 보인 "간헐적·시간대에 몰리는" 준비 감지 실패는 대부분 단독 `agy` 실행 경로 탓이었다(위 `--command` 설명). 시작 명령을 지키면 사다리까지 올 일이 드물다. 그래도 timeout이 나면 사다리대로 하고, 실측으로 기록한다.
+     - **이 사다리는 예비 수단이다.** 준비 감지 실패의 대부분은 단독 `agy` 실행 경로 탓이었다(`--command` 설명 참고). 시작 명령을 지키면 사다리까지 올 일이 드물다. 그래도 timeout이 나면 사다리대로 한다.
 
 
 

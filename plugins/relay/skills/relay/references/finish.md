@@ -3,18 +3,16 @@
 > 이 파일은 SKILL.md의 단계 절차 중 일부다. SKILL.md의 불변식과 함께 읽는다. (종료)
 
 - 게이트 통과와 리뷰 `pass`를 확인한다.
-- **자동 머지 금지.** 이유: 머지는 되돌리기 어려운 행위이고, 진행자(Sonnet)의 판단으로 사람의 최종 확인을 대체할 근거가 없다. 아래 어느 경로든 **머지 자체는 사람이 한다.**
+- **머지는 사람이 한다(자동 머지 금지).** 이유: 머지는 되돌리기 어려운 행위이고, 진행자(Sonnet)의 판단으로 사람의 최종 확인을 대체할 근거가 없다. 아래 어느 경로든 **머지 자체는 사람이 한다.**
 - **구현 커밋은 (f)에서 이미 만들어졌다.** 여기서는 (g)에서 남긴 리뷰 리포트 커밋이 있는지만 확인한다.
 - **커밋은 주체별로 나눈다.** 하네스 설정 / spec(설계자) / 구현(구현자) / 리뷰 리포트(리뷰어)를 각각 별도 커밋으로 남기고, 커밋 메시지에 어느 모델이 만들었는지 적는다. 나중에 `git log`만 보고 파이프라인의 어느 단계가 무엇을 만들었는지 가릴 수 있어야 한다.
 - 사람이 직접 리뷰하는 단계(경로 B의 로컬 머지 전, 또는 경로 A의 PR 리뷰)에서 수정이 필요하면 그건 **추가 커밋**으로 처리한다. 이미 만든 커밋을 되돌리거나 amend할 필요 없다.
 
 ### 워커 정리 — 세션을 폐기하기 전에 반드시
 
-Orca는 정착(settle)된 워커마다 **재사용 / `worker-retain` / `worker-release` 중 정확히 하나**를 요구하고,
-`reclaimable`이 남은 채로 코디네이터 턴을 끝내지 말라고 못박는다.
-진행 세션은 태스크마다 폐기되므로, **여기서 닫지 않으면 회수를 책임질 주체가 아예 사라진다.**
+진행 세션은 태스크마다 폐기되므로, 정착한 워커마다 재사용 / `worker-retain` / `worker-release` 중 하나를 정해 두고 끝낸다. **여기서 닫지 않으면 회수를 책임질 주체가 아예 사라진다.**
 
-relay의 세 갈래 출구에 그 "정확히 하나"를 대응시키면 이렇게 된다:
+relay의 세 갈래 출구에 이를 대응시키면 이렇게 된다:
 
 | 출구 | 구현 워커 (agy) | 리뷰 워커 (codex) |
 |---|---|---|
@@ -25,25 +23,19 @@ relay의 세 갈래 출구에 그 "정확히 하나"를 대응시키면 이렇�
 성공 종료에서만 구현 워커를 해제한다:
 
 ```bash
-# 구현·리뷰 워커 둘 다 worker-start 로 감독했으므로 둘 다 release 대상이다
-orca orchestration worker-release --dispatch <impl_dispatch_id> --json
-orca orchestration worker-release --dispatch <review_dispatch_id> --json
 
-# 구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않는다(실측: state retained / reason external_terminal) — 닫는다
+# 구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않는다(state `retained` / reason `external_terminal`로 남는다) — 닫는다
 orca terminal show --terminal <impl_handle> --json
 orca terminal close --terminal <impl_handle> --json
 
-# 남은 것이 없는지 확인한 뒤에 세션을 끝낸다
-orca orchestration worker-list --run <run_id> --terminal-state reclaimable --json
 ```
 
-- **`release`가 불확실할 때 그 대체로 `terminal close`를 쓰지 않는다.** 정본이 명시적으로 금지하며, release 실패는 자체 recovery receipt를 따른다.
-  위의 `terminal close`는 대체가 아니다 — release가 **성공한 뒤**, 우리가 직접 만든 터미널을 만든 쪽이 정리하는 것이다.
-  (**미검증**: 정본상 미리 존재하던 터미널은 release 후 `retained`로 남는다고 읽히지만 실측 전이다. 확인되면 이 주석을 고친다.)
-- **증거 보존을 이유로 워커를 살려두지 않는다.** 정본: *"Do not leave it live only to inspect output; archived output remains available through `worker-read`."* release 후에도 `worker-read`로 산출물을 읽을 수 있다.
+- **`release`가 불확실하면 release의 recovery receipt를 따른다.** 위의 `terminal close`는 release의 대체가 아니라, release가 **성공한 뒤** 우리가 직접 만든 터미널을 만든 쪽이 정리하는 것이다.
+  (**미검증**: Orca 가이드상 미리 존재하던 터미널은 release 후 `retained`로 남는다고 읽히지만 실측 전이다. 확인되면 이 주석을 고친다.)
+- **산출물은 release 뒤에도 `worker-read`로 읽을 수 있으니 워커는 바로 release한다.**
 
 **그리고 `trustedWorkspaces`에서 그 워크트리 경로를 지운다.** (d) 2번이 추가한 항목이고, 지우는 단계가 없으면 단조 증가한다.
-실측: 항목 16개 중 **5개가 이미 삭제된 relay 워크트리**였다. 워크트리 경로는 태스크명으로 재사용되므로,
+워크트리 경로는 태스크명으로 재사용되므로,
 죽은 항목이 남아 있으면 **미래의 다른 워크트리를 미리 신뢰하게 만든다.**
 
 ```bash
