@@ -18,4 +18,4 @@ status: accepted
 - "태스크마다 세션 폐기"는 "태스크마다 진행자 워커를 새로 띄우고 해제"로 바뀐다.
 - 진행자의 `worker_done` 뒤 설계 세션은 게이트를 다시 돌리지 않고 `commit-guard`·리뷰 리포트 존재·`git log <base>..HEAD` 만 확인한다. 게이트 재검증은 진행자의 몫이다.
 - 사람 호출은 모두 설계 세션을 거친다. `ask` 는 한 번에 최대 30분이고, 넘으면 같은 메시지 ID 로 이어 기다린다.
-- 워커 중첩 깊이가 2(설계 → 진행자 → 구현자·리뷰어)가 된다. smoke 로 확인하고, 깊이 제한(`nested_worker_depth_exceeded`)에 걸리면 이 ADR 을 다시 연다.
+- 워커 중첩 깊이가 2(설계 → 진행자 → 구현자·리뷰어)가 된다. Orca 기본값은 1이라 진행자가 하위 워커를 띄우면 `nested_worker_depth_exceeded` 로 거부된다(2026-11-02 실측). 그래서 Orca 설정 "Nested worker depth"(Settings → Orchestration)를 2 이상으로 올리는 것이 relay 의 사전 조건이고, `doctor` 가 검사한다. 깊이 1을 지키려면 설계 세션이 진행 루프를 직접 돌아야 하는데, 태스크가 쌓일수록 Opus 컨텍스트가 커져 이 ADR 의 비용 근거를 잃는다.
