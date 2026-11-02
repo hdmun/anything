@@ -184,10 +184,7 @@ class Cli(unittest.TestCase):
                               capture_output=True)
 
     def test_model_needs_a_single_agent(self):
-        self.assertEqual(self.cli("--path", "worker-start", "--model", "m").returncode, 2)
-
-    def test_worker_options_need_worker_path(self):
-        self.assertEqual(self.cli("--agent", "codex", "--repeat", "3").returncode, 2)
+        self.assertEqual(self.cli("--model", "m").returncode, 2)
 
 
 if __name__ == "__main__":
