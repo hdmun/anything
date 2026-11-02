@@ -157,6 +157,30 @@ class Vars(TempRepoCase):
         self.assertIn("( go build ./... && go test ./... ) > gate.log", text)
 
 
+class WorkerObligations(unittest.TestCase):
+    """워커(agy·codex)는 Orca 스킬로 워커 의무를 읽고, 명령은 preamble 그대로 쓴다 (Q5·Q9, ADR 0003)."""
+
+    TEMPLATES = sorted((PLUGIN_ROOT / "templates").glob("*.md.tmpl"))
+
+    def test_every_role_loads_the_orchestration_skill(self):
+        self.assertEqual(len(self.TEMPLATES), 2)
+        for p in self.TEMPLATES:
+            text = p.read_text(encoding="utf-8")
+            self.assertIn("`orchestration` 스킬", text, p.name)
+            self.assertIn("preamble이 정본이다", text, p.name)
+
+    def test_no_orca_command_snapshots(self):
+        # 명령 문법은 preamble·Orca 가이드가 정본이다 — 역할 파일이 다시 적으면 어긋날 자리가 생긴다
+        for p in self.TEMPLATES:
+            self.assertNotRegex(p.read_text(encoding="utf-8"), r"orca orchestration \w", p.name)
+
+    def test_escalation_goes_to_the_design_session(self):
+        # 설계자(Opus)를 부르는 대신 진행자가 설계 세션에 ask 한다 (ADR 0004)
+        reviewer = (PLUGIN_ROOT / "templates" / "reviewer.md.tmpl").read_text(encoding="utf-8")
+        self.assertNotIn("설계자(Opus)", reviewer)
+        self.assertIn("설계 세션", reviewer)
+
+
 class Cli(TempRepoCase):
     def _cli(self, script, *args, env_extra=None):
         env = dict(os.environ, **(env_extra or {}))
