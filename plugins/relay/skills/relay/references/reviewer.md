@@ -35,21 +35,15 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
   알아낼 수 없으면 사람을 부른다. 이 확인은 셸 명령이라 비용이 0이다.
 - 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
 
-- **터미널을 먼저 띄우고 `tui-idle`을 Task 밖에서 통과시킨 뒤 `worker-start --terminal`을 건다.** codex 시작 직후 확인창(`Hooks need review`, update, trust)이 뜨면 Orca가 입력창을 못 알아봐 `agent_readiness` timeout이 나고, **그 한 번으로 리뷰 Task가 `failed`가 된다**. 사다리는 구현자 4번과 같다.
+- **`worker-start --agent codex`로 띄운다.** preamble SUB-DISPATCH의 `worker-start` 명령을 그대로 쓰고, relay가 정하는 값만 채운다:
+  - `--spec` — `T-NNN 리뷰 rN. 역할: .ai/roles/reviewer.md / spec: .ai/specs/T-NNN-<슬러그>.md / base: <base> / 리포트: .ai/reviews/T-NNN.rN.json`
+  - `--worktree id:<wt>` — 구현 워커와 같은 워크트리
+  - `--agent codex --model <model reviewer 의 model> --effort <model reviewer 의 effort>`
 
-  1) `terminal create` — `--worktree id:<wt>`, `--title "T-NNN codex"`, `--command 'codex --yolo -m <model reviewer 의 model> -c model_reasoning_effort=<model reviewer 의 effort>'`
-  2) `terminal wait --for tui-idle --timeout-ms 30000`
-  3) `worker-start --task <id> --worktree id:<wt> --terminal <h>`
-
-
-
-  > `tui-idle`이 timeout이면 `references/readiness.md`를 Read 한다. 그 밖에는 읽지 않는다.
-
-  - **기동 명령에 `--yolo`(= `--dangerously-bypass-approvals-and-sandbox`)를 넣는다.** `worker-start --agent codex`로 띄울 때 Orca가 기본으로 붙이는 인자다(Orca `tui-agent-permissions.ts`). 직접 띄우면 이 인자가 빠지고, `config.toml`의 샌드박스 안에서 워커의 `worker_done` 전송(`orchestration send`)이 응답 없이 멈춘다.
-    샌드박스를 켠 채로는 쓸 수 없다. `[windows] sandbox = "elevated"`는 첫 명령에서 UAC 설치 도우미를 띄우고 멈추고, `unelevated`는 읽기·쓰기는 되지만 Orca 연결이 `EPERM`이다. `~/.codex/rules` 허용 규칙은 codex 전역 설정이라 쓰지 않기로 했다(사용자 결정).
-  - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다(`worker-start --help`). 그래서 모델·effort는 위처럼 **codex 명령줄**로 준다. 이 경로는 응답의 `launch.effective`가 비어 온다 — `model`은 명령줄에 준 값을 기록한다(화면 상태줄에 `<Model> high`로 보인다).
-  - 응답은 구현 워커와 같이 `startup`에 해석시킨다. `confirm_delivery`면 4번 표대로 `dispatch-show`의 `status`로 전달을 확인한다
+  - Orca는 codex를 띄울 때 승인·샌드박스를 끄는 인자를 스스로 붙인다. 그래서 워커의 `worker_done` 전송이 샌드박스에 막히지 않는다(2026-11-02 실측 4/4). 직접 명령줄을 만들지 않는다.
+  - 응답은 구현 워커와 같이 `startup`에 해석시킨다 — `implementer.md` 4의 표. `ok`의 `model`(= `launch.effective.model`)이 리뷰 리포트 커밋 트레일러의 모델이다.
+  - `human / agent_prompt_blocked`면 codex가 확인창에서 멈춘 것이다. 그 창은 사람이 터미널에서 직접 처리한다 — (h)의 사람이 필요한 것으로 `ask`. 업데이트 창이었다면 질문에 예방책(위 `check_for_update_on_startup = false`, `doctor`가 검사)을 함께 적는다.
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
 - **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. 1번에서 적어둔 커밋 SHA를 그대로 넣는다.
 - 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다**. `/relay:init --check`로 확인한다.
-- **기록하는 `model`은 codex 명령줄에 준 값이다** — 리뷰 리포트 커밋의 트레일러에 쓴다.
+- **기록하는 `model`은 `startup`의 `model`(`launch.effective.model`)이다** — 리뷰 리포트 커밋의 트레일러에 쓴다. 요청한 값이 아니라 Orca가 실제로 띄운 값이다.

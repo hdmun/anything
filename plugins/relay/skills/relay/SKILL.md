@@ -65,9 +65,11 @@ description: Orca orchestration 위에서 설계자·진행자(Claude)·구현�
 모든 경로에 적용된다. 아래 단계 파일을 읽은 뒤에도 이 규칙이 우선한다.
 
 - orca 명령을 쓰기 전에 **Skill 도구로 Orca 스킬을 불러** Orca 가이드를 읽는다 — 설계 세션은 `orchestration`, 진행자 워커는 `orchestration`·`orca-cli`. relay 문서는 명령 문법을 적지 않는다(ADR 0003).
+- 워커(진행자·구현자·리뷰어)는 모두 `worker-start --agent`로 띄운다. model·effort는 `model <역할>` 결정기 값을 `--model`·`--effort`로 준다. 같은 터미널을 다시 쓰는 수정 라운드만 `--terminal`이다.
 - 게이트는 종료코드로 판정한다. 통과하면 즉시 구현 커밋을 만든다.
 - `<base>`는 spec과 리뷰 Task에 명시한다.
-- 머지는 사람이 한다(자동 머지 금지). 확인창·프롬프트는 사람을 부른다(자동 응답 금지).
+- 머지는 사람이 한다(자동 머지 금지).
+- 워커의 확인창·프롬프트(업데이트·trust·승인)는 사람이 그 워커 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 키를 보내지 않고, 보낼 키를 선택지로 묻지도 않는다 — `ask`로 사람을 부르고 기다린다. 알려진 확인창의 예방책은 `doctor`가 검사한다.
 - 진행자 워커는 혼자 판단할 수 없는 것(SPEC_VIOLATION, 반복 지적, 라운드 한도, 사람이 필요한 상황)을 **모두 `ask`로 설계 세션에 묻는다.** 사람 호출도 이 `ask`이고, 설계 세션이 사람에게 전한다. decision gate는 쓰지 않는다.
 - `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다. `$RELAY`는 이 스킬을 불러왔을 때 표시되는 *Base directory*에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
 - Orca 가이드와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다. 일부러 다르게 하는 것은 아래 「Orca 기본과 다른 점」에만 둔다.
@@ -79,9 +81,6 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 
 | relay 가 하는 것 | Orca 기본 | 근거 |
 |---|---|---|
-| 워커 터미널을 먼저 만들고 `tui-idle` 을 Task 밖에서 통과시킨 뒤 `worker-start --terminal` 로 감독을 건다 (구현·리뷰 모두) | `worker-start --agent` | 준비 감지 실패 한 번으로 Task 가 `failed` 가 됐다(Orca 1.4.216~1.4.224, T-005·T-006). 1.4.245 에서 `--agent` 경로가 agy 7/7·codex 4/4 통과 — plan 트랙 3 에서 이 행과 아래 두 행을 지운다 |
-| 구현자 터미널은 `--command '$null=1; agy'` (설정이 있으면 `model implementer` 의 `launch_command`) | — | 맨 앞 토큰이 `agy` 면 Orca 가 에이전트 경로로 띄워 `tui-idle` 이 통과하지 못한다(agy 1.3.3, 11/11 실패) |
-| 리뷰어 터미널은 `--command 'codex --yolo -m <model> -c model_reasoning_effort=<effort>'` | `--agent codex` 가 같은 인자를 붙인다 | 직접 띄우면서 `--yolo` 를 빼면 샌드박스 안에서 `worker_done` 이 멈춘다(2026-10-11) |
 | 진행자 워커는 `--model`·`--effort` 를 늘 준다 (`model coordinator`, 설정이 없으면 `opus`/`low`) | 사용자가 모델을 고르지 않았으면 생략해 기본 모델을 물려받는다 | 잦고 긴 진행 루프는 effort 를 낮춰 둔다 — 생략하면 사용자 기본 effort 로 뜬다. `--effort` 는 `--model` 없이 쓸 수 없다. 기본값은 2026-11-02 사용자 결정, 바꾸려면 모델 설정 파일 |
 | 워크트리는 `worker-start` 에 합치지 않고 먼저 만든다 | `worker-start --worktree new-…` | 워커를 띄우기 전에 기준선 게이트를 돌려야 한다 — (d) |
 | 진행자 워커가 `ask` 로 설계 세션의 답을 기다리는 동안, 정착한 하위 워커의 재사용·보존·해제와 그 ack 를 미룬다 | 정착을 받으면 곧바로 셋 중 하나를 정하고 ack | 답이 정한다 — 수정 라운드면 재사용, 중단이면 보존, 성공이면 해제 — (h). 2026-11-02 결정(Q12) |
@@ -95,8 +94,8 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 |---|---|---|
 | 설계 (b) | spec 작성, run/task 생성, 진행자 워커 감독 | `references/design.md` (+ `spec-template.md`) |
 | 시작 (c) 0~3 | 진행자 워커: preamble 확인, Orca 스킬, doctor, spec 읽기 | `references/start.md` |
-| 구현 워커 (d) | worktree·기준선·trust·예열·기동·전달 확인 | `references/implementer.md` |
-| 리뷰 워커 (d) | model reviewer·diff-guard·기동 | `references/reviewer.md` |
+| 구현 워커 (d) | worktree·기준선·예열·`worker-start --agent`·`startup` 해석 | `references/implementer.md` |
+| 리뷰 워커 (d) | model reviewer·diff-guard·`worker-start --agent` | `references/reviewer.md` |
 | 대기 (e) | 대기와 무응답 판정 | `references/wait.md` |
 | 게이트 (f) | 독립 재검증, 통과 즉시 커밋 | `references/gate.md` |
 | 리뷰 분기 (g) | review-branch, 수정 라운드 | `references/review.md` |
@@ -105,7 +104,6 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 
 예외 경로는 해당 상황에서만 읽는다.
 
-- `tui-idle` timeout, `blocked_prompt` → `references/readiness.md`
 - 변이 테스트 게이트 → `references/gate-mutation.md`
 
 ## (j) 컨텍스트 위생 규범

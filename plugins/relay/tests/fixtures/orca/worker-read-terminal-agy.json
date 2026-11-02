@@ -1,0 +1,51 @@
+{
+ "ok": true,
+ "result": {
+  "dispatchId": "ctx_0c37734dc52d",
+  "source": "terminal",
+  "sourceIdentity": "8mlPndQzp0dv9irCj4-bQ3_ud4rGFD-x",
+  "terminal": {
+   "handle": "term_60b67961-65d6-455f-99d3-95b7b3f9061a",
+   "status": "exited",
+   "tail": [
+    "",
+    "     ▄▀▀▄",
+    "    ▀▀▀▀▀▀",
+    "   ▀▀▀▀▀▀▀▀",
+    "  ▄▀▀    ▀▀▄",
+    " ▄▀▀      ▀▀▄",
+    "",
+    " Welcome to the Antigravity CLI. You are currently not signed in.",
+    "",
+    "",
+    "      ▄▀▀▄        Antigravity CLI 1.4.12",
+    "▀▀▀▀▀▀       hungrysoul9@gmail.com",
+    "▀▀▀▀▀▀▀▀      ~/scripts",
+    "   ▄▀▀    ▀▀▄",
+    "  ▄▀▀      ▀▀▄",
+    "",
+    "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+    ">",
+    "  [Pasted text #1 +88 lines]",
+    ""
+   ],
+   "truncated": false,
+   "returnedLineCount": 20
+  },
+  "status": {
+   "worker": "succeeded",
+   "terminal": "exited",
+   "liveness": "exited"
+  },
+  "fallbackReason": "provider_unsupported",
+  "sourceExact": false,
+  "contentComplete": false,
+  "clipping": [
+   "terminal_fallback"
+  ],
+  "warnings": [
+   "Terminal output includes retained stream history followed by the current screen; overlapping lines may appear more than once."
+  ],
+  "archived": true
+ }
+}
