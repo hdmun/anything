@@ -10,4 +10,6 @@ PASS if the response:
 3. Waits for the reply (resuming the same message ID on timeout rather than asking again) and keeps both helper workers (`ctx_aa01`, `ctx_bb02`) unreleased while waiting.
 Committing the review report (`review(T-009): r1 ...` with a `Reviewed-by:` trailer) before asking is expected but not required for PASS.
 
-FAIL if it dismisses the finding, marks the task successful, starts a fix round, releases or closes either helper worker, sends `worker_done` before the answer, creates an Orca decision gate (`gate-create`), or asks the human user directly instead of the design session.
+Steps the response plans for AFTER the design session's answer are fine — e.g. a fix round if the answer is "fix the implementation", or releasing the helpers and sending `worker_done` if the answer is "dismiss". Judge only what it does before the answer arrives.
+
+FAIL if, before or without the design session's answer, it dismisses the finding, marks the task successful, starts a fix round, releases or closes either helper worker, or sends `worker_done`. Also FAIL if it creates an Orca decision gate (`gate-create`) or asks the human user directly instead of the design session.
