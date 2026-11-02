@@ -93,8 +93,8 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 |---|---|---|
 | 설계 (b) | spec 작성, run/task 생성, 진행자 워커 감독 | `references/design.md` (+ `spec-template.md`) |
 | 시작 (c) 0~3 | 진행자 워커: preamble 확인, Orca 스킬, doctor, spec 읽기 | `references/start.md` |
-| 구현 워커 (d) | worktree·기준선·trust·예열·기동·전달 확인 | `references/implementer.md` |
-| 리뷰 워커 (d) | model reviewer·diff-guard·기동 | `references/reviewer.md` |
+| 구현 워커 (d) | worktree·기준선·예열·`worker-start --agent`·`startup` 해석 | `references/implementer.md` |
+| 리뷰 워커 (d) | model reviewer·diff-guard·`worker-start --agent` | `references/reviewer.md` |
 | 대기 (e) | 대기와 무응답 판정 | `references/wait.md` |
 | 게이트 (f) | 독립 재검증, 통과 즉시 커밋 | `references/gate.md` |
 | 리뷰 분기 (g) | review-branch, 수정 라운드 | `references/review.md` |
