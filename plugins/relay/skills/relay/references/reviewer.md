@@ -42,6 +42,7 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
 
   - Orca는 codex를 띄울 때 승인·샌드박스를 끄는 인자를 스스로 붙인다. 그래서 워커의 `worker_done` 전송이 샌드박스에 막히지 않는다(2026-11-02 실측 4/4). 직접 명령줄을 만들지 않는다.
   - 응답은 구현 워커와 같이 `startup`에 해석시킨다 — `implementer.md` 4의 표. `ok`의 `model`(= `launch.effective.model`)이 리뷰 리포트 커밋 트레일러의 모델이다.
+  - `human / agent_prompt_blocked`면 codex가 확인창에서 멈춘 것이다. 그 창은 사람이 터미널에서 직접 처리한다 — (h)의 사람이 필요한 것으로 `ask`. 업데이트 창이었다면 질문에 예방책(위 `check_for_update_on_startup = false`, `doctor`가 검사)을 함께 적는다.
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
 - **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. 1번에서 적어둔 커밋 SHA를 그대로 넣는다.
 - 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다**. `/relay:init --check`로 확인한다.
