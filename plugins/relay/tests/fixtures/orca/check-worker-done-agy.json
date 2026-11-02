@@ -1,0 +1,38 @@
+{
+  "id": "7e3d95c4-b3f3-4dd6-81da-b6edc56f667d",
+  "ok": true,
+  "result": {
+    "runId": "run_2c97df2495b5",
+    "deliveryId": "delivery_124fe26ac78a",
+    "messages": [
+      {
+        "id": "msg_f5cdd6f1f543",
+        "run_id": "run_2c97df2495b5",
+        "from_handle": "term_f59e3920-50dc-4886-9a77-cbb9a6f301a2",
+        "to_handle": "run:run_2c97df2495b5",
+        "subject": "relay-smoke-ping",
+        "body": "OK. smoke ping received. No changes made.",
+        "type": "worker_done",
+        "priority": "normal",
+        "thread_id": null,
+        "payload": "{\"taskId\":\"task_474a9c2203be\",\"dispatchId\":\"ctx_b25f4601ed31\",\"outcome\":\"succeeded\"}",
+        "created_at": "2026-11-02T09:24:32Z",
+        "delivered_at": null,
+        "delivery_contract": "current_delivery"
+      }
+    ],
+    "count": 1,
+    "replayed": false,
+    "acknowledged": null,
+    "timedOut": false,
+    "cancelled": false,
+    "connectionLost": false,
+    "mutation": {
+      "requestId": "f3b6090e-aead-4493-8155-a91cf39def4a",
+      "replayed": false
+    }
+  },
+  "_meta": {
+    "runtimeId": "f3c5d2f2-88de-4d6d-8889-c432c31bb04c"
+  }
+}
