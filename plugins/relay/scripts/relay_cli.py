@@ -338,6 +338,37 @@ def _installed_versions():
     return [e["version"] for e in entries if e.get("version")]
 
 
+ORCA_SKILLS_DIR = pathlib.Path.home() / ".agents" / "skills"
+
+
+def _orca_skills_installed():
+    return {name: (ORCA_SKILLS_DIR / name / "SKILL.md").is_file() for name in doctor.ORCA_SKILLS}
+
+
+def _orca_nested_depth():
+    """Orca 프로필 저장소(profile-state.db)를 읽기 전용으로 열어 nestedWorkerMaxDepth 를 찾는다. 못 찾으면 None.
+
+    Orca 내부 형식이라 버전마다 바뀔 수 있다 — doctor 는 None 을 WARN 으로 둔다.
+    """
+    import sqlite3
+    root = pathlib.Path(os.environ.get("APPDATA") or (pathlib.Path.home() / "AppData" / "Roaming")) / "orca" / "profiles"
+    dbs = sorted(root.glob("*/profile-state.db"), key=lambda p: p.parent.name != "local-default")
+    for db in dbs:
+        try:
+            con = sqlite3.connect("file:%s?mode=ro" % db.as_posix(), uri=True)
+            try:
+                rows = con.execute("select payload from profile_state_documents where payload like ?",
+                                   ("%" + doctor.NESTED_DEPTH_KEY + "%",)).fetchall()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            continue
+        depth = doctor.nested_depth_from_payloads([r[0] for r in rows])
+        if depth is not None:
+            return depth
+    return None
+
+
 def cmd_doctor(a):
     codex_cfg = pathlib.Path.home() / ".codex" / "config.toml"
     agy = trust.DEFAULT_SETTINGS
@@ -359,6 +390,8 @@ def cmd_doctor(a):
         "exists": lambda p: pathlib.Path(p).is_dir(),
         "plugin_version": _plugin_version(),
         "installed_versions": _installed_versions(),
+        "orca_skills": _orca_skills_installed(),
+        "nested_depth": _orca_nested_depth(),
     }
     checks = doctor.evaluate(facts)
     if a.fix and settings is not None:
