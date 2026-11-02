@@ -18,8 +18,8 @@
                                   [--force] [--print] [--no-verify]   (설정 파일 생성, 역할: designer|coordinator|implementer|reviewer)
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
-  python relay_cli.py smoke --dir <trusted dir> [--agent antigravity|codex|all]   (검사기 — 실제 CLI 리허설, 수동)
-                            [--path terminal|worker-start] [--repeat N] [--run <id>] [--model M] [--effort E]
+  python relay_cli.py smoke --dir <orca worktree> [--agent antigravity|codex|all]   (검사기 — worker-start 리허설, 수동)
+                            [--repeat N] [--run <id>] [--model M] [--effort E]
 
 규약 (docs/adr/0001):
   검사기 — 종료코드 0 통과 / 1 실패, 사유는 출력
@@ -317,11 +317,6 @@ def _verified():
     return json.loads(doctor.VERIFIED_PATH.read_text(encoding="utf-8"))
 
 
-def _newest_agy_log():
-    logs = sorted(AGY_LOG_DIR.glob("cli-*.log"), key=lambda p: p.stat().st_mtime) if AGY_LOG_DIR.is_dir() else []
-    return logs[-1].read_text(encoding="utf-8", errors="replace") if logs else ""
-
-
 def _plugin_version():
     """이 스크립트가 들어 있는 플러그인 사본의 버전 — 세션이 실제로 읽고 있는 버전이다."""
     p = pathlib.Path(__file__).resolve().parents[1] / ".claude-plugin" / "plugin.json"
@@ -451,22 +446,7 @@ def cmd_smoke(a):
     if (a.model or a.effort) and len(agents) > 1:
         raise InputError("--model·--effort 는 --agent 하나와 함께 쓴다")
     cfg, _used = _models_cfg(a)
-    if a.path == "worker-start":
-        return cmd_smoke_worker(a, agents, cfg)
-    if a.model or a.effort or a.repeat != 1 or a.run:
-        raise InputError("--model·--effort·--repeat·--run 은 --path worker-start 에서만 쓴다")
-    impl = models.resolve("implementer", cfg)
-    cmds = {"antigravity": orca.agy_launch_command(impl["model"], impl["effort"])}   # 설정이 있으면 그 model·effort 로 리허설한다
-    rev = _decide_model("reviewer", cfg)
-    if rev["action"] == "launch":
-        cmds["codex"] = orca.codex_launch_command(rev["model"], rev["effort"])
-    results = [smoke.run_agent(ag, a.dir.replace("\\", "/"), lambda argv: _run(argv, timeout=180),
-                               read_log=_newest_agy_log, version=_cli_version(ag), command=cmds.get(ag)) for ag in agents]
-    verified = _verified()
-    for r in results:
-        r["verified"] = r["version"] in verified.get(r["agent"], [])
-        print(json.dumps(r, ensure_ascii=False))
-    return 0 if all(r["passed"] for r in results) else 1
+    return cmd_smoke_worker(a, agents, cfg)
 
 
 def _add_models_args(p):
@@ -571,15 +551,13 @@ def build_parser():
     w.add_argument("agent", choices=("agy",))
     w.set_defaults(func=cmd_warmup)
 
-    sm = sub.add_parser("smoke", help="Task 없이 실제 기동·전달 확인 (수동)")
-    sm.add_argument("--dir", required=True, help="agy trustedWorkspaces 에 등록된 디렉터리")
+    sm = sub.add_parser("smoke", help="smoke 전용 Run 에서 worker-start --agent 기동·worker_done·release 확인 (수동)")
+    sm.add_argument("--dir", required=True, help="Orca 에 등록된 워크트리 경로")
     sm.add_argument("--agent", default="all", choices=("antigravity", "codex", "all"))
-    sm.add_argument("--path", default="terminal", choices=("terminal", "worker-start"),
-                    help="terminal: 터미널 선기동 리허설(Task 없음) / worker-start: Orca 기본 기동을 smoke Run 에서 끝까지 (ADR 0003)")
-    sm.add_argument("--repeat", type=int, default=1, help="worker-start 경로 반복 횟수 — 전부 통과해야 통과")
-    sm.add_argument("--run", help="worker-start 경로에서 재사용할 smoke Run. 없으면 새로 만든다")
-    sm.add_argument("--model", help="worker-start 경로에서 설정 파일 대신 쓸 model")
-    sm.add_argument("--effort", help="worker-start 경로에서 설정 파일 대신 쓸 effort (--model 필요)")
+    sm.add_argument("--repeat", type=int, default=1, help="반복 횟수 — 전부 통과해야 통과")
+    sm.add_argument("--run", help="재사용할 smoke Run. 없으면 새로 만든다")
+    sm.add_argument("--model", help="설정 파일 대신 쓸 model")
+    sm.add_argument("--effort", help="설정 파일 대신 쓸 effort (--model 필요)")
     _add_models_args(sm)
     sm.set_defaults(func=cmd_smoke)
     return ap

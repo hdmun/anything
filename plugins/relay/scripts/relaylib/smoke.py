@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """실제 에이전트 CLI 와 Orca 사이의 경계를 검증한다.
 
-두 경로가 있다.
-- terminal(run_agent): 터미널 선기동 리허설. Task 를 쓰지 않아 기동 실패 예산과 무관하다.
-- worker-start(run_workers): Orca 기본 기동(`worker-start --agent`)을 smoke 전용 Run 에서 worker_done·release 까지 잰다 (ADR 0003).
+relay 가 워커를 띄우는 경로(`worker-start --agent`)를 smoke 전용 Run 에서 worker_done·release 까지 잰다 (ADR 0003).
+터미널을 먼저 띄우던 리허설 경로는 relay 가 그 기동을 그만두면서 지웠다 (plan 트랙 3).
 
 수동 도구다(CI 아님). CLI 업데이트 뒤, doctor 가 미검증 버전을 알릴 때 돌린다.
 통과하면 사람이 references/verified-cli.json 에 버전을 추가한다.
@@ -16,8 +15,6 @@ import time
 from relaylib import orca
 
 PING = "relay-smoke-ping"
-PROMPT = PING + ": reply with the single word OK and do nothing else. Do not use any tools."
-DELIVERY_MARK = "HandleUserInput called with text:"
 
 
 def _json(out):
@@ -27,62 +24,7 @@ def _json(out):
         return {}
 
 
-ATTEMPTS = 3   # 남은 간헐 실패 대비. 2026-10-05 의 '시간대 경합'은 단독 `agy` 실행 경로 탓이었다(orca.AGY_LAUNCH_COMMAND)
-
-
-def run_agent(agent, workdir, run, read_log, sleep=time.sleep, version=None, attempts=ATTEMPTS, **kw):
-    """터미널을 새로 만들며 최대 attempts 번 시도한다. 한 번이라도 통과하면 통과 — 실패 이력은 남긴다."""
-    tries = []
-    for _ in range(attempts):
-        r = _attempt(agent, workdir, run, read_log, sleep=sleep, version=version, **kw)
-        tries.append(r["failed_at"] or "passed")
-        if r["passed"]:
-            break
-    r["attempts"] = tries
-    return r
-
-
-def _attempt(agent, workdir, run, read_log, sleep, version, command=None,
-             idle_timeout_ms=60_000, delivery_timeout_s=60, poll_s=3):
-    """agent: antigravity | codex. run(argv)->(rc, stdout). read_log()->agy 최신 로그 내용."""
-    command = command or (orca.AGY_LAUNCH_COMMAND if agent == "antigravity" else "codex")   # 설정 파일의 model·effort 를 실은 명령도 리허설한다
-    result = {"agent": agent, "version": version, "command": command, "passed": False, "failed_at": None}
-    rc, out = run(["orca", "terminal", "create", "--worktree", "path:" + workdir,
-                   "--title", "relay-smoke " + agent, "--command", command, "--json"])
-    handle = ((_json(out).get("result") or {}).get("terminal") or {}).get("handle")
-    if rc != 0 or not handle:
-        result["failed_at"] = "create"
-        return result
-    try:
-        t0 = time.monotonic()
-        rc, out = run(["orca", "terminal", "wait", "--terminal", handle, "--for", "tui-idle",
-                       "--timeout-ms", str(idle_timeout_ms), "--json"])
-        result["tui_idle_ms"] = int((time.monotonic() - t0) * 1000)
-        if rc != 0 or not _json(out).get("ok"):
-            result["failed_at"] = "tui_idle"
-            return result
-        run(["orca", "terminal", "send", "--terminal", handle, "--text", PROMPT, "--enter", "--json"])
-        waited = 0
-        while waited <= delivery_timeout_s:
-            if agent == "antigravity":
-                delivered = DELIVERY_MARK in (read_log() or "")
-            else:
-                _, out = run(["orca", "terminal", "read", "--terminal", handle, "--screen", "--json"])
-                tail = ((_json(out).get("result") or {}).get("terminal") or {}).get("tail") or []
-                delivered = any(PING in line for line in tail)
-            if delivered:
-                result["passed"] = True
-                return result
-            sleep(poll_s)
-            waited += poll_s
-        result["failed_at"] = "delivery"
-        return result
-    finally:
-        run(["orca", "terminal", "close", "--terminal", handle, "--json"])
-
-
-# --- worker-start 경로: Orca 기본 기동을 끝까지 잰다 (ADR 0003, plan 트랙 0) ----------------------------
-# 터미널 경로와 달리 Task 를 쓴다. 그래서 smoke 전용 Run 에 묶고, 정착(worker_done)과 release 까지 확인한다.
+# Task 를 쓰므로 smoke 전용 Run 에 묶고, 정착(worker_done)과 release 까지 확인한다.
 
 WORKER_SPEC = (PING + ": connectivity test only. Do not read, run, or modify anything in the repository. "
                "Immediately send worker_done with --outcome succeeded and the summary "
