@@ -196,7 +196,7 @@
    그리고 `orca:nested-depth` 검사 — Orca 설정 `nestedWorkerMaxDepth` 가 2 미만이면 `FAIL` + "Settings → Orchestration → Nested worker depth 를 2로" 안내 (Q16 A, ADR 0004). 값은 Orca 내부 파일(`%APPDATA%/orca/profiles/<profile>/orca-data.json`)에서 읽으므로, 파일·키를 못 찾으면 `WARN` 으로 둔다(Orca 버전마다 바뀔 수 있다).
 5. [x] `test_docs.py`: references 에 `orca <동사>` 스냅숏이 없음을 검사하는 테스트 추가(예외 없이 — 「Orca 기본과 다른 점」도 `orca` 접두 없이 적었다). 기존 `--command` 문자열 검사는 트랙 3 에서 정리.
 
-### 트랙 3 — 기동 전환 (ADR 0003 코드 부분, 트랙 0 결과에 따라 에이전트별, 약 3시간)
+### 트랙 3 — 기동 전환 (ADR 0003 코드 부분, 트랙 0 결과에 따라 에이전트별, 약 3시간) — 완료 (2026-11-02, `hdmun/relay-track3-launch`)
 
 | 구분 | 대상 |
 |---|---|
@@ -205,11 +205,33 @@
 | 변경 | `model implementer`·`model reviewer`: 명령줄 대신 `worker-start` 인자 반환 / `liveness`: 입력을 `--screen`·`--terminal` 에서 `worker-list`·`worker-read` 로 / `Implemented-by:`·`Reviewed-by:` 트레일러: `launch.effective.model` 에서 / `smoke`: 트랙 0 의 `worker-start` 경로를 기본으로 |
 | 트랙 0 결과에 따라 | agy 전달 확인(로그 `HandleUserInput`): Orca 가 antigravity `turn_started` 를 관측하면 삭제, 못 하면 유지 |
 
-1. [ ] 위 표대로 `relaylib/orca.py`·`smoke.py`·`relay_cli.py` 수정 (TDD).
-2. [ ] `references/implementer.md`·`reviewer.md`·`review.md`(수정 라운드 재사용)·`wait.md`: 기동은 `worker-start --agent`, 수정 라운드는 Orca 가이드의 「Reuse after settlement」를 따른다.
-3. [ ] SKILL.md 불변식에서 `$null=1; agy`·`codex --yolo`·「터미널 → tui-idle → worker-start」 3줄 정리. `test_docs.py` 의 `test_agy_launch_command_matches_code`·`test_codex_terminal_launch_bypasses_sandbox`·`test_reused_terminal_is_checked_before_worker_start`·`test_invariants_live_in_skill_md_itself` 갱신.
-4. [ ] evals: `startup-no-dispatch`·`update-prompt-blocked` 을 `--agent` 경로 영수증으로 재작성, `delivery-failed` 는 위 「트랙 0 결과에 따라」 행대로 재작성 또는 삭제.
+1. [x] 위 표대로 `relaylib/orca.py`·`smoke.py`·`relay_cli.py` 수정 (TDD).
+2. [x] `references/implementer.md`·`reviewer.md`·`review.md`(수정 라운드 재사용)·`wait.md`: 기동은 `worker-start --agent`, 수정 라운드는 Orca 가이드의 「Reuse after settlement」를 따른다.
+3. [x] SKILL.md 불변식에서 `$null=1; agy`·`codex --yolo`·「터미널 → tui-idle → worker-start」 3줄 정리. `test_docs.py` 의 `test_agy_launch_command_matches_code`·`test_codex_terminal_launch_bypasses_sandbox`·`test_reused_terminal_is_checked_before_worker_start`·`test_invariants_live_in_skill_md_itself` 갱신.
+4. [x] evals: `startup-no-dispatch`·`update-prompt-blocked` 을 `--agent` 경로 영수증으로 재작성, `delivery-failed` 는 위 「트랙 0 결과에 따라」 행대로 재작성 또는 삭제.
        이 셋과 `tsc-silent`·`mutation-dirty` 는 프롬프트가 "relay 진행 세션이야" 뿐이라 트랙 1 의 판정(preamble 없으면 설계 세션)과 어긋난다 — `spec-violation-escalate` 처럼 Orca preamble 을 붙인다.
+
+트랙 3 에서 새로 정한 것 (문서·코드에 반영):
+
+- `startup` 의 `new_task` → `retry`. `--retry-of` 는 실패한 그 Task(`--task`)에 붙는다(`worker-start --help`) — "항상 새 Task" 는 `--terminal` 시절의 규칙이었다.
+- `model implementer` 에 effort 만 있고 model 이 없으면 `human / effort_needs_model` — Orca 는 `--effort` 를 `--model` 없이 받지 않는다. 조용히 버리지 않는다.
+- `liveness` 입력은 `--worker`(worker-list)·`--show`(worker-show: `observation.agentWait`, `terminal.lastOutputAt`)·`--read`(worker-read). 화면 확인은 worker-read 가 터미널로 읽힌 경우(agy)만 한다.
+- `smoke` 는 `worker-start` 경로만 남기고 `--path` 를 지웠다. 터미널 리허설은 relay 가 쓰지 않는 경로를 재는 것이었다.
+- 수정 라운드 재사용(`worker-start --spec … --terminal`)이 기동 실패로 끝나면 그 터미널을 포기하고 새 워커를 `--agent` 로 띄운다(맥락은 잃는다). `header_scrolled_out` 처리를 대신한다.
+- 전달 실패(`confirm_delivery` → `pending`)는 기동 실패 예산이 남아도 스스로 재출발하지 않는다. 확인창은 사람이 터미널에서 직접 처리하고, 진행자는 보낼 키를 선택지로 묻지도 않는다(SKILL.md 불변식) — 둘 다 eval 이 드러낸 모호함을 고친 것이다.
+
+평가(2026-11-02, `--tag startup gate` 5케이스, `--judge-model sonnet`, threshold 1.0, 합계 $4.08):
+
+| 케이스 | 플러그인 있음 | 없음(기준선) |
+|---|---|---|
+| startup-no-dispatch | 1.0 ×3 | 0 ×3 |
+| update-prompt-blocked | 1.0 ×3 (세 번째 실행) | 0.5 ×3 |
+| delivery-failed | 1.0 ×3 (두 번째 실행) | 0 ×3 |
+| tsc-silent | 1.0 ×3 | 0.5 ×3 |
+| mutation-dirty | 1.0 ×3 | 0 ×3 |
+
+- delivery-failed 첫 실행 1/3: `confirm_delivery` 의 `pending` 이 "보존 후 (h)" 였고 (h) 는 "기동 실패 2회에서 멈춘다" 라 1회째 재출발로 읽혔다. 채점도 답이 온 뒤의 `--retry-of` 계획까지 FAIL 로 봤다. 둘 다 고친 뒤 3/3.
+- update-prompt-blocked 첫 실행 2/3, 두 번째 0/3: 응답이 references 를 읽지 않고 불변식 "확인창은 사람을 부른다" 를 "허락받고 키를 보낸다" 로 해석했다. 불변식을 "사람이 터미널에서 직접 처리, 키를 묻지도 않는다, 예방책은 `doctor`" 로 고친 뒤 3/3.
 
 ### 트랙 4 — 워커 템플릿 (Q5·Q9, 약 40분)
 
@@ -218,7 +240,7 @@
 
 ### 트랙 5 — 마무리와 배포 (약 1.5시간)
 
-1. [ ] CONTEXT.md 「예열」 정의의 "워커 터미널을 만들기 전에" → "워커를 띄우기 전에" (트랙 3 이 선기동을 없앤 경우만).
+1. [x] CONTEXT.md 「예열」 정의의 "워커 터미널을 만들기 전에" → "워커를 띄우기 전에" (트랙 3 이 선기동을 없앤 경우만).
 2. [ ] README: 진입 약속(relay 를 호출한 세션이 설계 세션), 진행 세션 절 → 진행자 워커, 준비물에 Orca 스킬, 「알려진 한계」.
 3. [ ] `docs/field-notes.md`: 버려진 우회(선기동·readiness 사다리)의 사례를 "역사" 로 표시.
 4. [ ] `plugin.json` 2.0.0, evals 전체(`--model sonnet`, threshold 1.0) 통과 확인.
