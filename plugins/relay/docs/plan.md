@@ -160,15 +160,32 @@
 - agy 를 모델 없이 띄우면 `launch.effective.model` 이 `null` 이다. `Implemented-by:` 트레일러는 `effective.model` → 없으면 agy 로그 라벨 순으로 읽는다.
 - antigravity 의 `turn_started` 를 Orca 가 관측한다 — agy 로그 `HandleUserInput` 전달 확인은 지운다.
 
-### 트랙 1 — 세션 구조 (ADR 0004, 약 3시간)
+### 트랙 1 — 세션 구조 (ADR 0004, 약 3시간) — 완료 (2026-11-02, `hdmun/relay-track1-session-structure`)
 
-1. [ ] SKILL.md 「진입 약속과 세션 판정」: 판정을 Orca preamble 유무로 (Q11). 세션 표를 「설계 세션 / 진행자 워커」로. 「왜 세션을 둘로 나누는가」를 "진행자 워커를 태스크마다 새로" 근거로 고쳐 쓴다.
-2. [ ] `references/design.md`: spec → run/task 생성 뒤 **감독 루프** 추가 — ready 태스크마다 진행자 워커 기동 → `check --wait` → `question` 에 답(직접 판단 또는 사람에게 넘김) → `worker_done` 확인(`commit-guard`·리뷰 리포트 존재·`git log <base>..HEAD`, 게이트 재실행 없음) → `worker-release` → 다음 태스크. 컨텍스트가 커지면 새 세션에서 `run-use`.
-3. [ ] `references/escalation.md`: decision gate 절 삭제 → 진행자 `ask` 형식(질문 한 줄 + 리뷰 파일 경로 + 선택지)과 설계 세션의 답 규칙(근거까지 적는다). 사람 호출도 `ask` 로 올리고 설계 세션이 사람에게 전달. `ask` 30분 timeout 은 같은 메시지 ID 로 resume.
-4. [ ] `references/start.md`: 진행자 워커 시작 절차로 — preamble 확인 → Orca 스킬 2개 → `doctor`(설계 세션이 이미 돌렸어도 다시 한다 — 비용 0) → `task-list` 대신 preamble 의 Task.
-5. [ ] `references/finish.md`: 끝은 "세션 폐기"가 아니라 `worker_done --outcome succeeded|failed` + `--report-path`(브랜치·커밋 목록·PR URL). 하위 워커 정리 표는 유지.
-6. [ ] `model coordinator` 결정기: 사용자에게 `claude --model …` 을 안내하던 `action: session` → `worker-start` 인자(`--model`·`--effort`)를 돌려준다. `model designer` 는 지금처럼 안내만 (TDD, `relaylib/orca.py session_model`).
-7. [ ] evals: `spec-violation-escalate` 를 `ask`/`reply` 경로로 재작성, 새 eval `session-classify`(preamble 없으면 설계 세션으로 행동, 진행자 절차를 밟지 않음).
+1. [x] SKILL.md 「진입 약속과 세션 판정」: 판정을 Orca preamble 유무로 (Q11). 세션 표를 「설계 세션 / 진행자 워커」로. 「왜 세션을 둘로 나누는가」를 "진행자 워커를 태스크마다 새로" 근거로 고쳐 쓴다.
+2. [x] `references/design.md`: spec → run/task 생성 뒤 **감독 루프** 추가 — ready 태스크마다 진행자 워커 기동 → `check --wait` → `question` 에 답(직접 판단 또는 사람에게 넘김) → `worker_done` 확인(`commit-guard`·리뷰 리포트 존재·`git log <base>..HEAD`, 게이트 재실행 없음) → `worker-release` → 다음 태스크. 컨텍스트가 커지면 새 세션에서 `run-use`.
+3. [x] `references/escalation.md`: decision gate 절 삭제 → 진행자 `ask` 형식(질문 한 줄 + 리뷰 파일 경로 + 선택지)과 설계 세션의 답 규칙(근거까지 적는다). 사람 호출도 `ask` 로 올리고 설계 세션이 사람에게 전달. `ask` 30분 timeout 은 같은 메시지 ID 로 resume.
+4. [x] `references/start.md`: 진행자 워커 시작 절차로 — preamble 확인 → Orca 스킬 2개 → `doctor`(설계 세션이 이미 돌렸어도 다시 한다 — 비용 0) → `task-list` 대신 preamble 의 Task.
+5. [x] `references/finish.md`: 끝은 "세션 폐기"가 아니라 `worker_done --outcome succeeded|failed` + `--report-path`(브랜치·커밋 목록·PR URL). 하위 워커 정리 표는 유지.
+6. [x] `model coordinator` 결정기: 사용자에게 `claude --model …` 을 안내하던 `action: session` → `worker-start` 인자(`--model`·`--effort`)를 돌려준다. `model designer` 는 지금처럼 안내만 (TDD, `relaylib/orca.py session_model`).
+7. [x] evals: `spec-violation-escalate` 를 `ask`/`reply` 경로로 재작성, 새 eval `session-classify`(preamble 없으면 설계 세션으로 행동, 진행자 절차를 밟지 않음).
+
+트랙 1 에서 새로 정한 것 (문서에 반영):
+
+- 진행자 기본 모델 계열은 `sonnet` (`models.DEFAULT_MODEL`). Orca 기본은 모델 생략이지만 `--effort` 는 `--model` 없이 못 쓰고, 생략하면 사용자 기본(대개 Opus)을 물려받아 ADR 0004 의 비용 근거를 잃는다.
+- 설계 세션은 `task-list --ready` 에서 spec 이 `relay 진행자:` 로 시작하는 태스크만 맡긴다 — 진행자가 같은 Run 에 만든 하위 Task(구현·리뷰·수정 라운드)를 다시 맡기지 않게.
+- 방금 끝난 태스크에 의존하는 태스크는 사람이 그 브랜치를 머지한 뒤 띄운다 — 진행자는 `main` 에서 워크트리를 만든다.
+- 진행자 보고 파일은 `~/.relay/reports/<run_id>/T-NNN.md` (워크트리 밖 — 커밋되지 않는다). 설계 세션이 여기서 워크트리·`<base>`·브랜치를 읽는다.
+- `ask` 답을 기다리는 동안 정착한 하위 워커의 재사용·보존·해제와 그 ack 를 미룬다 (SKILL.md 「Orca 기본과 다른 점」).
+
+평가(2026-11-02, `--case` 로 두 케이스만, `--judge-model sonnet`, threshold 1.0, 합계 $1.63):
+
+| 케이스 | 플러그인 있음 | 없음(기준선) |
+|---|---|---|
+| spec-violation-escalate | 1.0 ×3 | 0 ×3 |
+| session-classify | 1.0 ×3 | 0 ×3 |
+
+첫 실행에서 spec-violation-escalate 가 2/3 이었다. 떨어진 1회는 `ask` 뒤 답에 따른 분기(성공이면 release·`worker_done`)까지 적었을 뿐인데, 채점 기준의 "release 하면 FAIL" 이 옛 흐름(에스컬레이션 = 세션 종료) 그대로라 judge 가 FAIL 했다. 기준을 "답 전에 하면 FAIL" 로 고친 뒤 3/3.
 
 ### 트랙 2 — Orca 스킬 진입과 스냅숏 제거 (ADR 0003 문서 부분, 약 2시간)
 
@@ -192,6 +209,7 @@
 2. [ ] `references/implementer.md`·`reviewer.md`·`review.md`(수정 라운드 재사용)·`wait.md`: 기동은 `worker-start --agent`, 수정 라운드는 Orca 가이드의 「Reuse after settlement」를 따른다.
 3. [ ] SKILL.md 불변식에서 `$null=1; agy`·`codex --yolo`·「터미널 → tui-idle → worker-start」 3줄 정리. `test_docs.py` 의 `test_agy_launch_command_matches_code`·`test_codex_terminal_launch_bypasses_sandbox`·`test_reused_terminal_is_checked_before_worker_start`·`test_invariants_live_in_skill_md_itself` 갱신.
 4. [ ] evals: `startup-no-dispatch`·`update-prompt-blocked` 을 `--agent` 경로 영수증으로 재작성, `delivery-failed` 는 위 「트랙 0 결과에 따라」 행대로 재작성 또는 삭제.
+       이 셋과 `tsc-silent`·`mutation-dirty` 는 프롬프트가 "relay 진행 세션이야" 뿐이라 트랙 1 의 판정(preamble 없으면 설계 세션)과 어긋난다 — `spec-violation-escalate` 처럼 Orca preamble 을 붙인다.
 
 ### 트랙 4 — 워커 템플릿 (Q5·Q9, 약 40분)
 
@@ -312,7 +330,6 @@ T-007 은 v1.2.3 으로 성공 종료(구현 2·리뷰 2, r2 pass). 그 세션�
 
 - `--command '$null=1; agy --model … --effort …'` 로 모델 핀 — 플래그는 `-p` 모드에서 실측(1.3.3), Orca `tui-idle` 통과는 smoke 1/1 (위 「기능」), 표본 추가 필요. codex `--terminal` 경로는 v1.2.5 에서 확인
 - ~~`worker-release` 가 수동 생성 터미널을 닫는가~~ → 닫지 않는다(`retained / external_terminal`, 2026-10-10). (i) 의 `terminal close` 가 필요하다
-- 정착한 Task 에 decision gate 가 걸리는가
 - `worker-start --agent` 경로에서 확인창(agy trust·codex 업데이트·`Hooks need review`)이 영수증과 `worker-list` projection 에 어떻게 잡히는가 — 2026-11-02 재현 불가(Orca 가 agy trust 를 미리 등록, agy `always-proceed`, codex 업데이트 프롬프트 없음). Q17: Orca 기능으로만 관찰하는 방식을 유지하고 `startup` 의 `agent_prompt_blocked` 처리는 남긴다. 실전에서 처음 만나면 영수증·`worker-list` 출력을 픽스처로 남긴다
 - 새 에이전트 탭 설정이 채팅일 때 워커를 `worker-read --source auto` 로 읽을 수 있는가 (트랙 0-5(e), 사용자 설정을 바꿔야 해서 미측정)
 - ~~agy `auto_updater` 차단~~ → 예열로 대응(2026-10-02). 실행 중 교체는 확인됨: 기존 파일을 `agy.exe.<숫자>.old` 로 옮기고 새 파일을 놓는다(1.2.14 세션이 떠 있는 동안 1.2.16 설치). 예열은 `agy update`(동기) 사용

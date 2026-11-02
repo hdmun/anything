@@ -1,37 +1,29 @@
-# 진행 세션 시작 (c) 0~2
+# 진행자 워커 시작 (c) 0~3
 
-> 이 파일은 SKILL.md의 단계 절차 중 일부다. SKILL.md의 불변식과 함께 읽는다. (진행 세션 시작)
+> 이 파일은 SKILL.md의 단계 절차 중 일부다. SKILL.md의 불변식과 함께 읽는다. (진행자 워커 시작)
 
-## (c) 진행 세션 절차
+## (c) 진행자 워커 절차
 
-0. **Skill 도구로 Orca 스킬 `orchestration` 과 `orca-cli` 를 불러 Orca 가이드를 먼저 읽는다.**
-   relay 문서는 orca 명령 문법을 적지 않는다 — 동사 이름과 relay 가 정한 값만 적는다. 문법·플래그는 Orca 가이드가 정본이고, 바이너리가 자기 버전에 맞춰 직접 서빙한다. **충돌하면 Orca 가이드가 옳고, 이 스킬을 고친다.** Orca 기본과 일부러 다르게 하는 것은 SKILL.md 「Orca 기본과 다른 점」에만 있다.
-   relay가 더하는 것은 명령 사용법이 아니라 그 위의 정책이다 — 역할 분리, 심각도 라우팅, 세션 폐기 규범.
+0. **preamble을 확인한다.** 프롬프트에 Orca preamble(`You are a dispatched worker`, Task ID·Dispatch ID가 박힌 `worker_done` 명령, `=== TASK ===` 블록)이 있어야 진행자 워커다. 없으면 설계 세션이다 — `references/design.md`로 간다.
+   - **preamble이 정본이다.** `worker_done`·`ask`·`heartbeat`·`check` 명령은 preamble에 적힌 것을 그대로 쓴다. handle·Task ID·Dispatch ID를 다시 조립하지 않는다.
+   - `=== TASK ===` 첫머리 `relay 진행자: Run <run_id> / T-NNN`에서 Run ID와 태스크 번호를, `spec:` 뒤에서 spec 파일 경로를 읽는다. 다음 태스크는 설계 세션이 고른다 — `task-list`로 꺼내지 않는다.
+   - `=== SUB-DISPATCH ===` 절이 없으면 하위 워커를 띄울 수 없다(Orca 워커 중첩 깊이). 사람이 필요한 것으로 `ask` 한다 — (h).
+1. **Skill 도구로 Orca 스킬 `orchestration` 과 `orca-cli` 를 불러 Orca 가이드를 먼저 읽는다.**
+   진행자 워커는 dispatched worker이면서 구현자·리뷰어의 코디네이터다. 가이드의 워커 의무(heartbeat·`ask`·`worker_done`)와 감독 루프를 모두 따른다. 하위 워커는 preamble의 SUB-DISPATCH대로 이 Dispatch의 Run에 띄운다 — `run-create`·`run-use`를 하지 않는다.
+   relay 문서는 orca 명령 문법을 적지 않는다 — 동사 이름과 relay가 정한 값만 적는다. **충돌하면 Orca 가이드가 옳고, 이 스킬을 고친다.** Orca 기본과 일부러 다르게 하는 것은 SKILL.md 「Orca 기본과 다른 점」에만 있다.
+   relay가 더하는 것은 명령 사용법이 아니라 그 위의 정책이다 — 역할 분리, 심각도 라우팅, 태스크마다 새 진행자 워커. **relay 정책은 `relay_cli.py`가 판정한다**(ADR 0001). 판정 규칙을 이 문서에서 다시 계산하지 않는다.
+2. **머신을 점검한다** — `python "$RELAY/scripts/relay_cli.py" doctor`. 설계 세션이 이미 돌렸어도 다시 한다. 셸 명령이라 비용이 0이고, 워커가 읽은 플러그인 사본은 설계 세션과 다를 수 있다.
+   - `FAIL`(종료코드 1)이면 시작하지 않는다. 출력의 `→` 줄(고치는 방법)을 사람이 필요한 것으로 `ask` 한다 — (h). 답이 `사람이 해결했다`면 doctor부터 다시 한다.
+   - 특히 `FAIL plugin`은 **이 워커가 읽은 SKILL.md가 설치본보다 낡았다**는 뜻이다. references Read가 "파일 없음"으로 실패하는 것도 같은 신호다. 낡은 절차로 진행하면 이미 고친 문제를 다시 밟는다.
+   - `FAIL models`는 모델 설정 파일(`~/.relay/models.json`, `.ai/relay-models.json`)이 잘못됐다는 뜻이다. 설정 파일이 없으면 `OK`다 — 기본 동작.
+   - `WARN`은 보고 파일에 적고 진행한다 — (i). 미검증 버전(`WARN version:*`)의 smoke는 설계 세션이 사람과 정한다.
+3. **spec을 읽는다** — 0에서 얻은 경로의 `.ai/specs/T-NNN-<슬러그>.md`. 게이트 명령·`<base>` 브랜치·파일 범위가 여기 있다.
 
-   **relay 정책은 `relay_cli.py`가 판정한다** (ADR 0001). 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위가 플러그인 루트다:
+그다음 태스크 하나를 끝까지 옮긴다:
 
-   ```bash
-   RELAY="<Base directory>/../.."          # 예: .../plugins/cache/hdmun-scripts/relay/1.2.0
-   python "$RELAY/scripts/relay_cli.py" --help
-   ```
-
-   - **결정기**(`review-branch` 등)는 stdout에 JSON 한 줄을 낸다. 첫 키 `action`대로 행동하고, 판정 규칙을 이 문서에서 다시 계산하지 않는다.
-   - **검사기**(`diff-guard`, `validate-review`)는 종료코드 0 통과 / 1 실패.
-   - 종료코드 **2는 입력 오류**(경로·base 오타 등)다. 고쳐서 다시 부른다.
-
-   **그리고 머신을 점검한다** — `python "$RELAY/scripts/relay_cli.py" doctor`. 셸 명령이라 비용이 0이다.
-   - `FAIL`(종료코드 1)이면 시작하지 않는다. 출력의 `→` 줄(고치는 방법)을 사용자에게 전한다.
-   - 특히 `FAIL plugin`은 **이 세션이 읽은 SKILL.md가 설치본보다 낡았다**는 뜻이다. references Read가 "파일 없음"으로 실패하는 것도 같은 신호다. 낡은 절차로 진행하면 이미 고친 문제를 다시 밟는다. 사용자에게 `/reload-plugins`나 세션 재시작을 요청하고 멈춘 뒤, (c)0부터 다시 한다.
-   - `WARN version:*`(미검증 버전)이면 사용자에게 알리고 `relay_cli.py smoke --dir <trust 등록된 디렉터리>`를 권한다. smoke가 실패한 CLI로는 그 역할의 워커를 띄우지 않는다.
-   - `FAIL models`는 모델 설정 파일(`~/.relay/models.json`, `.ai/relay-models.json`)이 잘못됐다는 뜻이다. 고치기 전에는 워커를 띄우지 않는다. 설정 파일이 없으면 `OK`다 — 기본 동작.
-   - 그 밖의 `WARN`은 보고만 하고 진행한다.
-
-   **그리고 이 진행 세션이 설정대로 떠 있는지 본다** — `python "$RELAY/scripts/relay_cli.py" model coordinator`. `action: session`의 `model`·`effort`가 있는데 지금 세션(`/model`로 확인)과 다르면 **사용자에게 `command`를 알리고 계속할지 묻는다.** 플러그인은 세션의 모델을 바꿀 수 없다. `model`이 `null`이면 설정이 없는 것이니 묻지 않는다.
-1. `run-use --id <run_id>` 로 Run 에 다시 묶는다.
-2. `task-list --ready` 로 다음 태스크를 꺼낸다. **태스크 상태를 컨텍스트에 들고 있지 말고 매번 Orca에 물어본다** (외부 메모리로 사용).
-3. 워커 부트스트랩 — (d)
-4. `worker-start` 후 대기 — (e)
-5. 게이트 독립 재검증 — (f). **통과 즉시 구현 커밋한다. 리뷰 결과를 기다리지 않는다.**
-6. 빈 diff 확인 후 리뷰 워커 기동(`<base>`를 spec에 넣는다) — (d), 리뷰 JSON 검증, 심각도 분기 — (g). 분기 결과와 무관하게 커밋은 이미 존재한다
-7. PR 생성(경로 A) 또는 브랜치·커밋 목록 보고(경로 B) — (i)
-8. **워커 정리** — `worker-release` + `trustedWorkspaces` 해제. `reclaimable`이 0인지 확인한 뒤 세션 폐기 — (i), (j)
+4. 구현 워커 부트스트랩 — (d)
+5. `worker-start` 후 대기 — (e)
+6. 게이트 독립 재검증 — (f). **통과 즉시 구현 커밋한다. 리뷰 결과를 기다리지 않는다.**
+7. 빈 diff 확인 후 리뷰 워커 기동(`<base>`를 spec에 넣는다) — (d), 리뷰 JSON 검증, 심각도 분기 — (g). 분기 결과와 무관하게 커밋은 이미 존재한다
+8. PR 생성(경로 A) 또는 브랜치·커밋 목록 보고(경로 B) — (i)
+9. **하위 워커 정리 → 보고 파일 → `worker_done`** — (i). 진행자 워커 자신의 해제는 설계 세션이 한다.

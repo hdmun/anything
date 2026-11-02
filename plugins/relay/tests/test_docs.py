@@ -81,7 +81,7 @@ class OrcaGuideIsTheSource(unittest.TestCase):
         for text in (start, design):
             self.assertIn("Skill 도구", text)
             self.assertIn("`orchestration`", text)
-        self.assertIn("`orca-cli`", start)       # 진행 세션은 워크트리·터미널도 다룬다 (Q3)
+        self.assertIn("`orca-cli`", start)       # 진행자 워커는 워크트리·터미널도 다룬다 (Q3)
         self.assertNotIn("`orca-cli`", design)   # 설계 세션은 Run·Task·게이트만 다룬다
 
     def test_deviations_from_orca_defaults_sit_after_invariants(self):
@@ -89,6 +89,23 @@ class OrcaGuideIsTheSource(unittest.TestCase):
         i, j, k = (SKILL_MD.index(h) for h in ("## 불변식", "## Orca 기본과 다른 점", "## 단계 목록"))
         self.assertLess(i, j)
         self.assertLess(j, k)
+
+
+class SessionStructure(unittest.TestCase):
+    """설계 세션이 진행자 워커를 감독한다 (ADR 0004)."""
+
+    def test_session_is_classified_by_orca_preamble(self):
+        # 판정은 진입 절에 있어야 첫 Read 에서 갈린다 (Q11). 옛 기준(run-use 여부)이 되살아나면 두 기준이 생긴다
+        entry = SKILL_MD.split("## 진입 약속과 세션 판정")[1].split("\n## ")[0]
+        self.assertIn("preamble", entry)
+        self.assertIn("relay 진행자: Run <run_id> / T-NNN", entry)
+        self.assertNotIn("run-use로 기존 Run에 들어왔으면", SKILL_MD)
+
+    def test_escalation_goes_through_ask_not_decision_gates(self):
+        # decision gate 는 세션 종료를 전제로 한 설계라 폐기했다 (Q12). 진행자는 ask 로 설계 세션에 묻는다
+        self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
+        escalation = (SKILL_DIR / "references" / "escalation.md").read_text(encoding="utf-8")
+        self.assertIn("같은 메시지 ID로 resume", escalation)    # ask 30분 timeout 뒤 중복 질문을 만들지 않는다
 
 
 class SkillSkeleton(unittest.TestCase):
