@@ -4,8 +4,8 @@
 
 ## (c) 진행 세션 절차
 
-0. **`orca skills get orchestration`으로 Orca 가이드를 먼저 읽는다.**
-   이 스킬이 적는 orca 명령은 작성 시점의 스냅숏이다. Orca 가이드는 바이너리가 직접 서빙하고 릴리스마다 바뀐다. **충돌하면 Orca 가이드가 옳고, 이 스킬을 고친다.**
+0. **Skill 도구로 Orca 스킬 `orchestration` 과 `orca-cli` 를 불러 Orca 가이드를 먼저 읽는다.**
+   relay 문서는 orca 명령 문법을 적지 않는다 — 동사 이름과 relay 가 정한 값만 적는다. 문법·플래그는 Orca 가이드가 정본이고, 바이너리가 자기 버전에 맞춰 직접 서빙한다. **충돌하면 Orca 가이드가 옳고, 이 스킬을 고친다.** Orca 기본과 일부러 다르게 하는 것은 SKILL.md 「Orca 기본과 다른 점」에만 있다.
    relay가 더하는 것은 명령 사용법이 아니라 그 위의 정책이다 — 역할 분리, 심각도 라우팅, 세션 폐기 규범.
 
    **relay 정책은 `relay_cli.py`가 판정한다** (ADR 0001). 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위가 플러그인 루트다:
@@ -27,8 +27,8 @@
    - 그 밖의 `WARN`은 보고만 하고 진행한다.
 
    **그리고 이 진행 세션이 설정대로 떠 있는지 본다** — `python "$RELAY/scripts/relay_cli.py" model coordinator`. `action: session`의 `model`·`effort`가 있는데 지금 세션(`/model`로 확인)과 다르면 **사용자에게 `command`를 알리고 계속할지 묻는다.** 플러그인은 세션의 모델을 바꿀 수 없다. `model`이 `null`이면 설정이 없는 것이니 묻지 않는다.
-1. `orca orchestration run-use --id <run_id> --json`
-2. `orca orchestration task-list --ready --json` 로 다음 태스크를 꺼낸다. **태스크 상태를 컨텍스트에 들고 있지 말고 매번 Orca에 물어본다** (외부 메모리로 사용).
+1. `run-use --id <run_id>` 로 Run 에 다시 묶는다.
+2. `task-list --ready` 로 다음 태스크를 꺼낸다. **태스크 상태를 컨텍스트에 들고 있지 말고 매번 Orca에 물어본다** (외부 메모리로 사용).
 3. 워커 부트스트랩 — (d)
 4. `worker-start` 후 대기 — (e)
 5. 게이트 독립 재검증 — (f). **통과 즉시 구현 커밋한다. 리뷰 결과를 기다리지 않는다.**

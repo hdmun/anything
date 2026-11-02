@@ -36,16 +36,10 @@ Reviewed-by: codex/<리뷰 워커 codex 명령줄에 준 -m 값>
 
 **워커가 `worker_done`을 보내면 그 Dispatch는 `completed`가 되고, `send --to dispatch:<id>`는 `dispatch_inactive`로 거부된다.** 수정 지시는 새 Task와 새 Dispatch로 보낸다.
 
-```bash
-orca orchestration task-create \
-  --task-title "T-NNN 수정 라운드 N" \
-  --parent <원래 task_id> \
-  --spec "T-NNN 리뷰 지적 수정. 리뷰: .ai/reviews/T-NNN.rN.json / 원본 명세: .ai/specs/T-NNN-<슬러그>.md" --json
-
-orca orchestration worker-show --dispatch <이전 dispatch_id> --json
-orca terminal wait --terminal <agent_terminal_handle> --for tui-idle --timeout-ms 30000 --json   # 재사용 전 확인
-orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_handle> --json
-```
+1. `task-create` — `--task-title "T-NNN 수정 라운드 N"`, `--parent <원래 task_id>`, `--spec "T-NNN 리뷰 지적 수정. 리뷰: .ai/reviews/T-NNN.rN.json / 원본 명세: .ai/specs/T-NNN-<슬러그>.md"`
+2. `worker-show --dispatch <이전 dispatch_id>` 로 에이전트 터미널 handle 을 되찾는다
+3. `terminal wait --for tui-idle --timeout-ms 30000` — 재사용 전 확인
+4. `worker-start --task <새 task_id> --terminal <agent_terminal_handle>` — Orca 가이드 `coordinator-loop` reference 「Reuse after settlement」
 
 - **워커 터미널은 살아 있으므로 같은 handle을 재사용한다.** 세션 컨텍스트가 유지되어 배경을 다시 설명할 필요가 없다.
 - **재사용 전에 `tui-idle`부터 통과시킨다.** `worker-start`는 안에서 같은 준비 대기를 하고, 실패하면 새 Task가 바로 `failed`가 된다.
@@ -58,6 +52,6 @@ orca orchestration worker-start --task <새 task_id> --terminal <agent_terminal_
 - **`worker-start --terminal`로 재사용한다.** 정착 후 재사용의 정해진 경로이고, **cleanup 소유권이 새 Dispatch로 넘어가** 감독이 끊기지 않는다. `dispatch --inject`로 보내면 그 순간부터 비감독이 된다.
 - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다. 터미널이 이미 그 모델로 떠 있으므로 문제되지 않는다.
 - `--parent`로 원래 태스크에 묶으면 수정 라운드가 DAG에 기록된다.
-- **조치가 필요 없는 단순 안내**라면 Task를 만들지 말고 `orca terminal send --terminal <handle> --text "..." --enter` 로 직접 보낸다.
+- **조치가 필요 없는 단순 안내**라면 Task를 만들지 말고 `terminal send --text "..." --enter` 로 직접 보낸다.
 
 **구현 커밋은 (f)에서 이미 만들어져 있다.** 분기는 그 커밋을 만들지 여부가 아니라 다음 라운드를 열지를 정한다. 수정 라운드의 결과는 기존 커밋을 amend하지 않고 **새 커밋**으로 쌓는다.

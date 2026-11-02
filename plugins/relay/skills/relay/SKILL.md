@@ -61,15 +61,25 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 
 모든 경로에 적용된다. 아래 단계 파일을 읽은 뒤에도 이 규칙이 우선한다.
 
-- 구현자는 `--command '$null=1; agy'`를 그대로 쓴다.
-- 리뷰어는 `codex --yolo -m <model> -c model_reasoning_effort=<effort>`로 띄운다 (`--yolo` 유지).
-- 구현·리뷰 워커 모두 `terminal create` → `tui-idle`(Task 밖) → `worker-start --terminal` 순서로 띄운다.
+- orca 명령을 쓰기 전에 **Skill 도구로 Orca 스킬을 불러** Orca 가이드를 읽는다 — 설계 세션은 `orchestration`, 진행 세션은 `orchestration`·`orca-cli`. relay 문서는 명령 문법을 적지 않는다(ADR 0003).
 - 게이트는 종료코드로 판정한다. 통과하면 즉시 구현 커밋을 만든다.
 - `<base>`는 spec과 리뷰 Task에 명시한다.
 - 머지는 사람이 한다(자동 머지 금지). 확인창·프롬프트는 사람을 부른다(자동 응답 금지).
 - `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다.
-- Orca 가이드(`orca skills get orchestration`)와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다.
+- Orca 가이드와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다. 일부러 다르게 하는 것은 아래 「Orca 기본과 다른 점」에만 둔다.
 - references Read가 "파일 없음"으로 실패하면 플러그인이 갱신된 것이다. `/reload-plugins` 후 (c)0부터 다시 한다.
+
+## Orca 기본과 다른 점
+
+Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에만 적는다. 항목마다 근거가 있고, 근거가 사라지면 항목을 지운다.
+
+| relay 가 하는 것 | Orca 기본 | 근거 |
+|---|---|---|
+| 워커 터미널을 먼저 만들고 `tui-idle` 을 Task 밖에서 통과시킨 뒤 `worker-start --terminal` 로 감독을 건다 (구현·리뷰 모두) | `worker-start --agent` | 준비 감지 실패 한 번으로 Task 가 `failed` 가 됐다(Orca 1.4.216~1.4.224, T-005·T-006). 1.4.245 에서 `--agent` 경로가 agy 7/7·codex 4/4 통과 — plan 트랙 3 에서 이 행과 아래 두 행을 지운다 |
+| 구현자 터미널은 `--command '$null=1; agy'` (설정이 있으면 `model implementer` 의 `launch_command`) | — | 맨 앞 토큰이 `agy` 면 Orca 가 에이전트 경로로 띄워 `tui-idle` 이 통과하지 못한다(agy 1.3.3, 11/11 실패) |
+| 리뷰어 터미널은 `--command 'codex --yolo -m <model> -c model_reasoning_effort=<effort>'` | `--agent codex` 가 같은 인자를 붙인다 | 직접 띄우면서 `--yolo` 를 빼면 샌드박스 안에서 `worker_done` 이 멈춘다(2026-10-11) |
+| 워크트리는 `worker-start` 에 합치지 않고 먼저 만든다 | `worker-start --worktree new-…` | 워커를 띄우기 전에 기준선 게이트를 돌려야 한다 — (d) |
+| `check --wait` 는 `--timeout-ms 600000` | 가이드 예시 900000 | 빈 대기마다 화면·liveness 를 보는 체크포인트 간격이다 — (e) |
 
 ## 단계 목록
 
