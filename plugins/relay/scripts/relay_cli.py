@@ -229,6 +229,8 @@ def _decide_model(role, cfg, codex_config=None):
         return orca.reviewer_model(path.read_text(encoding="utf-8"), cfg)
     if role == "implementer":
         return orca.implementer_model(cfg, _agy_models_text())
+    if role == "coordinator":
+        return orca.coordinator_model(cfg)
     return orca.session_model(role, cfg)
 
 
