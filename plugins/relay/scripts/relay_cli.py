@@ -10,7 +10,7 @@
   python relay_cli.py review-branch --task T-NNN --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
   python relay_cli.py startup --response <file|-> [--prior-failures N]  (결정기)
-  python relay_cli.py liveness --worker <file> [--terminal <file>] --role implementer|reviewer [--now <ms>]   (결정기)
+  python relay_cli.py liveness [--worker <file>] [--show <file>] [--read <file>] --empty-waits N --role implementer|reviewer   (결정기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
   python relay_cli.py models-init [--repo <dir> | --user] [--<역할>-model M] [--<역할>-effort E] ...
@@ -152,27 +152,13 @@ def _read_json_arg(path):
     return json.loads(text)
 
 
-def _unwrap_terminal(doc):
-    # orca ... --json 출력({ok, result:{terminal:{...}}})과 맨 객체 둘 다 받는다
-    if isinstance(doc, dict) and "result" in doc:
-        doc = doc["result"]
-    if isinstance(doc, dict) and "terminal" in doc:
-        doc = doc["terminal"]
-    return doc
+def _result(doc):
+    # orca ... --json 출력({ok, result:{...}})과 맨 객체 둘 다 받는다
+    return doc["result"] if isinstance(doc, dict) and "result" in doc else doc
 
 
 def cmd_startup(a):
     return _emit(orca.startup(_read_json_arg(a.response), prior_failures=a.prior_failures))
-
-
-def _read_screen(path):
-    """terminal read --screen --json 출력(또는 화면 텍스트) 파일 → 화면 텍스트."""
-    raw = pathlib.Path(path).read_text(encoding="utf-8")
-    try:
-        t = _unwrap_terminal(json.loads(raw))
-        return "\n".join(t["tail"]) if isinstance(t, dict) and "tail" in t else raw
-    except ValueError:
-        return raw
 
 
 def cmd_liveness(a):
@@ -181,12 +167,12 @@ def cmd_liveness(a):
         r = worker["result"]
         ws = r.get("workers") if isinstance(r, dict) else r
         worker = ws[0] if isinstance(ws, list) and ws else r
-    term = _unwrap_terminal(_read_json_arg(a.terminal)) if a.terminal else {}
+    show = _result(_read_json_arg(a.show)) if a.show else {}
+    read = _result(_read_json_arg(a.read)) if a.read else None
     now = a.now if a.now is not None else int(time.time() * 1000)
-    screen = _read_screen(a.screen) if a.screen else None
     if not a.worker and (a.empty_waits is None or a.empty_waits >= orca.LAYER1_EMPTY_WAITS):
         raise InputError("빈 대기 %d회째부터는 --worker(worker-list --json 출력)가 필요하다" % orca.LAYER1_EMPTY_WAITS)
-    return _emit(orca.liveness(worker, term, a.role, now, screen=screen, empty_waits=a.empty_waits))
+    return _emit(orca.liveness(worker, show, a.role, now, read=read, empty_waits=a.empty_waits))
 
 
 def _models_cfg(a):
@@ -485,9 +471,9 @@ def build_parser():
 
     lv = sub.add_parser("liveness", help="빈 대기 뒤 무응답 판정")
     lv.add_argument("--worker", help="worker-list --json 출력(또는 그 항목) 파일, - 면 stdin. 빈 대기 3회째부터 필요")
-    lv.add_argument("--terminal", help="terminal show --json 출력 파일")
+    lv.add_argument("--show", help="worker-show --json 출력 파일 — observation.agentWait, terminal.lastOutputAt")
     lv.add_argument("--role", required=True, choices=tuple(orca.STALL_MS))
-    lv.add_argument("--screen", help="terminal read --screen --json 출력 파일 — 확인창에서 멈췄는지 본다")
+    lv.add_argument("--read", help="worker-read --json 출력 파일 — 터미널로 읽히면 확인창에서 멈췄는지 본다")
     lv.add_argument("--empty-waits", type=int, help="연속 빈 대기 횟수. 3 미만이면 화면만 보고 기다린다")
     lv.add_argument("--now", type=int, help="epoch ms (테스트용)")
     lv.set_defaults(func=cmd_liveness)

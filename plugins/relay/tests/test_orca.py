@@ -75,6 +75,8 @@ class Startup(unittest.TestCase):
 
 
 class Liveness(unittest.TestCase):
+    """빈 대기 뒤 판정. 입력은 orchestration 동사뿐이다 — worker-list(projection)·worker-show·worker-read (ADR 0003)."""
+
     NOW = 1_800_000_000_000
 
     def worker(self, **proj):
@@ -82,49 +84,76 @@ class Liveness(unittest.TestCase):
         w["projection"].update(proj)
         return w
 
+    def show(self, agent_wait=None, last=None):
+        # worker-show: observation.agentWait 는 양성 신호만, terminal.lastOutputAt 은 3층 벽시계
+        return {"observation": {"status": "live", "agentWait": agent_wait}, "terminal": {"lastOutputAt": self.NOW if last is None else last}}
+
+    @staticmethod
+    def read_terminal(text):
+        # worker-read 가 터미널로 떨어진 경우(agy: provider_unsupported) — 화면 꼬리가 있다
+        return {"source": "terminal", "terminal": {"tail": text.splitlines()}}
+
+    def test_real_worker_show_and_read_shapes(self):
+        # 실측(트랙 0, agy 하위 워커): worker-read 는 terminal.tail, worker-show 는 terminal.lastOutputAt
+        show, read = fx("worker-show-agy.json")["result"], fx("worker-read-terminal-agy.json")["result"]
+        self.assertEqual(read["source"], "terminal")
+        d = orca.liveness(self.worker(), show, "implementer", show["terminal"]["lastOutputAt"] + 1000, read=read, empty_waits=3)
+        self.assertEqual(d["action"], "wait")       # 'not signed in' 배너는 차단이 아니다
+
     def test_agent_wait_calls_human(self):
-        d = orca.liveness(self.worker(), {"agentWait": {"kind": "prompt"}, "lastOutputAt": self.NOW}, "implementer", self.NOW)
+        d = orca.liveness(self.worker(), self.show(agent_wait={"kind": "prompt", "evidence": "hook"}), "implementer", self.NOW)
         self.assertEqual((d["action"], d["reason"]), ("human", "prompt_wait"))
 
     def test_next_action_argv_gets_orca_prefix(self):
         w = self.worker(attention={"categories": ["x"], "requiresAction": True})
-        d = orca.liveness(w, {"agentWait": None, "lastOutputAt": self.NOW}, "reviewer", self.NOW)
+        d = orca.liveness(w, self.show(), "reviewer", self.NOW)
         self.assertEqual(d["action"], "run_argv")
         self.assertEqual(d["argv"], ["orca", "orchestration", "worker-release", "--dispatch", "ctx_3cd95f9cae2c"])
 
     def test_next_action_ignored_when_not_required(self):
-        d = orca.liveness(self.worker(), {"agentWait": None, "lastOutputAt": self.NOW}, "reviewer", self.NOW)
+        d = orca.liveness(self.worker(), self.show(), "reviewer", self.NOW)
         self.assertEqual(d["action"], "wait")
 
     def test_stalled_thresholds_by_role(self):
-        t = {"agentWait": None, "lastOutputAt": self.NOW - 6 * 60_000}
-        self.assertEqual(orca.liveness(self.worker(), t, "implementer", self.NOW)["reason"], "stalled")
-        self.assertEqual(orca.liveness(self.worker(), t, "reviewer", self.NOW)["action"], "wait")
-        t["lastOutputAt"] = self.NOW - 11 * 60_000
-        self.assertEqual(orca.liveness(self.worker(), t, "reviewer", self.NOW)["reason"], "stalled")
+        s = self.show(last=self.NOW - 6 * 60_000)
+        self.assertEqual(orca.liveness(self.worker(), s, "implementer", self.NOW)["reason"], "stalled")
+        self.assertEqual(orca.liveness(self.worker(), s, "reviewer", self.NOW)["action"], "wait")
+        s = self.show(last=self.NOW - 11 * 60_000)
+        self.assertEqual(orca.liveness(self.worker(), s, "reviewer", self.NOW)["reason"], "stalled")
 
     def test_agy_unverifiable_falls_through_to_output_age(self):
         # 실측(T-004): agy 는 unverifiable(missing_status) + nextAction none 만 준다
         w = self.worker(liveness={"verdict": "unverifiable", "reason": "missing_status"},
                         nextAction={"kind": "none"}, attention={"categories": [], "requiresAction": False})
-        self.assertEqual(orca.liveness(w, {"agentWait": None, "lastOutputAt": self.NOW - 1000}, "implementer", self.NOW)["action"], "wait")
+        self.assertEqual(orca.liveness(w, self.show(last=self.NOW - 1000), "implementer", self.NOW)["action"], "wait")
 
-    def test_approval_screen_calls_human_on_first_empty_wait(self):
+    def test_prompt_in_worker_read_tail_calls_human_on_first_empty_wait(self):
         # 실측(T-007): codex 가 승인창에서 멈췄는데 agentWait 은 null — 빈 대기 3회(30분)를 기다리지 않는다
-        t = {"agentWait": None, "lastOutputAt": self.NOW}
-        d = orca.liveness({}, t, "reviewer", self.NOW, screen=fx("codex-screen-approval.txt"), empty_waits=1)
+        d = orca.liveness({}, self.show(), "reviewer", self.NOW, read=self.read_terminal(fx("codex-screen-approval.txt")), empty_waits=1)
         self.assertEqual((d["action"], d["reason"]), ("human", "blocked_prompt"))
 
-    def test_layer1_waits_without_projection(self):
-        t = {"agentWait": None, "lastOutputAt": self.NOW - 60 * 60_000}
-        d = orca.liveness({}, t, "implementer", self.NOW, screen=fx("codex-screen-ready.txt"), empty_waits=2)
+    def test_transcript_read_has_no_screen_to_check(self):
+        # transcript 로 읽히는 워커(codex·claude)는 화면이 없다 — 확인창은 observation.agentWait 로만 잡는다
+        read = {"source": "transcript", "transcript": {"messages": [{"role": "assistant", "blocks": [{"type": "text", "text": "Allow once?"}]}]}}
+        d = orca.liveness({}, self.show(), "reviewer", self.NOW, read=read, empty_waits=1)
         self.assertEqual((d["action"], d["reason"]), ("wait", "layer1"))
-        d = orca.liveness(self.worker(), t, "implementer", self.NOW, screen=fx("codex-screen-ready.txt"), empty_waits=3)
+
+    def test_layer1_waits_without_projection(self):
+        s = self.show(last=self.NOW - 60 * 60_000)
+        read = self.read_terminal(fx("codex-screen-ready.txt"))
+        d = orca.liveness({}, s, "implementer", self.NOW, read=read, empty_waits=2)
+        self.assertEqual((d["action"], d["reason"]), ("wait", "layer1"))
+        d = orca.liveness(self.worker(), s, "implementer", self.NOW, read=read, empty_waits=3)
         self.assertEqual(d["reason"], "stalled")
+
+    def test_worker_without_terminal_waits(self):
+        # 채팅으로 뜬 워커는 worker-show 에 terminal 이 없을 수 있다 — 벽시계가 없으면 기다린다
+        d = orca.liveness(self.worker(), {"observation": {"status": "live"}, "terminal": None}, "implementer", self.NOW)
+        self.assertEqual((d["action"], d["reason"]), ("wait", "no_output_timestamp"))
 
     def test_exited_calls_human(self):
         w = self.worker(liveness={"verdict": "exited"}, nextAction={"kind": "none"})
-        self.assertEqual(orca.liveness(w, {"agentWait": None, "lastOutputAt": self.NOW}, "implementer", self.NOW)["reason"], "exited")
+        self.assertEqual(orca.liveness(w, self.show(), "implementer", self.NOW)["reason"], "exited")
 
 
 class ReviewerModel(unittest.TestCase):
