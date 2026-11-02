@@ -8,9 +8,9 @@
 - **커밋은 주체별로 나눈다.** 하네스 설정 / spec(설계자) / 구현(구현자) / 리뷰 리포트(리뷰어)를 각각 별도 커밋으로 남기고, 커밋 메시지에 어느 모델이 만들었는지 적는다. 나중에 `git log`만 보고 파이프라인의 어느 단계가 무엇을 만들었는지 가릴 수 있어야 한다.
 - 사람이 직접 리뷰하는 단계(경로 B의 로컬 머지 전, 또는 경로 A의 PR 리뷰)에서 수정이 필요하면 그건 **추가 커밋**으로 처리한다. 이미 만든 커밋을 되돌리거나 amend할 필요 없다.
 
-### 워커 정리 — 세션을 폐기하기 전에 반드시
+### 하위 워커 정리 — `worker_done` 전에 반드시
 
-진행 세션은 태스크마다 폐기되므로, 정착한 워커마다 재사용 / `worker-retain` / `worker-release` 중 하나를 정해 두고 끝낸다. **여기서 닫지 않으면 회수를 책임질 주체가 아예 사라진다.**
+진행자 워커는 `worker_done` 뒤 설계 세션이 해제하므로, 정착한 하위 워커마다 재사용 / `worker-retain` / `worker-release` 중 하나를 정해 두고 보고한다. **진행자가 정하지 않으면 그 워커의 맥락을 아는 주체가 사라진다.** Orca는 진행자가 정착한 뒤에도 남은 하위 워커를 설계 세션의 Run에 넘기지만, 설계 세션은 그 워커가 무엇을 하던 중인지 모른다.
 
 relay의 세 갈래 출구에 이를 대응시키면 이렇게 된다:
 
@@ -18,7 +18,7 @@ relay의 세 갈래 출구에 이를 대응시키면 이렇게 된다:
 |---|---|---|
 | 성공 종료 (i) | `worker-release` + 터미널 close + `trustedWorkspaces` 해제 | `worker-release` |
 | 수정 라운드 (g의 `BLOCKER`/`MAJOR`) | **재사용** — 닫지 않는다. 같은 handle로 새 dispatch를 건다 | `worker-release`. 다음 리뷰 라운드는 새 워커로 띄운다 — 이전 리뷰의 맥락에 끌려가지 않게 |
-| Opus 에스컬레이션 / 사람 호출 (h) | `worker-retain` — 증거를 남긴다 | `worker-retain` |
+| `태스크를 중단한다` 답 (h) | `worker-retain` — 증거를 남긴다 | `worker-retain` |
 
 성공 종료에서만 구현 워커를 해제한다:
 
@@ -53,13 +53,13 @@ gate: <실행한 게이트 명령> — 통과"
 
 ### 경로 B — 저장소 오너가 직접 머지: 로컬 머지
 
-오너 단독 저장소에서는 PR이 불필요한 왕복이다. 이때 진행 세션은 **브랜치와 커밋까지만** 만들고 멈춘다.
+오너 단독 저장소에서는 PR이 불필요한 왕복이다. 이때 진행자 워커는 **브랜치와 커밋까지만** 만들고 멈춘다.
 
 ```bash
-# 진행 세션은 여기까지만 한다: 브랜치명과 커밋 목록을 사용자에게 보고
+# 진행자 워커는 여기까지만 한다: 브랜치명과 커밋 목록을 보고 파일에 적는다
 git -C <worktree> log --oneline <base>..HEAD
 
-# 아래는 사람이 실행한다 — 진행 세션이 대신 하지 않는다
+# 아래는 사람이 실행한다 — 진행자 워커도 설계 세션도 대신 하지 않는다
 git -C <repo> merge --no-ff <branch> -m "Merge branch '<branch>'"
 ```
 
@@ -70,5 +70,33 @@ git -C <repo> merge --no-ff <branch> -m "Merge branch '<branch>'"
 
 ### 공통
 
-- 리모트가 없으면 브랜치만 남기고 사용자에게 브랜치명을 보고한다.
-- 어느 경로든 **진행 세션은 머지하지 않고 폐기한다.**
+- 리모트가 없으면 브랜치만 남기고 보고 파일에 브랜치명을 적는다.
+- 어느 경로든 **진행자 워커는 머지하지 않고 `worker_done`으로 끝낸다.**
+
+### 보고 — `worker_done`
+
+진행자 워커의 끝은 세션 종료가 아니라 **보고**다. 설계 세션은 이 보고만 보고 다음 태스크로 넘어간다 — (b) 감독 루프 4).
+
+1. **보고 파일을 쓴다** — `~/.relay/reports/<run_id>/T-NNN.md`. 워크트리 밖이라 커밋되지 않는다. 설계 세션이 이 파일에서 워크트리·`<base>`·브랜치를 읽어 확인한다.
+
+   ```
+   run: <run_id>
+   task: T-NNN (<task_id>)
+   outcome: succeeded | failed
+   worktree: <worktree 경로>
+   base: <base SHA>
+   branch: <브랜치>
+   pr: <PR URL | 없음 (경로 B)>
+   review: <worktree>/.ai/reviews/T-NNN.rN.json (<verdict>)
+   commits:
+   <git -C <worktree> log --oneline <base>..HEAD 출력>
+   retained: <worker-retain 한 하위 dispatch ID | 없음>
+   warnings: <doctor WARN, 미검증 버전 | 없음>
+   blocker: <중단 사유와 ask 메시지 ID | 없음>
+   ```
+
+2. **preamble의 `worker_done` 명령을 그대로 쓴다.** relay가 정하는 값:
+   - `--outcome succeeded` — 성공 종료(i)를 마쳤을 때. `태스크를 중단한다` 답이나 기동 실패로 멈췄으면 `--outcome failed`. 실패를 `--body` 산문에만 적지 않는다.
+   - `--body` — 세 문장: 무엇을 했는가(구현·리뷰 라운드 수), 무엇을 찾았는가(리뷰 verdict, 기각한 지적), 무엇이 남았는가(사람의 머지, PR 리뷰, 블로커).
+   - `--report-path` — 1의 보고 파일.
+3. 보낸 뒤에는 멈춘다. 진행자 워커 자신의 해제는 설계 세션이 한다.
