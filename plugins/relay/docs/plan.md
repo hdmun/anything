@@ -148,7 +148,7 @@
 | 4 codex 업데이트 프롬프트 | **재현 불가.** `check_for_update_on_startup = true` 로 바꾸고(최신 0.166.0 > 0.159.3) 띄워도 프롬프트 없이 정상 기동·`worker_done`. 설정은 바로 되돌렸다 |
 | 5(a) relay 스킬 | Claude 워커(sonnet·medium)에 `relay:relay`·`relay:init` 이 보인다. **description 으로 실제 발동하는지는 eval 로 잰다(트랙 1-7)** |
 | 5(b) Orca 스킬 | Skill 도구로 `orchestration` 을 불러 껍데기 → `orca skills get` 순서로 읽었다 |
-| 5(c) 중첩 기동 | **실패.** `nested_worker_depth_exceeded`: "Sub-worker dispatch is not permitted at depth 2 (max 1)". Orca 설정 `nestedWorkerMaxDepth` 기본값 1 (Settings → Orchestration → "Nested worker depth") |
+| 5(c) 중첩 기동 | **실패.** `nested_worker_depth_exceeded`: "Sub-worker dispatch is not permitted at depth 2 (max 1)". Orca 설정 `nestedWorkerMaxDepth` 기본값 1 (Settings → Orchestration → "Nested worker depth"). **Q16 A: 2로 올리고 진행자 계층을 유지한다** |
 | 5(d) ask/reply | 통과. 질문이 기동 26초 뒤 설계 세션 `check --wait` 에 `question` 으로 도착 → `reply` → ack → 워커 재개 → `worker_done` |
 | 5(e) 채팅 워커 | 미측정 — 사용자 설정을 바꿔야 한다. 영수증의 `mode.mode`(`terminal`/`chat`)로 런타임에 구분할 수 있다 |
 | 6 워커의 Orca 스킬 | codex 세션 기록의 스킬 목록에 `orchestration`·`orca-cli` 가 있다. agy 는 로그에 스킬 목록이 남지 않는다(사용자 확인: `~/.agents/skills` 를 읽는다) |
@@ -176,6 +176,7 @@
 2. [ ] references 10개 파일에서 orca 명령 스냅숏(약 30개)을 걷어낸다. 남기는 것: 할 일, relay 정책과 그 이유, `relay_cli.py` 호출. 명령은 "Orca 가이드의 `<동사>`" 식으로 동사 이름만 가리킨다.
 3. [ ] SKILL.md 에 「Orca 기본과 다른 점」 절 신설 (불변식 바로 아래 — 컴팩션 뒤에도 남게). 항목마다 무엇이 다른지·이유·근거 측정 날짜. 처음 채울 것: 워크트리를 `worker-start` 에 합치지 않음(기준선·trust), `check --wait` timeout, 트랙 0 에서 실패한 에이전트의 선기동.
 4. [ ] `doctor`: `skill:orchestration`·`skill:orca-cli` 검사 (`~/.agents/skills/<이름>/SKILL.md` 존재, 없으면 `FAIL` + Orca 재설치 안내) (TDD, 20분).
+   그리고 `orca:nested-depth` 검사 — Orca 설정 `nestedWorkerMaxDepth` 가 2 미만이면 `FAIL` + "Settings → Orchestration → Nested worker depth 를 2로" 안내 (Q16 A, ADR 0004). 값은 Orca 내부 파일(`%APPDATA%/orca/profiles/<profile>/orca-data.json`)에서 읽으므로, 파일·키를 못 찾으면 `WARN` 으로 둔다(Orca 버전마다 바뀔 수 있다).
 5. [ ] `test_docs.py`: references 에 `orca <동사>` 스냅숏이 없음을 검사하는 테스트 추가(예외: 「Orca 기본과 다른 점」 절). 기존 `--command` 문자열 검사는 트랙 3 에서 정리.
 
 ### 트랙 3 — 기동 전환 (ADR 0003 코드 부분, 트랙 0 결과에 따라 에이전트별, 약 3시간)
