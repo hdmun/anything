@@ -5,7 +5,7 @@
    - **`tui-idle`이 timeout이면 `worker-start`를 걸지 않는다.** Task 밖의 실패라 기동 실패 예산을 쓰지 않는다. 화면과 로그를 파일로 받아 `readiness`에 묻는다 — 셸 명령이라 비용이 0이다.
 
      ```bash
-     orca terminal read --terminal <h> --screen --json > screen.json
+     # terminal read --screen 의 JSON → screen.json
      python "$RELAY/scripts/relay_cli.py" readiness --agent antigravity --screen screen.json \
        --agy-log "$(ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1)" --retries <이미 다시 건 횟수> [--recreated]        --command '<terminal create 에 실제로 준 --command 값>'
      ```
@@ -28,7 +28,7 @@
   - **`tui-idle`이 timeout이면 `worker-start`를 걸지 않는다.** 화면을 받아 `readiness`에 묻는다. 확인창이면 `human / blocked_prompt`가 나온다 — **키 입력으로 응답하지 말고 사람을 부른다.** 특히 `Hooks need review`는 hook 신뢰가 코드 실행 권한이라 사용자만 결정한다.
 
     ```bash
-    orca terminal read --terminal <h> --screen --json > screen.json
+    # terminal read --screen 의 JSON → screen.json
     python "$RELAY/scripts/relay_cli.py" readiness --agent codex --screen screen.json --retries <이미 다시 건 횟수> [--recreated]
     ```
 

@@ -65,6 +65,32 @@ class SkillCallsExistingCommands(unittest.TestCase):
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
 
 
+ORCA_COMMAND = re.compile(r"(?<![\w-])orca (orchestration|terminal|worktree|skills|agent|repo|status|open)(?![\w-])")
+
+
+class OrcaGuideIsTheSource(unittest.TestCase):
+    """명령 문법은 Orca 가이드가 정본이다 — relay 문서는 Orca 스킬로 불러 따르고 스냅숏을 두지 않는다 (ADR 0003)."""
+
+    def test_no_orca_command_snapshots(self):
+        hits = [line.strip() for line in SKILL.splitlines() if ORCA_COMMAND.search(line)]
+        self.assertEqual(hits, [])
+
+    def test_sessions_load_guides_through_orca_skills(self):
+        start = (SKILL_DIR / "references" / "start.md").read_text(encoding="utf-8")
+        design = (SKILL_DIR / "references" / "design.md").read_text(encoding="utf-8")
+        for text in (start, design):
+            self.assertIn("Skill 도구", text)
+            self.assertIn("`orchestration`", text)
+        self.assertIn("`orca-cli`", start)       # 진행 세션은 워크트리·터미널도 다룬다 (Q3)
+        self.assertNotIn("`orca-cli`", design)   # 설계 세션은 Run·Task·게이트만 다룬다
+
+    def test_deviations_from_orca_defaults_sit_after_invariants(self):
+        # 컴팩션 뒤에도 남게 SKILL.md 앞부분, 불변식 바로 다음에 둔다
+        i, j, k = (SKILL_MD.index(h) for h in ("## 불변식", "## Orca 기본과 다른 점", "## 단계 목록"))
+        self.assertLess(i, j)
+        self.assertLess(j, k)
+
+
 class SkillSkeleton(unittest.TestCase):
     def test_skill_md_stays_within_500_lines(self):
         # 다시 비대해지는 것을 막는 상한 (분리 성공 기준). 컴팩션 생존은 리뷰에서 사람이 본다

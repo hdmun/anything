@@ -4,7 +4,7 @@
 
 ## (e) 대기와 무응답 판정
 
-- `orca orchestration check --wait --types worker_done,escalation,question --timeout-ms 600000 --json`
+- Orca 가이드 「Canonical supervised loop」의 `check --wait` 로 기다린다. relay 값: `--types worker_done,escalation,question`, `--timeout-ms 600000`(SKILL.md 「Orca 기본과 다른 점」).
 - **stdout만 파이프할 것.** `--wait` 중 stderr로 keepalive(`{"_keepalive":true}`)가 나오므로 `2>&1`로 합치면 파서가 깨진다.
 - `question`이 오면 `reply`로 답하고, `check --ack <delivery_id> --wait`로 ack와 재대기를 한 번에 한다. 응답에서 `msg_id`와 `deliveryId`를 모두 뽑아 둔다. 명령 순서는 Orca 가이드 kernel을 따른다.
 
@@ -20,8 +20,7 @@
 그러나 확인창에서 멈춘 워커는 기다려도 끝나지 않는다. 그래서 **1회째부터** 화면을 `liveness`에 넘긴다 — 확인창이면 그 자리에서 `human / blocked_prompt`가 나온다.
 
 ```bash
-orca terminal read --terminal <worker handle> --screen --json > screen.json
-orca terminal show --terminal <worker handle> --json > term.json
+# 워커 handle 의 terminal read --screen JSON → screen.json, terminal show JSON → term.json
 python "$RELAY/scripts/relay_cli.py" liveness --screen screen.json --terminal term.json --empty-waits <연속 빈 대기 횟수> --role implementer|reviewer
 ```
 
@@ -30,7 +29,7 @@ python "$RELAY/scripts/relay_cli.py" liveness --screen screen.json --terminal te
 **2·3층 — 3회 연속 빈 대기면 fleet projection도 함께 넘긴다.**
 
 ```bash
-orca orchestration worker-list --run <run_id> --include-remote --json > workers.json   # 그 워커 항목만 남겨도 된다
+# worker-list --run <run_id> --include-remote 의 JSON → workers.json (그 워커 항목만 남겨도 된다)
 python "$RELAY/scripts/relay_cli.py" liveness --worker workers.json --screen screen.json --terminal term.json --empty-waits 3 --role implementer|reviewer
 ```
 

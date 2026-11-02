@@ -22,13 +22,7 @@ relay의 세 갈래 출구에 이를 대응시키면 이렇게 된다:
 
 성공 종료에서만 구현 워커를 해제한다:
 
-```bash
-
-# 구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않는다(state `retained` / reason `external_terminal`로 남는다) — 닫는다
-orca terminal show --terminal <impl_handle> --json
-orca terminal close --terminal <impl_handle> --json
-
-```
+구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않는다(state `retained` / reason `external_terminal` 로 남는다). `terminal show` 로 확인한 뒤 `terminal close` 로 닫는다.
 
 - **`release`가 불확실하면 release의 recovery receipt를 따른다.** 위의 `terminal close`는 release의 대체가 아니라, release가 **성공한 뒤** 우리가 직접 만든 터미널을 만든 쪽이 정리하는 것이다.
   (**미검증**: Orca 가이드상 미리 존재하던 터미널은 release 후 `retained`로 남는다고 읽히지만 실측 전이다. 확인되면 이 주석을 고친다.)

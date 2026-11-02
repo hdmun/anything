@@ -28,7 +28,7 @@
 
 **"Opus 에스컬레이션"의 실제 행위** — 진행 세션은 스스로 판단하지 않고 다음을 한다:
 
-1. **decision gate를 만든다.** 판단을 산문이 아니라 Orca 상태로 남기는 단계다. 먼저 `orca skills get orchestration --reference references/messaging-and-gates.md`를 읽는다.
+1. **decision gate를 만든다.** 판단을 산문이 아니라 Orca 상태로 남기는 단계다. 먼저 Orca 가이드의 `messaging-and-gates` reference 를 읽는다(불러오는 법은 `orchestration` 스킬이 안내한다).
 
    - 질문: `T-NNN: 리뷰어가 SPEC_VIOLATION 주장. <한 줄 요약>. 리뷰: .ai/reviews/T-NNN.rN.json`
    - 선택지 3개: `spec을 고친다` / `구현을 고친다` / `리뷰 지적을 기각한다`
@@ -39,7 +39,7 @@
    - `--options`의 JSON 배열은 **셸 인용 규칙을 따른다.** PowerShell이나 `cmd.exe`에 POSIX 홑따옴표를 그대로 옮기지 않는다.
    - 게이트 명령은 Orca 터미널 안에서만 동작한다(밖에서는 `no_active_sender_terminal`). 필요하면 `--from <handle>`을 준다.
    - **아직 미검증**: `worker_done`으로 이미 정착한 Task에 게이트가 걸리는지 확인되지 않았다. 거부되면 게이트를 **리뷰 워커 dispatch 전에 미리** 만들어 두고 결과에 따라 `gate-resolve`하는 형태로 바꾼다.
-2. **`worker-retain`으로 워커를 보존한다**(먼저 `orca skills get orchestration --reference references/recovery-and-cleanup.md`를 읽는다). 정착한 dispatch **전부**(구현·리뷰)에 대해 각각 실행한다 — 하나라도 빠지면 `reclaimable`로 남는다.
+2. **`worker-retain`으로 워커를 보존한다**(먼저 Orca 가이드의 `recovery-and-cleanup` reference 를 읽는다). 정착한 dispatch **전부**(구현·리뷰)에 대해 각각 실행한다 — 하나라도 빠지면 `reclaimable`로 남는다.
    Opus가 터미널의 마지막 출력을 봐야 판단이 서는 경우가 있고, 닫으면 그 증거가 사라진다 — (i)의 「워커 정리」 표 참조.
 3. 사용자에게 **Run ID, Task ID, 에스컬레이션 사유, 관련 리뷰 파일 경로, 브랜치명과 커밋 목록**을 보고한다.
    구현 커밋은 (f)에서 이미 만들어져 있으므로 워크트리를 뒤질 필요 없이 `git log --oneline <base>..HEAD`로 바로 확인할 수 있다
@@ -47,5 +47,5 @@
 
 **"사람 호출"의 실제 행위** — 위와 같되, 워커 터미널을 닫지 않고 남긴다:
 
-- `orca orchestration worker-retain --dispatch <dispatch_id> --json`
+- 정착한 dispatch 마다 `worker-retain --dispatch <dispatch_id>`
 - 이유: 무응답이나 예상 밖 프롬프트는 사람이 터미널 화면을 직접 봐야 원인을 알 수 있다. 닫으면 증거가 사라진다.
