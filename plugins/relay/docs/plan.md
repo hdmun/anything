@@ -64,6 +64,126 @@
 - 스크립트는 orca 명령을 조립하지 않는다 (ADR 0001).
 - tests: pre-commit / evals: 버전 올리기 전 수동 / smoke: CLI 업데이트 후 수동.
 
+## 전환 — Orca 스킬 위에서 동작하게 (2026-11-02 확정, v2.0.0, `hdmun/relay-orca-skills`)
+
+출처: grilling 세션(Q1~Q15). 근거는 [ADR 0003](adr/0003-delegate-launch-to-orca.md)·[ADR 0004](adr/0004-design-session-supervises-coordinator.md),
+용어는 CONTEXT.md 「Orca 가이드」「Orca 스킬」「설계 세션」「진행자 워커」. 측정 시점 버전: Orca 1.4.245, agy 1.4.12, codex 0.159.3.
+
+### 목표 구조
+
+```
+[설계 세션 = relay 를 호출한 세션]   spec → run-create / task-create → ready 태스크마다 진행자 워커 기동·감독 (순차)
+        │  worker-start --agent claude  (model coordinator 결정기가 --model·--effort 를 준다)
+        ▼
+[진행자 워커]   worktree create → 기준선 게이트 → trust → warmup → 하위 워커 기동 → 게이트 재검증 → 리뷰 분기 → PR → worker_done
+        │  worker-start --agent antigravity / codex
+        ▼
+[구현자 agy]  [리뷰어 codex]
+
+셋 다 ~/.agents/skills 의 Orca 스킬(orchestration·orca-cli)로 Orca 가이드를 읽는다.
+진행자가 혼자 판단할 수 없는 것은 모두 ask → 설계 세션 → (직접 답 | 사람에게 넘긴 뒤 답).
+```
+
+### 확정된 결정
+
+| 질문 | 결정 |
+|---|---|
+| Q1 | 명령 문법과 워커 기동 방식을 Orca 가이드에 맡긴다 (ADR 0003) |
+| Q2 | 가이드는 Skill 도구로 Orca 스킬을 불러 읽는다. `doctor` 가 설치를 검사한다 |
+| Q3 | 설계 세션은 `orchestration` 만, 진행자 워커는 시작할 때 `orchestration`·`orca-cli` 둘 다 |
+| Q4·Q15 | 용어 「Orca 가이드」 확장, 「Orca 스킬」「설계 세션」「진행자 워커」 신설, "진행 세션"은 Avoid (CONTEXT.md 반영 완료) |
+| Q5·Q9 | 워커도 범위에 넣는다. agy·codex 모두 `~/.agents/skills` 를 읽으므로 링크 작업은 없다. 역할 템플릿을 Orca 스킬 기준으로 고친다 |
+| Q6·Q13 | 설계 세션 = relay 를 호출한 세션. Run 끝까지 순차 감독, 태스크마다 진행자 워커를 새로 띄우고 해제 (ADR 0004) |
+| Q7 | 기동 전환 전에 smoke 측정. 에이전트별 3/3 통과해야 전환. 실패한 에이전트는 기존 선기동을 「Orca 기본과 다른 점」에 증거와 함께 남긴다 |
+| Q8 | 워커 관찰은 orchestration 동사(`worker-list` projection, `worker-read`)만. 확인창 감지가 smoke 에서 실패하면 "새 에이전트 탭 = 터미널" 강제로 후퇴 |
+| Q10 | ADR 0003·0004 작성 (반영 완료) |
+| Q11 | 세션 판정: Orca preamble 이 있으면 진행자 워커, 없으면 설계 세션 |
+| Q12 | 에스컬레이션은 진행자의 `ask` 로 설계 세션에. decision gate(`gate-create`·`gate-resolve`) 폐기 |
+| Q14 | relay_cli 정리 목록 — 아래 트랙 3 |
+
+### 실행 순서
+
+```
+트랙 0 측정 ──┬──> 트랙 1 세션 구조 ──> 트랙 3 기동 전환 ──> 트랙 5 마무리
+트랙 2 스냅숏 제거 ┘                      트랙 4 워커 템플릿 ──┘
+```
+
+트랙 0 과 트랙 2 는 서로 기다리지 않는다. 트랙 1·3 의 범위는 트랙 0 결과가 정한다.
+
+### 트랙 0 — 측정 (약 2시간, 버리는 Run 에서)
+
+1. [ ] `smoke` 에 `worker-start` 경로 추가 (45분, TDD) — 지금 smoke 는 `terminal create` + 날 `terminal send` 라 Orca 기동 경로를 재지 않는다.
+       `worker-start --spec <PING> --worktree <relay-smoke> --agent <a> [--model --effort]` → `startup` 해석 → `worker_done` 수신 또는 `worker-read` → `worker-release`.
+2. [ ] agy 3회 (설정 모델 있음·없음 섞어서): 준비 대기 통과, 전달(`turn_started` 관측 여부 / 로그 `HandleUserInput`), `launch.effective.model`, `worker_done` 도착.
+3. [ ] codex 3회 (`--model <reviewer model> --effort high`): Orca 가 `--yolo` 를 붙여 `worker_done` 이 막히지 않는가, `launch.effective`.
+4. [ ] 확인창 감지: codex 업데이트 프롬프트(`check_for_update_on_startup = true` 임시)·agy trust 프롬프트(trust 미등록 워크트리)를 일부러 띄워 `worker-start` 영수증(`failedStage`)과 `worker-list` 의 `projection.attention` 에 무엇이 나오는가. **자동 응답하지 않는다.**
+5. [ ] 진행자 워커 경로: `worker-start --agent claude --model sonnet --effort medium` 로 띄운 워커가
+       (a) spec 첫 줄 `relay 진행자: …` 로 relay 스킬을 부르는가, (b) Skill 도구로 Orca 스킬을 부르는가,
+       (c) 그 안에서 `worker-start --spec … --agent antigravity` 가 깊이 제한(`nested_worker_depth_exceeded`) 없이 되는가,
+       (d) `ask` → 설계 세션 `check --wait` 수신 → `reply` → 진행자 재개가 되는가,
+       (e) "새 에이전트 탭" 설정이 채팅일 때 `worker-read --source auto` 로 읽히는가.
+6. [ ] 워커(agy·codex)가 `~/.agents/skills` 의 `orchestration` 스킬을 실제로 부르는가 (워커 transcript 로 확인).
+7. [ ] 결과를 이 파일 「측정」 절과 `verified-cli.json` 에 기록.
+
+판정:
+
+| 결과 | 다음 |
+|---|---|
+| 2 또는 3 이 3/3 | 그 에이전트는 트랙 3 에서 `worker-start --agent` 로 전환 |
+| 2 또는 3 이 3/3 미만 | 그 에이전트는 선기동 유지, SKILL.md 「Orca 기본과 다른 점」에 실패 증거 |
+| 4 에서 projection 이 확인창을 못 잡음 | Q8 후퇴안: `doctor` 가 "새 에이전트 탭 = 터미널"을 검사, 화면 검사 유지 |
+| 5(c) 또는 5(d) 실패 | **멈추고 사용자에게 묻는다** — ADR 0004 재검토 |
+
+### 트랙 1 — 세션 구조 (ADR 0004, 약 3시간)
+
+1. [ ] SKILL.md 「진입 약속과 세션 판정」: 판정을 Orca preamble 유무로 (Q11). 세션 표를 「설계 세션 / 진행자 워커」로. 「왜 세션을 둘로 나누는가」를 "진행자 워커를 태스크마다 새로" 근거로 고쳐 쓴다.
+2. [ ] `references/design.md`: spec → run/task 생성 뒤 **감독 루프** 추가 — ready 태스크마다 진행자 워커 기동 → `check --wait` → `question` 에 답(직접 판단 또는 사람에게 넘김) → `worker_done` 확인(`commit-guard`·리뷰 리포트 존재·`git log <base>..HEAD`, 게이트 재실행 없음) → `worker-release` → 다음 태스크. 컨텍스트가 커지면 새 세션에서 `run-use`.
+3. [ ] `references/escalation.md`: decision gate 절 삭제 → 진행자 `ask` 형식(질문 한 줄 + 리뷰 파일 경로 + 선택지)과 설계 세션의 답 규칙(근거까지 적는다). 사람 호출도 `ask` 로 올리고 설계 세션이 사람에게 전달. `ask` 30분 timeout 은 같은 메시지 ID 로 resume.
+4. [ ] `references/start.md`: 진행자 워커 시작 절차로 — preamble 확인 → Orca 스킬 2개 → `doctor`(설계 세션이 이미 돌렸어도 다시 한다 — 비용 0) → `task-list` 대신 preamble 의 Task.
+5. [ ] `references/finish.md`: 끝은 "세션 폐기"가 아니라 `worker_done --outcome succeeded|failed` + `--report-path`(브랜치·커밋 목록·PR URL). 하위 워커 정리 표는 유지.
+6. [ ] `model coordinator` 결정기: 사용자에게 `claude --model …` 을 안내하던 `action: session` → `worker-start` 인자(`--model`·`--effort`)를 돌려준다. `model designer` 는 지금처럼 안내만 (TDD, `relaylib/orca.py session_model`).
+7. [ ] evals: `spec-violation-escalate` 를 `ask`/`reply` 경로로 재작성, 새 eval `session-classify`(preamble 없으면 설계 세션으로 행동, 진행자 절차를 밟지 않음).
+
+### 트랙 2 — Orca 스킬 진입과 스냅숏 제거 (ADR 0003 문서 부분, 약 2시간)
+
+1. [ ] `references/start.md` (c)0: 셸 `orca skills get orchestration` → Skill 도구로 Orca 스킬 호출. 설계 세션은 `orchestration` 만 (Q3).
+2. [ ] references 10개 파일에서 orca 명령 스냅숏(약 30개)을 걷어낸다. 남기는 것: 할 일, relay 정책과 그 이유, `relay_cli.py` 호출. 명령은 "Orca 가이드의 `<동사>`" 식으로 동사 이름만 가리킨다.
+3. [ ] SKILL.md 에 「Orca 기본과 다른 점」 절 신설 (불변식 바로 아래 — 컴팩션 뒤에도 남게). 항목마다 무엇이 다른지·이유·근거 측정 날짜. 처음 채울 것: 워크트리를 `worker-start` 에 합치지 않음(기준선·trust), `check --wait` timeout, 트랙 0 에서 실패한 에이전트의 선기동.
+4. [ ] `doctor`: `skill:orchestration`·`skill:orca-cli` 검사 (`~/.agents/skills/<이름>/SKILL.md` 존재, 없으면 `FAIL` + Orca 재설치 안내) (TDD, 20분).
+5. [ ] `test_docs.py`: references 에 `orca <동사>` 스냅숏이 없음을 검사하는 테스트 추가(예외: 「Orca 기본과 다른 점」 절). 기존 `--command` 문자열 검사는 트랙 3 에서 정리.
+
+### 트랙 3 — 기동 전환 (ADR 0003 코드 부분, 트랙 0 결과에 따라 에이전트별, 약 3시간)
+
+| 구분 | 대상 |
+|---|---|
+| 삭제 | `readiness` 서브커맨드와 사다리(`TUI_IDLE_RETRIES`·`is_bare_agy`·`AGY_HEADER` 등), `AGY_LAUNCH_COMMAND`·`agy_launch_command`·`codex_launch_command`, `startup` 의 `wait_tui_idle` 분기, 재사용 터미널의 `header_scrolled_out` 처리, `references/readiness.md`, `test_orca.py` 의 readiness 테스트와 `tests/fixtures/orca/*-screen-*.txt` |
+| 유지 | `trust`, `warmup`, `review-branch`·`diff-guard`·`commit-guard`·`validate-review` |
+| 변경 | `model implementer`·`model reviewer`: 명령줄 대신 `worker-start` 인자 반환 / `liveness`: 입력을 `--screen`·`--terminal` 에서 `worker-list`·`worker-read` 로 / `Implemented-by:`·`Reviewed-by:` 트레일러: `launch.effective.model` 에서 / `smoke`: 트랙 0 의 `worker-start` 경로를 기본으로 |
+| 트랙 0 결과에 따라 | agy 전달 확인(로그 `HandleUserInput`): Orca 가 antigravity `turn_started` 를 관측하면 삭제, 못 하면 유지 |
+
+1. [ ] 위 표대로 `relaylib/orca.py`·`smoke.py`·`relay_cli.py` 수정 (TDD).
+2. [ ] `references/implementer.md`·`reviewer.md`·`review.md`(수정 라운드 재사용)·`wait.md`: 기동은 `worker-start --agent`, 수정 라운드는 Orca 가이드의 「Reuse after settlement」를 따른다.
+3. [ ] SKILL.md 불변식에서 `$null=1; agy`·`codex --yolo`·「터미널 → tui-idle → worker-start」 3줄 정리. `test_docs.py` 의 `test_agy_launch_command_matches_code`·`test_codex_terminal_launch_bypasses_sandbox`·`test_reused_terminal_is_checked_before_worker_start`·`test_invariants_live_in_skill_md_itself` 갱신.
+4. [ ] evals: `startup-no-dispatch`·`update-prompt-blocked` 을 `--agent` 경로 영수증으로 재작성, `delivery-failed` 는 위 「트랙 0 결과에 따라」 행대로 재작성 또는 삭제.
+
+### 트랙 4 — 워커 템플릿 (Q5·Q9, 약 40분)
+
+1. [ ] `templates/implementer.md.tmpl`·`reviewer.md.tmpl`: "preamble 의 `orca orchestration ask` 를 그대로 쓴다" → "`orchestration` 스킬을 불러 워커 의무(heartbeat·ask·worker_done)를 따른다. preamble 이 정본이다".
+2. [ ] `test_roles.py` 갱신, `/relay:init --check` 로 드리프트가 잡히는지 확인.
+
+### 트랙 5 — 마무리와 배포 (약 1.5시간)
+
+1. [ ] CONTEXT.md 「예열」 정의의 "워커 터미널을 만들기 전에" → "워커를 띄우기 전에" (트랙 3 이 선기동을 없앤 경우만).
+2. [ ] README: 진입 약속(relay 를 호출한 세션이 설계 세션), 진행 세션 절 → 진행자 워커, 준비물에 Orca 스킬, 「알려진 한계」.
+3. [ ] `docs/field-notes.md`: 버려진 우회(선기동·readiness 사다리)의 사례를 "역사" 로 표시.
+4. [ ] `plugin.json` 2.0.0, evals 전체(`--model sonnet`, threshold 1.0) 통과 확인.
+5. [ ] 배포: `claude plugin update relay` 를 설정 디렉터리마다 → 사용 중 저장소마다 `/relay:init` 로 역할 파일 갱신.
+
+### 이번 범위가 아닌 것
+
+- 병렬 실행 승격 (k) — 기준(연속 5개 무에스컬레이션)은 그대로.
+- 정착한 Task 에 decision gate 가 걸리는지 확인 — gate 를 폐기하므로 「미검증」에서 지운다(트랙 1 에서).
+
 ## 후속 — T-007 진행 세션 보고 3건 (2026-10-11, v1.3.2)
 
 T-007 은 v1.2.3 으로 성공 종료(구현 2·리뷰 2, r2 pass). 그 세션이 실측한 3건:
