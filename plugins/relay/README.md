@@ -212,7 +212,7 @@ done
 ```json
 {
   "designer":    { "model": "opus",   "effort": "high" },
-  "coordinator": { "model": "sonnet", "effort": "medium" },
+  "coordinator": { "model": "opus",   "effort": "low" },
   "implementer": { "model": "gemini-3.8-flash", "effort": "low" },
   "reviewer":    { "model": "gpt-6-luna", "effort": "high" }
 }
@@ -220,7 +220,8 @@ done
 
 | 역할 | 적용 방식 | 생략하면 |
 |---|---|---|
-| designer · coordinator | 강제하지 못한다. `relay_cli.py model <역할>` 이 `claude --model … --effort …` 를 알려 주고, 진행 세션이 현재 세션과 다르면 사용자에게 안내한다 | 사용자가 고른 세션 그대로 |
+| designer | 강제하지 못한다(사람이 연 세션). `relay_cli.py model designer` 가 `claude --model … --effort …` 를 알려 준다 | 사용자가 고른 세션 그대로 |
+| coordinator | 설계 세션이 진행자 워커를 `worker-start --agent claude --model … --effort …` 로 띄운다 | `opus` / `low` |
 | implementer (agy) | `agy --model … --effort …` 로 기동 | agy 기본 모델 |
 | reviewer (codex) | `codex --yolo -m … -c model_reasoning_effort=…` 로 기동 | `model` 은 **필수**(없으면 기동 거부), `effort` 는 `high` |
 
@@ -231,7 +232,7 @@ done
 
 ### 설정 파일 만들기 — `models-init`
 
-리뷰어·구현자의 model/effort 를 한 줄로 파일에 쓴다. 쓰기 전에 `agy models`, codex `models_cache.json` 과 대조해 안 되는 조합은 거부한다(종료코드 2, 아무것도 쓰지 않음).
+역할별(`designer`·`coordinator`·`implementer`·`reviewer`) model/effort 를 한 줄로 파일에 쓴다. 옵션은 `--<역할>-model`·`--<역할>-effort` 이다. 쓰기 전에 `agy models`, codex `models_cache.json` 과 대조해 안 되는 조합은 거부한다(종료코드 2, 아무것도 쓰지 않음).
 
 ```bash
 cd <프로젝트>
@@ -253,7 +254,7 @@ python "$P/scripts/relay_cli.py" models-init \
 | `--no-verify` | agy·codex 목록 대조를 건너뛴다 (오프라인) |
 | `--output <file>` | 만들 파일 경로를 직접 지정 |
 
-넘긴 값만 파일에 들어간다. 예를 들어 `--reviewer-effort xhigh` 만 주면 `{"reviewer": {"effort": "xhigh"}}` 가 되어 모델은 사용자 전역 파일 값을 그대로 쓴다. 설계자·진행자는 이 명령이 다루지 않는다(Claude 세션이라 파일로 강제할 수 없고, 필요하면 파일을 직접 편집한다).
+넘긴 값만 파일에 들어간다. 예를 들어 `--reviewer-effort xhigh` 만 주면 `{"reviewer": {"effort": "xhigh"}}` 가 되어 모델은 사용자 전역 파일 값을 그대로 쓴다. 진행자 값(`--coordinator-model sonnet --coordinator-effort medium` 등)은 다음 진행자 워커부터 적용된다. 설계자 값은 안내용이다 — 사람이 연 세션의 모델은 바꾸지 못한다.
 
 ### 리뷰어(codex) 모델 고르기
 

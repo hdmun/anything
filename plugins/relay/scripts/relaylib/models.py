@@ -199,21 +199,19 @@ def check_codex(model, effort, cache_text):
 
 # ---- 설정 파일 생성 (models-init) ---------------------------------------------------------
 
-def build(reviewer_model=None, reviewer_effort=None, implementer_model=None, implementer_effort=None):
-    """주어진 값만 담은 설정 dict. 값 검증은 parse 와 같은 규칙이다. 아무 값도 없으면 ModelsError."""
-    given = {
-        "reviewer": {"model": reviewer_model, "effort": reviewer_effort},
-        "implementer": {"model": implementer_model, "effort": implementer_effort},
-    }
+def build(given):
+    """given({역할: {"model": 값|None, "effort": 값|None}}) 중 주어진 값만 담은 설정 dict. 역할 순서는 ROLES.
+    값 검증은 parse 와 같은 규칙이다. 아무 값도 없으면 ModelsError."""
     out = {}
-    for role, spec in given.items():
+    for role in ROLES:
+        spec = given.get(role) or {}
         kept = {f: v for f, v in spec.items() if v}
         for f, v in kept.items():
             check_value(role, f, v, "models-init")
         if kept:
             out[role] = kept
     if not out:
-        raise ModelsError("models-init: 리뷰어·구현자 model/effort 중 하나 이상 필요하다 (--reviewer-model 등)")
+        raise ModelsError("models-init: 역할 model/effort 중 하나 이상 필요하다 (--reviewer-model 등)")
     return out
 
 
