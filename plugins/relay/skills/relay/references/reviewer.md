@@ -37,17 +37,15 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
 
 - **터미널을 먼저 띄우고 `tui-idle`을 Task 밖에서 통과시킨 뒤 `worker-start --terminal`을 건다.** codex 시작 직후 확인창(`Hooks need review`, update, trust)이 뜨면 Orca가 입력창을 못 알아봐 `agent_readiness` timeout이 나고, **그 한 번으로 리뷰 Task가 `failed`가 된다**. 사다리는 구현자 4번과 같다.
 
-  ```bash
-  orca terminal create --worktree id:<wt> --title "T-NNN codex" --command 'codex --yolo -m <model reviewer 의 model> -c model_reasoning_effort=<model reviewer 의 effort>' --json
-  orca terminal wait --terminal <h> --for tui-idle --timeout-ms 30000 --json
-  orca orchestration worker-start --task <id> --worktree id:<wt> --terminal <h> --json
-  ```
+  1) `terminal create` — `--worktree id:<wt>`, `--title "T-NNN codex"`, `--command 'codex --yolo -m <model reviewer 의 model> -c model_reasoning_effort=<model reviewer 의 effort>'`
+  2) `terminal wait --for tui-idle --timeout-ms 30000`
+  3) `worker-start --task <id> --worktree id:<wt> --terminal <h>`
 
 
 
   > `tui-idle`이 timeout이면 `references/readiness.md`를 Read 한다. 그 밖에는 읽지 않는다.
 
-  - **기동 명령에 `--yolo`(= `--dangerously-bypass-approvals-and-sandbox`)를 넣는다.** `worker-start --agent codex`로 띄울 때 Orca가 기본으로 붙이는 인자다(Orca `tui-agent-permissions.ts`). 직접 띄우면 이 인자가 빠지고, `config.toml`의 샌드박스 안에서 워커의 `orca orchestration send … worker_done`이 응답 없이 멈춘다.
+  - **기동 명령에 `--yolo`(= `--dangerously-bypass-approvals-and-sandbox`)를 넣는다.** `worker-start --agent codex`로 띄울 때 Orca가 기본으로 붙이는 인자다(Orca `tui-agent-permissions.ts`). 직접 띄우면 이 인자가 빠지고, `config.toml`의 샌드박스 안에서 워커의 `worker_done` 전송(`orchestration send`)이 응답 없이 멈춘다.
     샌드박스를 켠 채로는 쓸 수 없다. `[windows] sandbox = "elevated"`는 첫 명령에서 UAC 설치 도우미를 띄우고 멈추고, `unelevated`는 읽기·쓰기는 되지만 Orca 연결이 `EPERM`이다. `~/.codex/rules` 허용 규칙은 codex 전역 설정이라 쓰지 않기로 했다(사용자 결정).
   - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다(`worker-start --help`). 그래서 모델·effort는 위처럼 **codex 명령줄**로 준다. 이 경로는 응답의 `launch.effective`가 비어 온다 — `model`은 명령줄에 준 값을 기록한다(화면 상태줄에 `<Model> high`로 보인다).
   - 응답은 구현 워커와 같이 `startup`에 해석시킨다. `confirm_delivery`면 4번 표대로 `dispatch-show`의 `status`로 전달을 확인한다

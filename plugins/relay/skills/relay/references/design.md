@@ -4,13 +4,14 @@
 
 ## (b) 설계 세션 절차
 
+0. **Skill 도구로 Orca 스킬 `orchestration` 을 불러 Orca 가이드를 읽는다.** 설계 세션은 Run·Task·게이트만 다루므로 다른 Orca 스킬은 부르지 않는다. 명령 문법은 가이드를 따른다.
 1. `grill-with-docs` 발동 기준: **새 개념/용어가 등장하거나, 되돌리기 어려운 결정이 포함되거나, spec을 쓰다 두 번 이상 막힐 때.** 그 외에는 바로 spec을 쓴다. 오탈자 수정 같은 것에까지 grilling을 걸지 않는다.
 2. `.ai/specs/T-NNN-<슬러그>.md` 작성 — `references/spec-template.md`를 따른다.
    - **채번**: `NNN`은 `.ai/specs/` 안의 기존 파일 중 가장 큰 번호 + 1. 세 자리 0 패딩(`T-001`).
    - **위임 가치가 음수인 태스크를 구분할 것.** spec에 내용을 전부 적어야 하는 태스크(문서·규범·템플릿 authoring)는 위임하면 같은 내용을 두 번 쓰는 셈이고, 워커의 산출물은 spec의 전사에 그친다. 이런 태스크는 설계자가 직접 쓴다. 위임이 유효한 것은 **spec이 요구사항이고 산출물이 코드일 때**다.
    - **spec을 쓰기 전에 대상 코드를 직접 읽는다.** 구현을 읽어야 "이상해 보이지만 지금은 건드리면 안 되는 동작"을 미리 찾아낼 수 있고, 그걸 spec에 "이런 걸 만나면 고치지 말고 `ask`로 물어보라"로 적어둘 수 있다.
-3. `orca orchestration run-create --objective "<목표>" --json`
-4. `orca orchestration task-create --spec "<한 줄 요약 + spec 파일 경로>" [--deps <json_array>] --json`
+3. `run-create` 로 Run 을 만든다. objective 는 이번 목표 한 줄.
+4. `task-create` 로 태스크를 만든다. `--spec` 은 "<한 줄 요약 + spec 파일 경로>", 의존이 있으면 `--deps <json_array>`.
    - **`--spec`에는 한 줄 요약과 spec 파일 경로만 넣는다.** spec 전문의 정본은 git 파일이다.
    - 이유 세 가지: (1) 리뷰어가 SPEC_VIOLATION을 판정하려면 git에서 spec을 읽어야 한다 (2) spec 수정 이력이 diff로 남아야 한다 (3) Windows 명령행 길이 제한에 걸린다.
    - 의존 관계가 있으면 `--deps`로 DAG를 만든다. 실행은 순차지만 DAG는 처음부터 정의한다.

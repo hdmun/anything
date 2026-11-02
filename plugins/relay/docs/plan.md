@@ -172,12 +172,12 @@
 
 ### 트랙 2 — Orca 스킬 진입과 스냅숏 제거 (ADR 0003 문서 부분, 약 2시간)
 
-1. [ ] `references/start.md` (c)0: 셸 `orca skills get orchestration` → Skill 도구로 Orca 스킬 호출. 설계 세션은 `orchestration` 만 (Q3).
-2. [ ] references 10개 파일에서 orca 명령 스냅숏(약 30개)을 걷어낸다. 남기는 것: 할 일, relay 정책과 그 이유, `relay_cli.py` 호출. 명령은 "Orca 가이드의 `<동사>`" 식으로 동사 이름만 가리킨다.
-3. [ ] SKILL.md 에 「Orca 기본과 다른 점」 절 신설 (불변식 바로 아래 — 컴팩션 뒤에도 남게). 항목마다 무엇이 다른지·이유·근거 측정 날짜. 처음 채울 것: 워크트리를 `worker-start` 에 합치지 않음(기준선·trust), `check --wait` timeout, 트랙 0 에서 실패한 에이전트의 선기동.
-4. [ ] `doctor`: `skill:orchestration`·`skill:orca-cli` 검사 (`~/.agents/skills/<이름>/SKILL.md` 존재, 없으면 `FAIL` + Orca 재설치 안내) (TDD, 20분).
+1. [x] `references/start.md` (c)0: 셸 `orca skills get orchestration` → Skill 도구로 Orca 스킬 호출. 설계 세션은 `orchestration` 만 (Q3).
+2. [x] references 10개 파일에서 orca 명령 스냅숏(약 30개)을 걷어낸다. 남기는 것: 할 일, relay 정책과 그 이유, `relay_cli.py` 호출. 명령은 "Orca 가이드의 `<동사>`" 식으로 동사 이름만 가리킨다.
+3. [x] SKILL.md 에 「Orca 기본과 다른 점」 절 신설 (불변식 바로 아래 — 컴팩션 뒤에도 남게). 항목마다 무엇이 다른지·이유·근거 측정 날짜. 처음 채울 것: 워크트리를 `worker-start` 에 합치지 않음(기준선·trust), `check --wait` timeout, 트랙 0 에서 실패한 에이전트의 선기동.
+4. [x] `doctor`: `skill:orchestration`·`skill:orca-cli` 검사 (`~/.agents/skills/<이름>/SKILL.md` 존재, 없으면 `FAIL` + Orca 재설치 안내) (TDD, 20분).
    그리고 `orca:nested-depth` 검사 — Orca 설정 `nestedWorkerMaxDepth` 가 2 미만이면 `FAIL` + "Settings → Orchestration → Nested worker depth 를 2로" 안내 (Q16 A, ADR 0004). 값은 Orca 내부 파일(`%APPDATA%/orca/profiles/<profile>/orca-data.json`)에서 읽으므로, 파일·키를 못 찾으면 `WARN` 으로 둔다(Orca 버전마다 바뀔 수 있다).
-5. [ ] `test_docs.py`: references 에 `orca <동사>` 스냅숏이 없음을 검사하는 테스트 추가(예외: 「Orca 기본과 다른 점」 절). 기존 `--command` 문자열 검사는 트랙 3 에서 정리.
+5. [x] `test_docs.py`: references 에 `orca <동사>` 스냅숏이 없음을 검사하는 테스트 추가(예외 없이 — 「Orca 기본과 다른 점」도 `orca` 접두 없이 적었다). 기존 `--command` 문자열 검사는 트랙 3 에서 정리.
 
 ### 트랙 3 — 기동 전환 (ADR 0003 코드 부분, 트랙 0 결과에 따라 에이전트별, 약 3시간)
 
