@@ -28,9 +28,9 @@ EFFORTS = {
     "implementer": ("low", "medium", "high", "xhigh", "max"),   # agy --help
     "reviewer": ("low", "medium", "high", "xhigh", "max", "ultra"),  # codex models_cache.json 의 supported_reasoning_levels 합집합
 }
-DEFAULT_EFFORT = {"designer": "high", "coordinator": "medium", "implementer": None, "reviewer": "high"}
+DEFAULT_EFFORT = {"designer": "high", "coordinator": "low", "implementer": None, "reviewer": "high"}
 # 진행자는 플러그인이 띄우는 워커라(ADR 0004) 모델 계열 기본값이 있다. 설계자는 사람이 연 세션이라 없다.
-DEFAULT_MODEL = {"coordinator": "sonnet"}
+DEFAULT_MODEL = {"coordinator": "opus"}
 
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 

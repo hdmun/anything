@@ -172,7 +172,7 @@
 
 트랙 1 에서 새로 정한 것 (문서에 반영):
 
-- 진행자 기본 모델 계열은 `sonnet` (`models.DEFAULT_MODEL`). Orca 기본은 모델 생략이지만 `--effort` 는 `--model` 없이 못 쓰고, 생략하면 사용자 기본(대개 Opus)을 물려받아 ADR 0004 의 비용 근거를 잃는다.
+- 진행자 기본값은 `opus`/`low` (`models.DEFAULT_MODEL`·`DEFAULT_EFFORT`, 2026-11-02 사용자 결정 — 처음 안은 `sonnet`/`medium`). Orca 기본은 모델 생략이지만 `--effort` 는 `--model` 없이 못 쓴다. 비용은 모델 대신 effort(설계 high, 진행 low)로 나눈다. 역할별 값은 모델 설정 파일로 바꾼다.
 - 설계 세션은 `task-list --ready` 에서 spec 이 `relay 진행자:` 로 시작하는 태스크만 맡긴다 — 진행자가 같은 Run 에 만든 하위 Task(구현·리뷰·수정 라운드)를 다시 맡기지 않게.
 - 방금 끝난 태스크에 의존하는 태스크는 사람이 그 브랜치를 머지한 뒤 띄운다 — 진행자는 `main` 에서 워크트리를 만든다.
 - 진행자 보고 파일은 `~/.relay/reports/<run_id>/T-NNN.md` (워크트리 밖 — 커밋되지 않는다). 설계 세션이 여기서 워크트리·`<base>`·브랜치를 읽는다.
