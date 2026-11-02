@@ -14,8 +14,8 @@
   python relay_cli.py liveness --worker <file> [--terminal <file>] --role implementer|reviewer [--now <ms>]   (결정기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
-  python relay_cli.py models-init [--repo <dir> | --user] [--reviewer-model M] [--reviewer-effort E]
-                                  [--implementer-model M] [--implementer-effort E] [--force] [--print] [--no-verify]   (설정 파일 생성)
+  python relay_cli.py models-init [--repo <dir> | --user] [--<역할>-model M] [--<역할>-effort E] ...
+                                  [--force] [--print] [--no-verify]   (설정 파일 생성, 역할: designer|coordinator|implementer|reviewer)
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
   python relay_cli.py smoke --dir <trusted dir> [--agent antigravity|codex|all]   (검사기 — 실제 CLI 리허설, 수동)
@@ -240,8 +240,8 @@ def cmd_model(a):
 
 
 def cmd_models_init(a):
-    """리뷰어·구현자 model/effort 를 설정 파일로 만든다. 저장소(.ai/relay-models.json) 또는 사용자(~/.relay/models.json)."""
-    cfg = models.build(a.reviewer_model, a.reviewer_effort, a.implementer_model, a.implementer_effort)
+    """역할별 model/effort 를 설정 파일로 만든다. 저장소(.ai/relay-models.json) 또는 사용자(~/.relay/models.json)."""
+    cfg = models.build({role: {f: getattr(a, "%s_%s" % (role, f)) for f in models.FIELDS} for role in models.ROLES})
     for role in cfg:
         for f, v in cfg[role].items():
             models.check_value(role, f, v, "models-init")
@@ -549,14 +549,13 @@ def build_parser():
     _add_models_args(ms)
     ms.set_defaults(func=cmd_models)
 
-    mi = sub.add_parser("models-init", help="리뷰어·구현자 model/effort 설정 파일 생성 (기본: <repo>/.ai/relay-models.json)")
+    mi = sub.add_parser("models-init", help="역할별 model/effort 설정 파일 생성 (기본: <repo>/.ai/relay-models.json)")
     mi.add_argument("--repo", default=".", help="설정 파일을 만들 저장소. 기본: 현재 디렉터리")
     mi.add_argument("--user", action="store_true", help="저장소 대신 사용자 전역(~/.relay/models.json)에 만든다")
     mi.add_argument("--output", help="만들 파일 경로를 직접 지정 (테스트·특수용)")
-    mi.add_argument("--reviewer-model")
-    mi.add_argument("--reviewer-effort")
-    mi.add_argument("--implementer-model")
-    mi.add_argument("--implementer-effort")
+    for role in models.ROLES:
+        for f in models.FIELDS:
+            mi.add_argument("--%s-%s" % (role, f))
     mi.add_argument("--force", action="store_true", help="이미 있어도 덮어쓴다")
     mi.add_argument("--print", action="store_true", help="쓰지 않고 내용만 출력한다")
     mi.add_argument("--no-verify", action="store_true", help="agy models·codex models_cache 대조를 건너뛴다")

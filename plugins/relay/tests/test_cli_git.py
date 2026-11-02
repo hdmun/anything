@@ -218,9 +218,9 @@ class OrcaCli(unittest.TestCase):
     def test_model_coordinator_returns_worker_start_arguments(self):
         with tempfile.TemporaryDirectory() as d:
             u = pathlib.Path(d) / "user.json"
-            u.write_text(json.dumps({"coordinator": {"effort": "low"}}), encoding="utf-8")
+            u.write_text(json.dumps({"coordinator": {"effort": "high"}}), encoding="utf-8")
             out = json.loads(cli("model", "coordinator", "--repo", d, "--user-config", str(u)).stdout)
-            self.assertEqual((out["action"], out["agent"], out["model"], out["effort"]), ("launch", "claude", "sonnet", "low"))
+            self.assertEqual((out["action"], out["agent"], out["model"], out["effort"]), ("launch", "claude", "opus", "high"))
 
 
 class ModelsInitCli(unittest.TestCase):
@@ -238,6 +238,19 @@ class ModelsInitCli(unittest.TestCase):
             self.assertNotIn(bytes([13]), path.read_bytes())   # LF 로 쓴다
             out = json.loads(cli("models", "--repo", d, "--user-config", str(pathlib.Path(d) / "none.json")).stdout)
             self.assertEqual(out["implementer"]["launch_command"], "$null=1; agy --model gemini-3.8-flash --effort low")
+
+    def test_claude_roles_too(self):
+        # 진행자는 이제 relay 가 띄우는 워커라 파일 값이 그대로 worker-start 인자가 된다 (ADR 0004)
+        with tempfile.TemporaryDirectory() as d:
+            r = self.run_init(d, "--coordinator-model", "sonnet", "--coordinator-effort", "medium",
+                              "--designer-model", "opus", "--designer-effort", "max")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            path = pathlib.Path(d) / ".ai" / "relay-models.json"
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
+                             {"designer": {"model": "opus", "effort": "max"}, "coordinator": {"model": "sonnet", "effort": "medium"}})
+            out = json.loads(cli("models", "--repo", d, "--user-config", str(pathlib.Path(d) / "none.json")).stdout)
+            self.assertEqual((out["coordinator"]["model"], out["coordinator"]["effort"]), ("sonnet", "medium"))
+            self.assertEqual(out["designer"]["command"], "claude --model opus --effort max")
 
     def test_refuses_to_overwrite_without_force(self):
         with tempfile.TemporaryDirectory() as d:

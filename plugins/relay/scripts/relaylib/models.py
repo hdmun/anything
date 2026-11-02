@@ -28,9 +28,9 @@ EFFORTS = {
     "implementer": ("low", "medium", "high", "xhigh", "max"),   # agy --help
     "reviewer": ("low", "medium", "high", "xhigh", "max", "ultra"),  # codex models_cache.json 의 supported_reasoning_levels 합집합
 }
-DEFAULT_EFFORT = {"designer": "high", "coordinator": "medium", "implementer": None, "reviewer": "high"}
+DEFAULT_EFFORT = {"designer": "high", "coordinator": "low", "implementer": None, "reviewer": "high"}
 # 진행자는 플러그인이 띄우는 워커라(ADR 0004) 모델 계열 기본값이 있다. 설계자는 사람이 연 세션이라 없다.
-DEFAULT_MODEL = {"coordinator": "sonnet"}
+DEFAULT_MODEL = {"coordinator": "opus"}
 
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 
@@ -199,21 +199,19 @@ def check_codex(model, effort, cache_text):
 
 # ---- 설정 파일 생성 (models-init) ---------------------------------------------------------
 
-def build(reviewer_model=None, reviewer_effort=None, implementer_model=None, implementer_effort=None):
-    """주어진 값만 담은 설정 dict. 값 검증은 parse 와 같은 규칙이다. 아무 값도 없으면 ModelsError."""
-    given = {
-        "reviewer": {"model": reviewer_model, "effort": reviewer_effort},
-        "implementer": {"model": implementer_model, "effort": implementer_effort},
-    }
+def build(given):
+    """given({역할: {"model": 값|None, "effort": 값|None}}) 중 주어진 값만 담은 설정 dict. 역할 순서는 ROLES.
+    값 검증은 parse 와 같은 규칙이다. 아무 값도 없으면 ModelsError."""
     out = {}
-    for role, spec in given.items():
+    for role in ROLES:
+        spec = given.get(role) or {}
         kept = {f: v for f, v in spec.items() if v}
         for f, v in kept.items():
             check_value(role, f, v, "models-init")
         if kept:
             out[role] = kept
     if not out:
-        raise ModelsError("models-init: 리뷰어·구현자 model/effort 중 하나 이상 필요하다 (--reviewer-model 등)")
+        raise ModelsError("models-init: 역할 model/effort 중 하나 이상 필요하다 (--reviewer-model 등)")
     return out
 
 
