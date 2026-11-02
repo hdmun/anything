@@ -148,7 +148,7 @@
 | 4 codex 업데이트 프롬프트 | **재현 불가.** `check_for_update_on_startup = true` 로 바꾸고(최신 0.166.0 > 0.159.3) 띄워도 프롬프트 없이 정상 기동·`worker_done`. 설정은 바로 되돌렸다 |
 | 5(a) relay 스킬 | Claude 워커(sonnet·medium)에 `relay:relay`·`relay:init` 이 보인다. **description 으로 실제 발동하는지는 eval 로 잰다(트랙 1-7)** |
 | 5(b) Orca 스킬 | Skill 도구로 `orchestration` 을 불러 껍데기 → `orca skills get` 순서로 읽었다 |
-| 5(c) 중첩 기동 | **실패.** `nested_worker_depth_exceeded`: "Sub-worker dispatch is not permitted at depth 2 (max 1)". Orca 설정 `nestedWorkerMaxDepth` 기본값 1 (Settings → Orchestration → "Nested worker depth"). **Q16 A: 2로 올리고 진행자 계층을 유지한다** |
+| 5(c) 중첩 기동 | **실패.** `nested_worker_depth_exceeded`: "Sub-worker dispatch is not permitted at depth 2 (max 1)". Orca 설정 `nestedWorkerMaxDepth` 기본값 1 (Settings → Orchestration → "Nested worker depth"). **Q16 A: 2로 올리고 진행자 계층을 유지한다.** 재측정(19:04, 깊이 2): 진행자 워커가 agy 하위 워커를 띄움(`turnStart: observed`) → 하위 워커의 `worker_done` 이 설계 세션이 아니라 **진행자 inbox** 로 감 → 진행자가 release(`closed_agent_terminal`)·ack → 진행자 `worker_done`. 기동부터 36초, 끝난 뒤 `reclaimable` 0. 한국어 UI 위치: 설정 → 에이전트 오케스트레이션 → "하위 에이전트 최대 생성 단계" |
 | 5(d) ask/reply | 통과. 질문이 기동 26초 뒤 설계 세션 `check --wait` 에 `question` 으로 도착 → `reply` → ack → 워커 재개 → `worker_done` |
 | 5(e) 채팅 워커 | 미측정 — 사용자 설정을 바꿔야 한다. 영수증의 `mode.mode`(`terminal`/`chat`)로 런타임에 구분할 수 있다 |
 | 6 워커의 Orca 스킬 | codex 세션 기록의 스킬 목록에 `orchestration`·`orca-cli` 가 있다. agy 는 로그에 스킬 목록이 남지 않는다(사용자 확인: `~/.agents/skills` 를 읽는다) |
