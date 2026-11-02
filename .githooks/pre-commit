@@ -2,6 +2,8 @@
 # relay 플러그인 단위 테스트 — plugins/relay/ 아래 변경이 스테이징됐을 때만 돈다.
 # 켜기: git config core.hooksPath .githooks
 if git diff --cached --name-only | grep -q '^plugins/relay/'; then
+  # 훅 환경의 GIT_INDEX_FILE 등이 테스트의 임시 저장소를 이 저장소로 돌려놓는다
+  unset $(git rev-parse --local-env-vars)
   if ! python -m unittest discover -s plugins/relay/tests -q; then
     echo "pre-commit: relay 테스트 실패 — 커밋을 중단합니다" >&2
     exit 1

@@ -57,6 +57,13 @@ relay를 쓸 저장소에서 한 번 실행한다. 워커가 읽는 역할 파�
 역할 파일은 손으로 고치지 않는다. 공유 규범은 템플릿을, 저장소 고유분은 `.ai/relay-roles.json`을 고치고 `--force`로 다시 만든다.
 워커는 `AGENTS.md`/`CLAUDE.md`의 링크를 통해서만 역할 파일에 도달하므로 링크를 걸어 둔다.
 
+### 진입 약속 — 첫 요청에 "relay"를 쓴다
+
+설계 세션이든 진행 세션이든 **첫 요청에 "relay"를 명시**해 스킬을 부른다. 스킬 description은 단계 중간의 질문에는 잘 발동하지 않으므로, 첫 턴에 불러 세션 내내 상주시키는 것을 전제로 한다.
+
+- 예: "relay로 T-NNN 설계해줘", "relay Run `<run_id>` 진행해줘"
+- 스킬은 뼈대(SKILL.md)와 단계별 `references/`로 나뉘어 있다. 단계에 들어설 때마다 해당 파일을 읽는다.
+
 ### 2. 설계 세션 (Opus)
 
 "relay로 T-NNN 설계해줘"처럼 요청하면 `relay` 스킬이 발동한다.
@@ -88,8 +95,9 @@ run-use → 워크트리·기준선 게이트 → agy 기동·전달 확인 → 
 ```
 plugins/relay/
   .claude-plugin/plugin.json      버전
-  skills/relay/SKILL.md           설계·진행 세션 절차 (정본)
-  skills/relay/references/        spec 템플릿, 리뷰 JSON 스키마
+  skills/relay/SKILL.md           뼈대: 진입 약속, 세션 판정, 불변식, 단계 목록 (절차의 정본)
+  skills/relay/references/        단계별 절차(start·implementer·reviewer·wait·gate·review·escalation·finish …), spec 템플릿, 리뷰 JSON 스키마
+  docs/field-notes.md             실측 사례 서사 (사람용, 스킬이 가리키지 않음)
   commands/init.md                /relay:init
   scripts/relay_cli.py            단일 진입점 (relay_cli.py <sub>)
   scripts/relaylib/               relay 정책 — 정본은 이 코드와 tests/ (ADR 0001)
