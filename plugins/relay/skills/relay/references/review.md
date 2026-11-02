@@ -29,28 +29,22 @@ python "$RELAY/scripts/relay_cli.py" review-branch --task T-NNN --worktree <work
 ```
 review(T-NNN): rN <verdict>
 
-Reviewed-by: codex/<리뷰 워커 codex 명령줄에 준 -m 값>
+Reviewed-by: codex/<리뷰 워커 startup 의 model — launch.effective.model>
 ```
 
 ### 수정 라운드는 새 Task + 새 Dispatch로 만든다
 
-**워커가 `worker_done`을 보내면 그 Dispatch는 `completed`가 되고, `send --to dispatch:<id>`는 `dispatch_inactive`로 거부된다.** 수정 지시는 새 Task와 새 Dispatch로 보낸다.
+**워커가 `worker_done`을 보내면 그 Dispatch는 `completed`가 되고, `send --to dispatch:<id>`는 `dispatch_inactive`로 거부된다.** 수정 지시는 새 Task와 새 Dispatch로 보낸다 — Orca 가이드 `coordinator-loop` reference 「Reuse after settlement」.
 
-1. `task-create` — `--task-title "T-NNN 수정 라운드 N"`, `--parent <원래 task_id>`, `--spec "T-NNN 리뷰 지적 수정. 리뷰: .ai/reviews/T-NNN.rN.json / 원본 명세: .ai/specs/T-NNN-<슬러그>.md"`
-2. `worker-show --dispatch <이전 dispatch_id>` 로 에이전트 터미널 handle 을 되찾는다
-3. `terminal wait --for tui-idle --timeout-ms 30000` — 재사용 전 확인
-4. `worker-start --task <새 task_id> --terminal <agent_terminal_handle>` — Orca 가이드 `coordinator-loop` reference 「Reuse after settlement」
+1. `worker-show --dispatch <이전 구현 dispatch_id>` 로 에이전트 터미널 handle 을 되찾는다
+2. preamble SUB-DISPATCH의 `worker-start`로 같은 터미널에 새 Task를 건다. relay 값:
+   - `--spec "T-NNN 수정 라운드 N. 리뷰: .ai/reviews/T-NNN.rN.json / 원본 명세: .ai/specs/T-NNN-<슬러그>.md / base: <base>"`
+   - `--parent <이전 구현 task_id>`, `--worktree id:<wt>`, `--terminal <agent_terminal_handle>`
+3. 응답을 `startup`에 해석시킨다
 
-- **워커 터미널은 살아 있으므로 같은 handle을 재사용한다.** 세션 컨텍스트가 유지되어 배경을 다시 설명할 필요가 없다.
-- **재사용 전에 `tui-idle`부터 통과시킨다.** `worker-start`는 안에서 같은 준비 대기를 하고, 실패하면 새 Task가 바로 `failed`가 된다.
-  timeout이면 (d)4와 같이 화면을 `readiness`에 묻는다(`--command`는 그 터미널을 만들 때 준 값).
-  - `recreate_terminal / header_scrolled_out`: 긴 세션으로 머리글이 Orca 꼬리 밖으로 밀려났다. 기다려도 돌아오지 않는다.
-    이전 Dispatch를 `worker-release` → 터미널 `close` → 결정의 `launch_command`로 새로 만들어 `tui-idle` → 새 handle로 `worker-start --terminal`.
-    **맥락은 잃는다** — 수정 Task spec이 리뷰 파일과 원본 명세 경로를 담고 있으므로 그것으로 충분해야 한다.
-    재생성 직후 첫 `worker-start`는 `agent_unconfigured`가 올 수 있다 — `startup`의 `wait_tui_idle`대로 `tui-idle`을 다시 걸고 재시도하면 통과한다.
-  - **머리글은 새 터미널로 되살린다.** `/clear`도 머리글을 다시 찍지만 대화 맥락까지 지워서 재사용의 목적이 사라진다. 보내야 한다면 Git Bash에서 `MSYS_NO_PATHCONV=1`을 붙인다.
-- **`worker-start --terminal`로 재사용한다.** 정착 후 재사용의 정해진 경로이고, **cleanup 소유권이 새 Dispatch로 넘어가** 감독이 끊기지 않는다. `dispatch --inject`로 보내면 그 순간부터 비감독이 된다.
+- **워커 터미널은 살아 있으므로 같은 handle을 재사용한다.** 세션 컨텍스트가 유지되어 배경을 다시 설명할 필요가 없다. **cleanup 소유권이 새 Dispatch로 넘어가** 감독도 끊기지 않는다. `dispatch --inject`로 보내면 그 순간부터 비감독이 된다.
 - `--terminal`은 `--model`/`--effort`와 함께 쓸 수 없다. 터미널이 이미 그 모델로 떠 있으므로 문제되지 않는다.
+- 재사용이 기동 실패로 끝나면(`startup`의 `retry`) 그 터미널은 포기한다. 이전 Dispatch를 `worker-release`하고, `implementer.md` 3(예열)·4대로 **새 워커**를 `--agent antigravity`로 띄운다. **맥락은 잃는다** — 수정 Task spec이 리뷰 파일과 원본 명세 경로를 담고 있으므로 그것으로 충분해야 한다.
 - `--parent`로 원래 태스크에 묶으면 수정 라운드가 DAG에 기록된다.
 - **조치가 필요 없는 단순 안내**라면 Task를 만들지 말고 `terminal send --text "..." --enter` 로 직접 보낸다.
 

@@ -16,19 +16,18 @@ relay의 세 갈래 출구에 이를 대응시키면 이렇게 된다:
 
 | 출구 | 구현 워커 (agy) | 리뷰 워커 (codex) |
 |---|---|---|
-| 성공 종료 (i) | `worker-release` + 터미널 close + `trustedWorkspaces` 해제 | `worker-release` |
+| 성공 종료 (i) | `worker-release` + `trustedWorkspaces` 해제 | `worker-release` |
 | 수정 라운드 (g의 `BLOCKER`/`MAJOR`) | **재사용** — 닫지 않는다. 같은 handle로 새 dispatch를 건다 | `worker-release`. 다음 리뷰 라운드는 새 워커로 띄운다 — 이전 리뷰의 맥락에 끌려가지 않게 |
 | `태스크를 중단한다` 답 (h) | `worker-retain` — 증거를 남긴다 | `worker-retain` |
 
 성공 종료에서만 구현 워커를 해제한다:
 
-구현 터미널은 (d)에서 직접 만든 것이라 release 가 닫지 않는다(state `retained` / reason `external_terminal` 로 남는다). `terminal show` 로 확인한 뒤 `terminal close` 로 닫는다.
+`worker-release`가 Orca가 만든 워커 터미널을 닫는다(`processAction: closed_agent_terminal`, 2026-11-02 실측). 터미널을 따로 닫지 않는다.
 
-- **`release`가 불확실하면 release의 recovery receipt를 따른다.** 위의 `terminal close`는 release의 대체가 아니라, release가 **성공한 뒤** 우리가 직접 만든 터미널을 만든 쪽이 정리하는 것이다.
-  (**미검증**: Orca 가이드상 미리 존재하던 터미널은 release 후 `retained`로 남는다고 읽히지만 실측 전이다. 확인되면 이 주석을 고친다.)
+- **`release`가 불확실하면 release의 recovery receipt를 따른다.** `terminal close`로 대신하지 않는다.
 - **산출물은 release 뒤에도 `worker-read`로 읽을 수 있으니 워커는 바로 release한다.**
 
-**그리고 `trustedWorkspaces`에서 그 워크트리 경로를 지운다.** (d) 2번이 추가한 항목이고, 지우는 단계가 없으면 단조 증가한다.
+**그리고 `trustedWorkspaces`에서 그 워크트리 경로를 지운다.** `worker-start`가 agy를 띄울 때 Orca가 추가한 항목이고((d) 2), Orca는 지우지 않으므로 단조 증가한다.
 워크트리 경로는 태스크명으로 재사용되므로,
 죽은 항목이 남아 있으면 **미래의 다른 워크트리를 미리 신뢰하게 만든다.**
 

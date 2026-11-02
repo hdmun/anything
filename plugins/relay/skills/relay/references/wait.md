@@ -45,6 +45,6 @@ python "$RELAY/scripts/relay_cli.py" liveness --worker workers.json --screen scr
 
 **`agentWait`는 양성 신호로만 믿는다.** 값이 있으면 실제로 멈춘 것이지만, `null`은 안 멈췄다는 증거가 아니다.
 워커가 트러스트 프롬프트에 멈춘 상태에서도 `agentWait: null`이 올 수 있다.
-그래서 `agentWait`·`tui-idle`·heartbeat 중 **어느 것도 1차 신호가 아니다.** 2층의 projection이 1차이고, 그것이 답을 못 줄 때만 3층의 `lastOutputAt`을 본다.
+그래서 `agentWait`·heartbeat 중 **어느 것도 1차 신호가 아니다.** 2층의 projection이 1차이고, 그것이 답을 못 줄 때만 3층의 `lastOutputAt`을 본다.
 
 **남은 프롬프트는 사람을 부른다(자동 응답 금지).** `trustedWorkspaces` 사전 등록으로 알려진 프롬프트는 이미 제거했으므로, 남은 프롬프트는 예상 밖의 것이다.

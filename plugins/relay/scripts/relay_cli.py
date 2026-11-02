@@ -10,7 +10,6 @@
   python relay_cli.py review-branch --task T-NNN --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
   python relay_cli.py startup --response <file|-> [--prior-failures N]  (결정기)
-  python relay_cli.py readiness --agent antigravity|codex --screen <file> [--agy-log <file>] --retries N [--recreated]   (결정기)
   python relay_cli.py liveness --worker <file> [--terminal <file>] --role implementer|reviewer [--now <ms>]   (결정기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
@@ -174,22 +173,6 @@ def _read_screen(path):
         return "\n".join(t["tail"]) if isinstance(t, dict) and "tail" in t else raw
     except ValueError:
         return raw
-
-
-def cmd_readiness(a):
-    screen = _read_screen(a.screen)
-    if a.agent == "antigravity" and not a.agy_log:
-        raise InputError("antigravity 는 --agy-log(최신 cli-*.log)가 필요하다 — 로그인 여부를 거기서 본다")
-    if a.agent == "antigravity" and a.command is None:
-        raise InputError("antigravity 는 --command(terminal create 에 준 --command 값)가 필요하다 — 단독 agy 면 기다려도 안 풀린다")
-    log = pathlib.Path(a.agy_log).read_text(encoding="utf-8", errors="replace") if a.agy_log else None
-    launch = None
-    if a.agent == "antigravity":
-        cfg, _used = _models_cfg(a)
-        r = models.resolve("implementer", cfg)
-        launch = orca.agy_launch_command(r["model"], r["effort"])
-    return _emit(orca.readiness(screen, a.agent, a.retries, log=log, recreated=a.recreated, command=a.command,
-                                launch_command=launch))
 
 
 def cmd_liveness(a):
@@ -499,16 +482,6 @@ def build_parser():
     s.add_argument("--response", required=True, help="worker-start --json 출력 파일, - 면 stdin")
     s.add_argument("--prior-failures", type=int, default=0, help="이 태스크 계열의 이전 기동 실패 수")
     s.set_defaults(func=cmd_startup)
-
-    rd = sub.add_parser("readiness", help="tui-idle timeout 이후 다음 행동")
-    rd.add_argument("--agent", required=True, choices=("antigravity", "codex"))
-    rd.add_argument("--screen", required=True, help="terminal read --screen 출력(텍스트 또는 --json)")
-    rd.add_argument("--agy-log", help="agy 최신 cli-*.log")
-    rd.add_argument("--retries", type=int, required=True, help="이미 다시 건 tui-idle 횟수")
-    rd.add_argument("--recreated", action="store_true", help="이미 한 번 재생성했다")
-    rd.add_argument("--command", help="terminal create 에 준 --command 값 (antigravity 필수)")
-    _add_models_args(rd)
-    rd.set_defaults(func=cmd_readiness)
 
     lv = sub.add_parser("liveness", help="빈 대기 뒤 무응답 판정")
     lv.add_argument("--worker", help="worker-list --json 출력(또는 그 항목) 파일, - 면 stdin. 빈 대기 3회째부터 필요")

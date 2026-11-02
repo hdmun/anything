@@ -25,8 +25,8 @@ references의 "사람을 부른다"·"사용자에게 알린다"도 진행자 �
 | **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (`review-branch`가 센다) |
 
 - **기동 실패는 2회에서 멈춘다.** Orca는 같은 Task가 3회 연속 실패하면 circuit-break한다. 2회째에 재시도하면 마지막 기회를 원인 모른 채 쓰게 된다.
-  원인을 찾아 해소했다면 기존 Task를 포기하고 **새 Task**로 다시 시작한다 — 재시도가 아니라 재출발이다. 재출발 전에 Task 밖에서 `terminal create` → `tui-idle`로 준비 감지가 통과하는지 먼저 확인한다.
-- **`agent_readiness` 실패는 한 번으로 그 Task를 `failed`로 만든다.** 같은 Task에 `worker-start`를 다시 걸면 `task_not_startable`로 거부되므로 예산 2회를 다 쓰기 전에도 재출발은 **항상 새 Task**다. 이미 `tui-idle`이 통과하는 터미널이 있으면 **그 터미널을 `worker-start --terminal`로 그대로 재사용해도 된다**.
+  원인을 찾아 해소했다면 그 Task에 Orca 가이드의 replacement(`--retry-of`)로 다시 띄운다 — `startup`의 `retry`.
+- **`agent_readiness` 실패는 한 번으로 그 Task를 `failed`로 만든다.** 같은 Task에 `--retry-of` 없이 `worker-start`를 다시 걸면 `task_not_startable`로 거부된다. 재출발은 항상 `--retry-of`다 — 그래야 Orca가 실패 횟수를 같은 Task에 쌓는다.
 - 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
 
 ### 진행자 워커가 묻는 법
