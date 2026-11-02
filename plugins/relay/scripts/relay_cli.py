@@ -19,6 +19,7 @@
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
   python relay_cli.py smoke --dir <trusted dir> [--agent antigravity|codex|all]   (검사기 — 실제 CLI 리허설, 수동)
+                            [--path terminal|worker-start] [--repeat N] [--run <id>] [--model M] [--effort E]
 
 규약 (docs/adr/0001):
   검사기 — 종료코드 0 통과 / 1 실패, 사유는 출력
@@ -383,9 +384,42 @@ def cmd_warmup(a):
     return _emit(doctor.warmup_decide(before, rc, after, _verified()))
 
 
+def _smoke_worker_launch(agent, cfg, a):
+    """worker-start 경로의 (model, effort). --model·--effort 가 설정 파일보다 우선한다."""
+    if agent == "antigravity":
+        r = models.resolve("implementer", cfg)
+        model, effort = r["model"], r["effort"]
+    else:
+        rev = _decide_model("reviewer", cfg)
+        model, effort = (rev["model"], rev["effort"]) if rev["action"] == "launch" else (None, None)   # 미설정이면 codex 기본 모델
+    return a.model or model, a.effort or effort
+
+
+def cmd_smoke_worker(a, agents, cfg):
+    wait_s = smoke.WORKER_WAIT_MS // 1000
+    run = lambda argv: _run(argv, timeout=wait_s + 60)      # check --wait 보다 길게
+    verified = _verified()
+    ok = True
+    for ag in agents:
+        model, effort = _smoke_worker_launch(ag, cfg, a)
+        r = smoke.run_workers(ag, a.dir.replace("\\", "/"), run, repeat=a.repeat, run_id=a.run,
+                              version=_cli_version(ag), model=model, effort=effort)
+        r["verified"] = r["version"] in verified.get(ag, [])
+        a.run = r["run"]                                     # 두 에이전트를 같은 smoke Run 에 묶는다
+        print(json.dumps(r, ensure_ascii=False))
+        ok = ok and r["passed"]
+    return 0 if ok else 1
+
+
 def cmd_smoke(a):
     agents = ("antigravity", "codex") if a.agent == "all" else (a.agent,)
+    if (a.model or a.effort) and len(agents) > 1:
+        raise InputError("--model·--effort 는 --agent 하나와 함께 쓴다")
     cfg, _used = _models_cfg(a)
+    if a.path == "worker-start":
+        return cmd_smoke_worker(a, agents, cfg)
+    if a.model or a.effort or a.repeat != 1 or a.run:
+        raise InputError("--model·--effort·--repeat·--run 은 --path worker-start 에서만 쓴다")
     impl = models.resolve("implementer", cfg)
     cmds = {"antigravity": orca.agy_launch_command(impl["model"], impl["effort"])}   # 설정이 있으면 그 model·effort 로 리허설한다
     rev = _decide_model("reviewer", cfg)
@@ -506,6 +540,12 @@ def build_parser():
     sm = sub.add_parser("smoke", help="Task 없이 실제 기동·전달 확인 (수동)")
     sm.add_argument("--dir", required=True, help="agy trustedWorkspaces 에 등록된 디렉터리")
     sm.add_argument("--agent", default="all", choices=("antigravity", "codex", "all"))
+    sm.add_argument("--path", default="terminal", choices=("terminal", "worker-start"),
+                    help="terminal: 터미널 선기동 리허설(Task 없음) / worker-start: Orca 기본 기동을 smoke Run 에서 끝까지 (ADR 0003)")
+    sm.add_argument("--repeat", type=int, default=1, help="worker-start 경로 반복 횟수 — 전부 통과해야 통과")
+    sm.add_argument("--run", help="worker-start 경로에서 재사용할 smoke Run. 없으면 새로 만든다")
+    sm.add_argument("--model", help="worker-start 경로에서 설정 파일 대신 쓸 model")
+    sm.add_argument("--effort", help="worker-start 경로에서 설정 파일 대신 쓸 effort (--model 필요)")
     _add_models_args(sm)
     sm.set_defaults(func=cmd_smoke)
     return ap
