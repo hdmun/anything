@@ -8,6 +8,7 @@ from helpers import PLUGIN_ROOT
 import relay_cli
 
 SKILL_DIR = PLUGIN_ROOT / "skills/relay"
+SKILL_MD = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
 # 절차가 references/ 로 나뉘었으므로 SKILL.md 와 references/*.md 를 이은 텍스트를 검사한다
 SKILL = "\n".join(
     p.read_text(encoding="utf-8")
@@ -62,6 +63,25 @@ class SkillCallsExistingCommands(unittest.TestCase):
     def test_severity_table_not_reintroduced(self):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
+
+
+class SkillSkeleton(unittest.TestCase):
+    def test_skill_md_stays_within_500_lines(self):
+        # 다시 비대해지는 것을 막는 상한 (분리 성공 기준). 컴팩션 생존은 리뷰에서 사람이 본다
+        self.assertLessEqual(len(SKILL_MD.splitlines()), 500)
+
+    def test_invariants_live_in_skill_md_itself(self):
+        # 컴팩션 뒤에는 SKILL.md 앞부분만 다시 붙는다 — 불변식은 references 에만 있으면 안 된다
+        from relaylib import orca
+        for phrase in (orca.AGY_LAUNCH_COMMAND, "--yolo", "자동 머지 금지", "자동 응답 금지", "<base>"):
+            self.assertIn(phrase, SKILL_MD)
+
+    def test_every_step_reference_exists_and_is_read_first(self):
+        refs = set(re.findall(r"references/([a-z-]+\.md)", SKILL_MD))
+        self.assertTrue(refs)
+        for r in refs:
+            self.assertTrue((SKILL_DIR / "references" / r).exists(), r)
+        self.assertIn("Read 한다", SKILL_MD)
 
 
 if __name__ == "__main__":
