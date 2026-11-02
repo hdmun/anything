@@ -69,7 +69,7 @@ description: Orca orchestration 위에서 설계자(Opus)·진행자(Sonnet)·�
 - `<base>`는 spec과 리뷰 Task에 명시한다.
 - 머지는 사람이 한다(자동 머지 금지). 확인창·프롬프트는 사람을 부른다(자동 응답 금지).
 - 진행자 워커는 혼자 판단할 수 없는 것(SPEC_VIOLATION, 반복 지적, 라운드 한도, 사람이 필요한 상황)을 **모두 `ask`로 설계 세션에 묻는다.** 사람 호출도 이 `ask`이고, 설계 세션이 사람에게 전한다. decision gate는 쓰지 않는다.
-- `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다.
+- `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다. `$RELAY`는 이 스킬을 불러왔을 때 표시되는 *Base directory*에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
 - Orca 가이드와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다. 일부러 다르게 하는 것은 아래 「Orca 기본과 다른 점」에만 둔다.
 - references Read가 "파일 없음"으로 실패하면 플러그인이 갱신된 것이다. `/reload-plugins` 후 (c)0부터 다시 한다.
 
@@ -82,6 +82,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 워커 터미널을 먼저 만들고 `tui-idle` 을 Task 밖에서 통과시킨 뒤 `worker-start --terminal` 로 감독을 건다 (구현·리뷰 모두) | `worker-start --agent` | 준비 감지 실패 한 번으로 Task 가 `failed` 가 됐다(Orca 1.4.216~1.4.224, T-005·T-006). 1.4.245 에서 `--agent` 경로가 agy 7/7·codex 4/4 통과 — plan 트랙 3 에서 이 행과 아래 두 행을 지운다 |
 | 구현자 터미널은 `--command '$null=1; agy'` (설정이 있으면 `model implementer` 의 `launch_command`) | — | 맨 앞 토큰이 `agy` 면 Orca 가 에이전트 경로로 띄워 `tui-idle` 이 통과하지 못한다(agy 1.3.3, 11/11 실패) |
 | 리뷰어 터미널은 `--command 'codex --yolo -m <model> -c model_reasoning_effort=<effort>'` | `--agent codex` 가 같은 인자를 붙인다 | 직접 띄우면서 `--yolo` 를 빼면 샌드박스 안에서 `worker_done` 이 멈춘다(2026-10-11) |
+| 진행자 워커는 `--model`·`--effort` 를 늘 준다 (`model coordinator`, 설정이 없으면 `sonnet`/`medium`) | 사용자가 모델을 고르지 않았으면 생략해 기본 모델을 물려받는다 | 잦고 긴 진행 루프를 싼 모델에 두는 것이 세션을 나눈 이유다(ADR 0004). `--effort` 는 `--model` 없이 쓸 수 없다 |
 | 워크트리는 `worker-start` 에 합치지 않고 먼저 만든다 | `worker-start --worktree new-…` | 워커를 띄우기 전에 기준선 게이트를 돌려야 한다 — (d) |
 | 진행자 워커가 하위 워커를 기다리는 `check --wait` 는 `--timeout-ms 600000` | 가이드 예시 900000 | 빈 대기마다 화면·liveness 를 보는 체크포인트 간격이다 — (e). 설계 세션의 대기는 가이드 기본 그대로 |
 
