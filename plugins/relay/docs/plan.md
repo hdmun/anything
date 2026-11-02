@@ -244,7 +244,26 @@
 1. [x] CONTEXT.md 「예열」 정의의 "워커 터미널을 만들기 전에" → "워커를 띄우기 전에" (트랙 3 이 선기동을 없앤 경우만).
 2. [x] README: 진입 약속(relay 를 호출한 세션이 설계 세션), 진행 세션 절 → 진행자 워커, 준비물에 Orca 스킬, 「알려진 한계」.
 3. [x] `docs/field-notes.md`: 버려진 우회(선기동·readiness 사다리)의 사례를 "역사" 로 표시.
-4. [ ] `plugin.json` 2.0.0, evals 전체(`--model sonnet`, threshold 1.0) 통과 확인.
+4. [~] `plugin.json` 2.0.0, evals 전체(`--model sonnet`, threshold 1.0) 통과 확인. — 2.0.0 으로 올렸다(사용자 결정). delivery-failed 만 2/3.
+
+   평가(2026-11-03, `--judge-model sonnet`, threshold 1.0, 트랙 5 합계 $7.38 — 전체 1회 + 떨어진 케이스 재실행 2회):
+
+   | 케이스 | 플러그인 있음 (마지막 실행) | 없음(기준선) |
+   |---|---|---|
+   | handoff-not-relay | 1.0 ×3 (발동하지 않아야 하는 케이스) | 1.0 ×3 |
+   | session-classify | 1.0 ×3 | 0 ×3 |
+   | spec-violation-escalate | 1.0 ×3 | 0 ×3 |
+   | tsc-silent | 1.0 ×3 | 0~0.5 |
+   | mutation-dirty | 1.0 ×3 | 0 ×3 |
+   | startup-no-dispatch | 1.0 ×3 | 0 ×3 |
+   | update-prompt-blocked | 1.0 ×3 | 0.5 ×3 |
+   | delivery-failed | **1, 1, 0** | 0 ×3 |
+
+   - 전체 실행에서 떨어진 4케이스: 채점 과엄격 2(delivery-failed·startup-no-dispatch — 응답은 옳았다, 기준을 명확히 함), eval 환경의 Read 권한 거부 1(mutation-dirty — 재실행 3/3), 실제 위반 1(update-prompt-blocked "Skip 은 보내도 된다" — 불변식 보강 뒤 3/3).
+   - delivery-failed 의 남은 실패는 **relay 스킬이 발동하지 않은 실행**이다(Skill 0회, 1턴). 문서 내용이 아니라 진행자 워커에서의 발동 문제 — 아래 후속 과제.
+   - 이 과정에서 SKILL.md 불변식 2줄이 늘었다: 확인창은 사람이 터미널에서 직접 처리(Skip 도 사람이), 전달 실패는 스스로 재출발하지 않는다.
+
+   **후속 과제 — 진행자 워커의 스킬 발동**: preamble 이 긴 프롬프트에서 `relay 진행자:` 줄만으로는 3회 중 1회 발동하지 않았다. 후보: (a) design.md 의 Task spec 형식에 "relay 스킬로 진행한다" 를 명시, (b) description 에서 preamble 조건을 앞으로. 바꾸면 delivery-failed 를 다시 잰다(약 $0.5).
 5. [ ] 배포: `claude plugin update relay` 를 설정 디렉터리마다 → 사용 중 저장소마다 `/relay:init` 로 역할 파일 갱신.
 
 ### 이번 범위가 아닌 것
