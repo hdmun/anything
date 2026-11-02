@@ -21,4 +21,4 @@ status: accepted
 - 설계자·진행자는 Claude 세션이라 강제할 수 없다. 결정기는 `claude --model … --effort …` 를 안내만 하고, 진행 세션이 사용자에게 전한다.
 - agy 는 `--model <기본 이름> --effort <레벨>` 을 받고, 레벨이 이름에 든 모델(`…-low`)에 `--effort` 를 같이 주면 거부한다. 거부되면 기동 실패 예산을 쓰므로 `agy models` 출력과 대조해 기동 전에 `human / agy_model_invalid` 로 막는다 (실측 agy 1.3.3, 2026-10-11).
 - model 값은 셸 명령줄에 그대로 들어가므로 문자 집합(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)을 코드가 강제한다.
-- agy 명령은 `$null=1; agy [--model …] [--effort …]` 로, 맨 앞 토큰이 `$null=1;` 인 한 Orca 가 에이전트 시작 경로로 가로채지 않는다. 인자가 붙은 형태의 `tui-idle` 통과는 smoke 로 실측해 `verified-cli.json` 에 등록한다.
+- agy 명령은 `$null=1; agy [--model …] [--effort …]` 로, 맨 앞 토큰이 `$null=1;` 인 한 Orca 가 에이전트 시작 경로로 가로채지 않는다. 인자가 붙은 형태의 `tui-idle` 통과는 smoke 로 실측해 `verified-cli.json` 에 등록한다. **ADR 0003 이 대체한다** — `worker-start --agent` smoke 를 통과한 에이전트는 model·effort 를 `worker-start` 인자로 준다.
