@@ -34,19 +34,13 @@ class SkillCallsExistingCommands(unittest.TestCase):
         # 정책을 스크립트로 옮긴 뒤 heredoc 이 되살아나면 두 정본이 생긴다 (ADR 0001)
         self.assertNotIn("<<'PY'", SKILL)
 
-    def test_agy_launch_command_matches_code(self):
-        # 회귀: 단독 `agy` 로 띄우면 Orca 의 tui-idle 이 통과하지 못한다 (1.3.3: 11/11 실패)
-        from relaylib import orca
-        self.assertIn("--command '%s'" % orca.AGY_LAUNCH_COMMAND, SKILL)
-        self.assertNotRegex(SKILL, r"--command\s+['\"]?agy\b")
-
-    def test_codex_terminal_launch_bypasses_sandbox(self):
-        # 회귀: --yolo 없이 직접 띄운 codex 는 샌드박스 안에서 worker_done 보고가 멈춘다 (2026-10-11 실측)
-        launches = re.findall(r"--command\s+'(codex[^']*)'", SKILL)
-        self.assertTrue(launches)
-        for c in launches:
-            self.assertIn("--yolo", c.split())
-        self.assertNotIn("worker-start 응답의 launch.effective.model", SKILL)
+    def test_workers_launch_through_worker_start_agent(self):
+        # 기동은 Orca 기본 경로다 (ADR 0003, 트랙 0 에서 agy 7/7·codex 4/4). 터미널 선기동·명령줄 조립이 되살아나지 않게
+        for agent in ("claude", "antigravity", "codex"):
+            self.assertIn("--agent %s" % agent, SKILL)
+        self.assertNotRegex(SKILL, r"--command\s+'")
+        for gone in ("$null=1", "--yolo", "tui-idle", "HandleUserInput called"):
+            self.assertNotIn(gone, SKILL)
 
     def test_every_liveness_call_passes_the_screen(self):
         # 회귀: 확인창은 화면에만 보인다(T-007, agentWait null) — 화면 없이 묻는 liveness 는 빈 대기 30분을 쓴다
@@ -55,10 +49,6 @@ class SkillCallsExistingCommands(unittest.TestCase):
         for c in calls:
             self.assertIn("--screen", c)
             self.assertIn("--empty-waits", c)
-
-    def test_reused_terminal_is_checked_before_worker_start(self):
-        self.assertIn("재사용 전에 `tui-idle`부터 통과시킨다", SKILL)
-        self.assertIn("header_scrolled_out", SKILL)
 
     def test_severity_table_not_reintroduced(self):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
@@ -115,8 +105,7 @@ class SkillSkeleton(unittest.TestCase):
 
     def test_invariants_live_in_skill_md_itself(self):
         # 컴팩션 뒤에는 SKILL.md 앞부분만 다시 붙는다 — 불변식은 references 에만 있으면 안 된다
-        from relaylib import orca
-        for phrase in (orca.AGY_LAUNCH_COMMAND, "--yolo", "자동 머지 금지", "자동 응답 금지", "<base>"):
+        for phrase in ("worker-start --agent", "자동 머지 금지", "자동 응답 금지", "<base>"):
             self.assertIn(phrase, SKILL_MD)
 
     def test_every_step_reference_exists_and_is_read_first(self):
