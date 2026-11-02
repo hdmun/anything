@@ -124,30 +124,30 @@ class OrcaCli(unittest.TestCase):
         r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "startup", "--response", "-"], input=data, capture_output=True)
         self.assertEqual(json.loads(r.stdout)["action"], "lookup_dispatch")
 
-    def test_screen_json_with_box_drawing_is_read_as_utf8(self):
-        # T-007 보고: 박스 문자가 든 screen.json 을 cp949 로 읽는가 → relay_cli 는 utf-8 로 읽는다
+    def test_worker_read_json_with_box_drawing_is_read_as_utf8(self):
+        # T-007 보고: 박스 문자가 든 JSON 을 cp949 로 읽는가 → relay_cli 는 utf-8 로 읽는다
         tail = ["▄▀▀▄  Antigravity CLI 1.3.3", "─" * 10, ">", "─" * 10, "Gemini 3.8 Flash (Medium) │ Idle"]
         with tempfile.TemporaryDirectory() as d:
-            p = pathlib.Path(d) / "screen.json"
-            p.write_text(json.dumps({"ok": True, "result": {"terminal": {"tail": tail}}}, ensure_ascii=False), encoding="utf-8")
+            p = pathlib.Path(d) / "read.json"
+            p.write_text(json.dumps({"ok": True, "result": {"source": "terminal", "terminal": {"tail": tail}}}, ensure_ascii=False), encoding="utf-8")
             env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING")}
             r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "liveness", "--role", "implementer",
-                                "--screen", str(p), "--empty-waits", "1", "--now", "1000"], capture_output=True, env=env)
+                                "--read", str(p), "--empty-waits", "1", "--now", "1000"], capture_output=True, env=env)
             self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
             self.assertNotIn(b"UnicodeDecodeError", r.stderr)
 
     def test_liveness_cli(self):
-        with tempfile.TemporaryDirectory() as d:
-            t = pathlib.Path(d) / "term.json"
-            t.write_text(json.dumps({"ok": True, "result": {"terminal": {"agentWait": None, "lastOutputAt": 1000}}}), encoding="utf-8")
-            r = cli("liveness", "--worker", str(self.FIX / "worker-list-entry.json"), "--terminal", str(t),
-                    "--role", "implementer", "--now", str(1000 + 6 * 60_000))
-            self.assertEqual(json.loads(r.stdout)["reason"], "stalled")
+        r = cli("liveness", "--worker", str(self.FIX / "worker-list-entry.json"), "--show", str(self.FIX / "worker-show-agy.json"),
+                "--role", "implementer", "--now", str(1793613865349 + 6 * 60_000))
+        self.assertEqual(json.loads(r.stdout)["reason"], "stalled")
 
-    def test_liveness_cli_screen_on_first_empty_wait(self):
-        r = cli("liveness", "--screen", str(self.FIX / "codex-screen-approval.txt"), "--empty-waits", "1",
-                "--role", "reviewer", "--now", "1000")
-        self.assertEqual(json.loads(r.stdout)["reason"], "blocked_prompt")
+    def test_liveness_cli_read_on_first_empty_wait(self):
+        tail = (self.FIX / "codex-screen-approval.txt").read_text(encoding="utf-8").splitlines()
+        with tempfile.TemporaryDirectory() as d:
+            p = pathlib.Path(d) / "read.json"
+            p.write_text(json.dumps({"ok": True, "result": {"source": "terminal", "terminal": {"tail": tail}}}), encoding="utf-8")
+            r = cli("liveness", "--read", str(p), "--empty-waits", "1", "--role", "reviewer", "--now", "1000")
+            self.assertEqual(json.loads(r.stdout)["reason"], "blocked_prompt")
 
     def test_liveness_cli_needs_worker_from_third_empty_wait(self):
         r = cli("liveness", "--empty-waits", "3", "--role", "reviewer", "--now", "1000")

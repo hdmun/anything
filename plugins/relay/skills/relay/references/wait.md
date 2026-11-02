@@ -14,12 +14,13 @@
 
 **빈 대기와 타임아웃은 실패가 아니라 체크포인트다.** 순서대로 내려간다.
 
-**1층 — 빈 대기마다 화면만 본다. 3회 미만이면 다시 기다린다.** heartbeat나 화면 활동은 *살아 있다*는 뜻이지 *끝났다*는 뜻이 아니다.
-그러나 확인창에서 멈춘 워커는 기다려도 끝나지 않는다. 그래서 **1회째부터** 화면을 `liveness`에 넘긴다 — 확인창이면 그 자리에서 `human / blocked_prompt`가 나온다.
+**1층 — 빈 대기마다 워커 출력만 본다. 3회 미만이면 다시 기다린다.** heartbeat나 화면 활동은 *살아 있다*는 뜻이지 *끝났다*는 뜻이 아니다.
+그러나 확인창에서 멈춘 워커는 기다려도 끝나지 않는다. 그래서 **1회째부터** `worker-show`·`worker-read`를 `liveness`에 넘긴다 — 확인창이면 그 자리에서 `human`이 나온다.
+관찰은 orchestration 동사로만 한다. 워커가 터미널이 아니라 채팅으로 뜰 수도 있기 때문이다(ADR 0003).
 
 ```bash
-# 워커 handle 의 terminal read --screen JSON → screen.json, terminal show JSON → term.json
-python "$RELAY/scripts/relay_cli.py" liveness --screen screen.json --terminal term.json --empty-waits <연속 빈 대기 횟수> --role implementer|reviewer
+# 그 워커의 worker-show --json → show.json, worker-read --json → read.json
+python "$RELAY/scripts/relay_cli.py" liveness --show show.json --read read.json --empty-waits <연속 빈 대기 횟수> --role implementer|reviewer
 ```
 
 `wait`(`reason: layer1`)이면 `check --wait`를 다시 건다.
@@ -28,16 +29,17 @@ python "$RELAY/scripts/relay_cli.py" liveness --screen screen.json --terminal te
 
 ```bash
 # worker-list --run <run_id> --include-remote 의 JSON → workers.json (그 워커 항목만 남겨도 된다)
-python "$RELAY/scripts/relay_cli.py" liveness --worker workers.json --screen screen.json --terminal term.json --empty-waits 3 --role implementer|reviewer
+python "$RELAY/scripts/relay_cli.py" liveness --worker workers.json --show show.json --read read.json --empty-waits 3 --role implementer|reviewer
 ```
 
 | `action` | 할 일 |
 |---|---|
 | `run_argv` | projection이 다음 행동을 줬다(`attention.requiresAction`). `argv`를 그대로 실행한다 — `orca` 접두는 이미 붙어 있다 |
 | `wait` | 작업 중이다. 1층으로 돌아가 계속 대기 |
-| `human` | `prompt_wait`(`agentWait` — 자동 응답 금지), `blocked_prompt`(화면의 확인창 — 자동 응답 금지), `stalled`(출력 정지: 구현 5분·리뷰 10분), `exited`(워커 종료) |
+| `human` | `prompt_wait`(`worker-show`의 `observation.agentWait` — 자동 응답 금지), `blocked_prompt`(`worker-read`가 터미널로 읽은 화면의 확인창 — 자동 응답 금지), `stalled`(출력 정지: 구현 5분·리뷰 10분), `exited`(워커 종료) |
 
-- **2층(projection)이 1차 신호**이고 3층(`lastOutputAt` 벽시계)은 projection이 답을 못 줄 때만 쓴다. 3층에는 종료 조건이 없어서 relay가 임계값을 둔다.
+- **2층(projection)이 1차 신호**이고 3층(`worker-show`의 `terminal.lastOutputAt` 벽시계)은 projection이 답을 못 줄 때만 쓴다. 3층에는 종료 조건이 없어서 relay가 임계값을 둔다.
+- 화면 확인은 `worker-read`가 터미널로 읽힌 경우(`source: terminal` — agy)만 한다. transcript로 읽히는 워커(codex·claude)는 `observation.agentWait`가 그 몫이다.
 - **agy 워커는 2층이 답을 주지 않는다.** `liveness: unverifiable (missing_status)`, `nextAction: none`만 돌아온다. `liveness`는 이 경우 자동으로 3층으로 내려간다.
 - 임계값과 판정 순서의 정본은 `scripts/relaylib/orca.py`다.
 

@@ -42,13 +42,15 @@ class SkillCallsExistingCommands(unittest.TestCase):
         for gone in ("$null=1", "--yolo", "tui-idle", "HandleUserInput called"):
             self.assertNotIn(gone, SKILL)
 
-    def test_every_liveness_call_passes_the_screen(self):
-        # 회귀: 확인창은 화면에만 보인다(T-007, agentWait null) — 화면 없이 묻는 liveness 는 빈 대기 30분을 쓴다
+    def test_every_liveness_call_passes_worker_output(self):
+        # 회귀: 확인창은 출력에만 보인다(T-007, agentWait null) — 출력 없이 묻는 liveness 는 빈 대기 30분을 쓴다.
+        # 관찰은 orchestration 동사로만 한다 (ADR 0003) — terminal read/show 로 되돌아가지 않게
         calls = re.findall(r"relay_cli\.py\" liveness [^\n]*", SKILL)
         self.assertTrue(calls)
         for c in calls:
-            self.assertIn("--screen", c)
-            self.assertIn("--empty-waits", c)
+            for flag in ("--show", "--read", "--empty-waits"):
+                self.assertIn(flag, c)
+            self.assertNotIn("--screen", c)
 
     def test_severity_table_not_reintroduced(self):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)

@@ -73,15 +73,24 @@ def _tail(screen):
     return lines[-SCREEN_TAIL_LINES:]
 
 
-def liveness(worker, terminal, role, now_ms, screen=None, empty_waits=None):
-    """빈 대기 뒤의 판정 (SKILL (e)). worker 는 worker-list 항목, terminal 은 terminal show 결과, screen 은 terminal read --screen.
+def _read_tail(read):
+    """worker-read 결과 → 화면 꼬리 줄 목록. 터미널로 읽힌 경우만 화면이 있다 — transcript 는 None."""
+    if not read or read.get("source") != "terminal":
+        return None
+    return (read.get("terminal") or {}).get("tail") or []
+
+
+def liveness(worker, show, role, now_ms, read=None, empty_waits=None):
+    """빈 대기 뒤의 판정 (SKILL (e)). 입력은 orchestration 동사의 결과뿐이다 (ADR 0003):
+    worker 는 worker-list 항목(projection), show 는 worker-show 결과, read 는 worker-read 결과.
 
     empty_waits(연속 빈 대기 횟수)를 주면 LAYER1_EMPTY_WAITS 전에는 화면만 보고 기다린다.
     """
-    terminal = terminal or {}
-    if terminal.get("agentWait"):
+    show = show or {}
+    if (show.get("observation") or {}).get("agentWait"):
         return _d("human", reason="prompt_wait")       # agentWait 은 양성 신호로만 믿는다
-    if screen and BLOCKED_RE.search("\n".join(_tail(screen))):
+    tail = _read_tail(read)
+    if tail and BLOCKED_RE.search("\n".join(_tail("\n".join(tail)))):
         # 실측(T-007): codex 가 승인창에서 멈췄는데 agentWait 은 비어 있었다 — 화면이 유일한 증거다
         return _d("human", reason="blocked_prompt")
     if empty_waits is not None and empty_waits < LAYER1_EMPTY_WAITS:
@@ -92,7 +101,7 @@ def liveness(worker, terminal, role, now_ms, screen=None, empty_waits=None):
         return _d("run_argv", argv=["orca"] + list(na["argv"]), kind=na["kind"])   # argv 엔 실행 파일명이 없다
     if (p.get("liveness") or {}).get("verdict") == "exited":
         return _d("human", reason="exited")
-    last = terminal.get("lastOutputAt")
+    last = (show.get("terminal") or {}).get("lastOutputAt")
     if last is None:
         return _d("wait", reason="no_output_timestamp")
     if now_ms - last >= STALL_MS[role]:
