@@ -29,6 +29,8 @@ EFFORTS = {
     "reviewer": ("low", "medium", "high", "xhigh", "max", "ultra"),  # codex models_cache.json 의 supported_reasoning_levels 합집합
 }
 DEFAULT_EFFORT = {"designer": "high", "coordinator": "medium", "implementer": None, "reviewer": "high"}
+# 진행자는 플러그인이 띄우는 워커라(ADR 0004) 모델 계열 기본값이 있다. 설계자는 사람이 연 세션이라 없다.
+DEFAULT_MODEL = {"coordinator": "sonnet"}
 
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 
@@ -106,10 +108,10 @@ def load_all(repo=None, user_path=None):
 
 
 def resolve(role, cfg):
-    """{'model': 설정값 또는 None, 'effort': 설정값 또는 역할 기본값 또는 None, 'configured': 설정 파일이 준 필드 목록}."""
+    """{'model': 설정값 또는 역할 기본값 또는 None, 'effort': 설정값 또는 역할 기본값 또는 None, 'configured': 설정 파일이 준 필드 목록}."""
     spec = cfg.get(role) or {}
     return {
-        "model": spec.get("model"),
+        "model": spec.get("model") or DEFAULT_MODEL.get(role),
         "effort": spec.get("effort") or DEFAULT_EFFORT[role],
         "configured": sorted(spec),
     }

@@ -302,14 +302,30 @@ class CodexLaunchCommand(unittest.TestCase):
             orca.codex_launch_command("gpt-9", "high; calc")
 
 
-class SessionModel(unittest.TestCase):
+class DesignerModel(unittest.TestCase):
+    """설계 세션은 사람이 연 세션이라 플러그인이 모델을 바꿀 수 없다 — 따를 명령만 안내한다."""
+
     def test_defaults(self):
-        d = orca.session_model("coordinator")
-        self.assertEqual((d["action"], d["model"], d["effort"], d["command"]), ("session", None, "medium", "claude --effort medium"))
+        d = orca.session_model("designer")
+        self.assertEqual((d["action"], d["model"], d["effort"], d["command"]), ("session", None, "high", "claude --effort high"))
 
     def test_configured(self):
         d = orca.session_model("designer", {"designer": {"model": "opus", "effort": "max"}})
         self.assertEqual(d["command"], "claude --model opus --effort max")
+
+
+class CoordinatorModel(unittest.TestCase):
+    """진행자는 설계 세션이 worker-start --agent claude 로 띄우는 워커다 (ADR 0004) — 기동 인자를 돌려준다."""
+
+    def test_default_launches_sonnet_medium_worker(self):
+        d = orca.coordinator_model()
+        self.assertEqual((d["action"], d["agent"], d["model"], d["effort"], d["source"]),
+                         ("launch", "claude", "sonnet", "medium", "default"))
+        self.assertNotIn("command", d)      # 사람에게 안내할 claude 명령줄은 이제 없다
+
+    def test_configured_values_win(self):
+        d = orca.coordinator_model({"coordinator": {"model": "opus", "effort": "high"}})
+        self.assertEqual((d["model"], d["effort"], d["source"]), ("opus", "high", "relay_models"))
 
 
 AGY_MODELS = "Fetching available models...\ngemini-3.8-flash-high\tG (High)\ngemini-3.8-flash-low\tG (Low)\ngemini-3.1-pro-high\tP\ngemini-3.1-pro-low\tP\n"
@@ -351,16 +367,6 @@ class ImplementerModel(unittest.TestCase):
         d = orca.readiness(fx("agy-screen-misordered.txt"), agent="antigravity", log=Readiness.SIGNED, retries=0,
                            command="agy", launch_command=cmd)
         self.assertEqual(d["launch_command"], cmd)
-
-
-class SessionModel(unittest.TestCase):
-    def test_defaults(self):
-        d = orca.session_model("coordinator")
-        self.assertEqual((d["action"], d["model"], d["effort"], d["command"]), ("session", None, "medium", "claude --effort medium"))
-
-    def test_configured(self):
-        d = orca.session_model("designer", {"designer": {"model": "opus", "effort": "max"}})
-        self.assertEqual(d["command"], "claude --model opus --effort max")
 
 
 if __name__ == "__main__":

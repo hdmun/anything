@@ -221,8 +221,15 @@ def implementer_model(cfg=None, agy_models_text=None):
               source="relay_models" if r["configured"] else "agy_default")
 
 
+def coordinator_model(cfg=None):
+    """진행자 워커 기동 인자. 설계 세션이 worker-start --agent claude 의 --model·--effort 로 그대로 준다 (ADR 0004)."""
+    r = models.resolve("coordinator", cfg or {})
+    return _d("launch", agent="claude", model=r["model"], effort=r["effort"],
+              source="relay_models" if r["configured"] else "default")
+
+
 def session_model(role, cfg=None):
-    """설계자·진행자(Claude 세션). 플러그인이 /model 을 대신 칠 수 없어 사람·진행자가 따를 명령만 돌려준다."""
+    """설계자(사람이 연 Claude 세션). 플러그인이 /model 을 대신 칠 수 없어 사람이 따를 명령만 돌려준다."""
     r = models.resolve(role, cfg or {})
     return _d("session", role=role, model=r["model"], effort=r["effort"],
               command=models.session_command(r["model"], r["effort"]),

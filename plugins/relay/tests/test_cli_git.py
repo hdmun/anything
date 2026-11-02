@@ -215,6 +215,13 @@ class OrcaCli(unittest.TestCase):
             out = json.loads(cli("model", "designer", "--repo", d, "--user-config", str(u)).stdout)
             self.assertEqual(out["command"], "claude --model opus --effort max")
 
+    def test_model_coordinator_returns_worker_start_arguments(self):
+        with tempfile.TemporaryDirectory() as d:
+            u = pathlib.Path(d) / "user.json"
+            u.write_text(json.dumps({"coordinator": {"effort": "low"}}), encoding="utf-8")
+            out = json.loads(cli("model", "coordinator", "--repo", d, "--user-config", str(u)).stdout)
+            self.assertEqual((out["action"], out["agent"], out["model"], out["effort"]), ("launch", "claude", "sonnet", "low"))
+
 
 class ModelsInitCli(unittest.TestCase):
     def run_init(self, d, *args):
