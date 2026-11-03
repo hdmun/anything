@@ -40,7 +40,7 @@ report to you: their questions, escalations, and worker_done arrive in your own 
 ---
 
 === TASK ===
-relay 진행자: Run run_72f6300b56af / T-014 — 점수 분석 보강. spec: .ai/specs/T-014-analysis.md
+relay 진행자: Run run_72f6300b56af / T-014 — Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다. 점수 분석 보강. spec: .ai/specs/T-014-analysis.md
 
 (진행 상황) T-014 게이트 재검증에서 다른 게이트는 다 통과했고, 마지막으로 변이 테스트 게이트(`python tools/mutate/mutate.py`)를 백그라운드로 돌려 둔 상태야. 그런데 지금 `git status` 를 보니 `internal/analysis/score.go` 가 수정됨으로 떠 있어. 구현 워커는 그 파일을 건드린 적이 없어.
 어떻게 해야 해? 판단과 명령을 알려줘. 실행은 하지 마.
