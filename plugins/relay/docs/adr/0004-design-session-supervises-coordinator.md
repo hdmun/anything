@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0005
 ---
 
 # 설계 세션이 진행자를 Orca 워커로 감독한다
