@@ -16,10 +16,11 @@
 4. `task-create` 로 태스크를 만든다. `--spec` 은 아래 한 줄, 의존이 있으면 `--deps <json_array>`.
 
    ```
-   relay 진행자: Run <run_id> / T-NNN — <한 줄 요약>. spec: .ai/specs/T-NNN-<슬러그>.md
+   relay 진행자: Run <run_id> / T-NNN — Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다. <한 줄 요약>. spec: .ai/specs/T-NNN-<슬러그>.md
    ```
 
-   - **첫머리 `relay 진행자: Run <run_id> / T-NNN`이 진행자 워커 안에서 relay 스킬을 부른다.** `worker-start --task`는 이 spec을 워커 프롬프트의 `=== TASK ===` 블록으로 넣는다.
+   - **첫머리 `relay 진행자: Run <run_id> / T-NNN`과 스킬 호출 지시가 진행자 워커 안에서 relay 스킬을 부른다.** `worker-start --task`는 이 spec을 워커 프롬프트의 `=== TASK ===` 블록으로 넣는다.
+   - 호출 지시를 빼지 않는다. 긴 preamble 뒤의 `relay 진행자:` 줄만으로는 스킬 description이 3회 중 1회 발동하지 않았다(2026-11-03 eval). 지시문은 description보다 확실히 따른다.
    - **`--spec`에는 이 한 줄만 넣는다.** spec 전문의 정본은 git 파일이다.
    - 이유 세 가지: (1) 리뷰어가 SPEC_VIOLATION을 판정하려면 git에서 spec을 읽어야 한다 (2) spec 수정 이력이 diff로 남아야 한다 (3) Windows 명령행 길이 제한에 걸린다.
    - 의존 관계가 있으면 `--deps`로 DAG를 만든다. 실행은 순차지만 DAG는 처음부터 정의한다.

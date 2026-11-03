@@ -40,7 +40,7 @@ report to you: their questions, escalations, and worker_done arrive in your own 
 ---
 
 === TASK ===
-relay 진행자: Run run_72f6300b56af / T-007 — 점수 계산 리팩터링. spec: .ai/specs/T-007-score.md
+relay 진행자: Run run_72f6300b56af / T-007 — Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다. 점수 계산 리팩터링. spec: .ai/specs/T-007-score.md
 
 (진행 상황) 워크트리 `wt_77` 기준선 게이트는 녹색이고 `warmup agy` 는 `ready` 였다. `model implementer` 는 `{"action": "launch", "agent": "antigravity", "model": null, "effort": null}`.
 구현 워커를 `orca orchestration worker-start --from term_coord07 --spec "T-007 구현. ..." --worktree id:wt_77 --agent antigravity --json` 로 띄웠더니 응답이 이랬다:

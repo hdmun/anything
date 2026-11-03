@@ -36,7 +36,7 @@ report to you: their questions, escalations, and worker_done arrive in your own 
 ---
 
 === TASK ===
-relay 진행자: Run run_5e1a / T-009 — 빈 입력 처리. spec: .ai/specs/T-009-empty.md
+relay 진행자: Run run_5e1a / T-009 — Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다. 빈 입력 처리. spec: .ai/specs/T-009-empty.md
 
 (진행 상황) 구현 워커 dispatch `ctx_aa01`(agy)의 게이트 재검증을 통과해 구현 커밋을 만들었고, 리뷰 워커 dispatch `ctx_bb02`(codex)가 방금 `worker_done` 을 보냈다.
 워크트리 `C:/orca/workspaces/T-009`, 브랜치 `hdmun/T-009-empty`, base `7f3a2c1`.

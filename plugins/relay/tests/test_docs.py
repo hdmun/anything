@@ -93,6 +93,12 @@ class SessionStructure(unittest.TestCase):
         self.assertIn("relay 진행자: Run <run_id> / T-NNN", entry)
         self.assertNotIn("run-use로 기존 Run에 들어왔으면", SKILL_MD)
 
+    def test_coordinator_task_spec_tells_the_worker_to_load_relay(self):
+        # 회귀: preamble 뒤 `relay 진행자:` 줄만으로는 description 이 3회 중 1회 발동하지 않았다 (2026-11-03 eval)
+        design = (SKILL_DIR / "references" / "design.md").read_text(encoding="utf-8")
+        spec_line = next(l for l in design.splitlines() if l.strip().startswith("relay 진행자: Run <run_id> / T-NNN"))
+        self.assertIn("Skill 도구로 relay 스킬을 먼저 부르고", spec_line)
+
     def test_escalation_goes_through_ask_not_decision_gates(self):
         # decision gate 는 세션 종료를 전제로 한 설계라 폐기했다 (Q12). 진행자는 ask 로 설계 세션에 묻는다
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
