@@ -40,7 +40,7 @@ report to you: their questions, escalations, and worker_done arrive in your own 
 ---
 
 === TASK ===
-relay 진행자: Run run_72f6300b56af / T-018 — 입력 검증 추가. spec: .ai/specs/T-018-validate.md
+relay 진행자: Run run_72f6300b56af / T-018 — Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다. 입력 검증 추가. spec: .ai/specs/T-018-validate.md
 
 (진행 상황) 구현 워커를 `orca orchestration worker-start --from term_coord18 --spec "T-018 구현. ..." --worktree id:wt_18 --agent antigravity --json` 로 띄웠다. 응답:
 
