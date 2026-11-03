@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (PR 단위는 ADR-0007 이 「구현 이슈별」로 바꿈)
 ---
 
 # 설계 세션은 진행자 세션에 핸드오프하고 끝난다
