@@ -264,7 +264,10 @@
    - 이 과정에서 SKILL.md 불변식 2줄이 늘었다: 확인창은 사람이 터미널에서 직접 처리(Skip 도 사람이), 전달 실패는 스스로 재출발하지 않는다.
 
    **진행자 워커의 스킬 발동 (해결, 2026-11-03)**: preamble 이 긴 프롬프트에서 `relay 진행자:` 줄만으로는 3회 중 1회 발동하지 않았다. (a) 를 택해 design.md 의 Task spec 형식에 "Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다" 를 넣고 eval 6개의 TASK 줄을 맞췄다 → delivery-failed 3/3, 스킬 발동 3/3($0.51). description 은 바꾸지 않았다(다른 케이스의 발동 조건을 건드리지 않으려고).
-5. [ ] 배포: `claude plugin update relay` 를 설정 디렉터리마다 → 사용 중 저장소마다 `/relay:init` 로 역할 파일 갱신.
+5. [x] 배포: `claude plugin update relay` 를 설정 디렉터리마다 → 사용 중 저장소마다 `/relay:init` 로 역할 파일 갱신. — 2026-11-03
+   - `~/.claude`(user)·`~/.claude-max`(user, project `C:/Users/hdmun`) 세 설치 모두 2.0.0(`81853a0`). project 설치는 1.3.2 로 남아 있던 것을 함께 올렸다.
+   - 설치본 `doctor`: `skill:*`·`orca:nested-depth`·`plugin` OK. `FAIL codex`(리뷰어 모델 미설정, `~/.relay/models.json` 없음)는 전환 전부터 있던 상태 — 설정하기 전에는 리뷰 단계가 시작되지 않는다.
+   - poker-server: 드리프트 2개 파일(트랙 4 변경과 스탬프뿐) → `--force` → `336e7cf` (푸시 안 함). relay 를 쓰는 저장소는 이것 하나다.
 
 ### 이번 범위가 아닌 것
 
