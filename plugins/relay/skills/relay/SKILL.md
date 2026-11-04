@@ -69,8 +69,10 @@ description: Orca orchestration 위에서 설계자·진행자(Claude)·구현�
 - 게이트는 종료코드로 판정한다. 통과하면 즉시 구현 커밋을 만든다.
 - `<base>`는 spec과 리뷰 Task에 명시한다.
 - 머지는 사람이 한다(자동 머지 금지).
-- 워커의 확인창·프롬프트(업데이트·trust·승인)는 사람이 그 워커 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 키를 보내지 않고, 보낼 키를 선택지로 묻지도 않는다 — `ask`로 사람을 부르고 기다린다. 'Skip'처럼 안전해 보이는 선택도 사람이 고르고 사람이 누른다.
-- 전달 실패(`startup`의 `confirm_delivery` 뒤 Dispatch가 여전히 `pending`)는 기동 실패 예산이 남아 있어도 스스로 재출발하지 않는다. 워커를 `worker-retain`으로 보존하고 `ask`로 사람을 부른다 — 입력이 늦게 도착하면 같은 Task를 두 워커가 하게 된다. 알려진 확인창의 예방책은 `doctor`가 검사한다.
+- 감독은 Orca의 깨우기와 영수증을 따른다(ADR 0009). relay가 더하는 감독 정책은 아래 세 줄뿐이다.
+  - **`agent_prompt_blocked`면 사람을 부른다.** 워커의 확인창·프롬프트(업데이트·trust·승인)는 사람이 그 워커 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 키를 보내지 않고, 보낼 키를 선택지로 묻지도 않는다 — `ask`로 사람을 부르고 기다린다. 'Skip'처럼 안전해 보이는 선택도 사람이 고르고 사람이 누른다. 알려진 확인창의 예방책은 `doctor`가 검사한다.
+  - **`outcome_unknown`이면 스스로 재출발하지 않고 사람을 부른다.** 워커는 `worker-keep-open`으로 남긴다 — 입력이 늦게 도착하면 같은 Task를 두 워커가 하게 된다.
+  - **하위 워커의 `escalation`에 `stopReason`이 있으면** spec의 해당 절을 근거로 `send`로 한 번 다시 지시한다. 같은 워커가 두 번째로 멈추면 사람이 필요한 것으로 (h). 다시 지시는 라운드로 세지 않는다.
 - 진행자 워커는 혼자 판단할 수 없는 것(SPEC_VIOLATION, 반복 지적, 라운드 한도, 사람이 필요한 상황)을 **모두 `ask`로 설계 세션에 묻는다.** 사람 호출도 이 `ask`이고, 설계 세션이 사람에게 전한다. decision gate는 쓰지 않는다.
 - `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다. `$RELAY`는 이 스킬을 불러왔을 때 표시되는 *Base directory*에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
 - Orca 가이드와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다. 일부러 다르게 하는 것은 아래 「Orca 기본과 다른 점」에만 둔다.
@@ -85,7 +87,6 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 진행자 워커는 `--model`·`--effort` 를 늘 준다 (`model coordinator`, 설정이 없으면 `opus`/`low`) | 사용자가 모델을 고르지 않았으면 생략해 기본 모델을 물려받는다 | 잦고 긴 진행 루프는 effort 를 낮춰 둔다 — 생략하면 사용자 기본 effort 로 뜬다. `--effort` 는 `--model` 없이 쓸 수 없다. 기본값은 2026-11-02 사용자 결정, 바꾸려면 모델 설정 파일 |
 | 워크트리는 `worker-start` 에 합치지 않고 먼저 만든다 | `worker-start --worktree new-…` | 워커를 띄우기 전에 기준선 게이트를 돌려야 한다 — (d) |
 | 진행자 워커가 `ask` 로 설계 세션의 답을 기다리는 동안, 정착한 하위 워커의 재사용·보존·해제와 그 ack 를 미룬다 | 정착을 받으면 곧바로 셋 중 하나를 정하고 ack | 답이 정한다 — 수정 라운드면 재사용, 중단이면 보존, 성공이면 해제 — (h). 2026-11-02 결정(Q12) |
-| 진행자 워커가 하위 워커를 기다리는 `check --wait` 는 `--timeout-ms 600000` | 가이드 예시 900000 | 빈 대기마다 화면·liveness 를 보는 체크포인트 간격이다 — (e). 설계 세션의 대기는 가이드 기본 그대로 |
 
 ## 단계 목록
 
@@ -95,9 +96,9 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 |---|---|---|
 | 설계 (b) | spec 작성, run/task 생성, 진행자 워커 감독 | `references/design.md` (+ `spec-template.md`) |
 | 시작 (c) 0~3 | 진행자 워커: preamble 확인, Orca 스킬, doctor, spec 읽기 | `references/start.md` |
-| 구현 워커 (d) | worktree·기준선·예열·`worker-start --agent`·`startup` 해석 | `references/implementer.md` |
+| 구현 워커 (d) | worktree·기준선·예열·`worker-start --agent`·영수증 | `references/implementer.md` |
 | 리뷰 워커 (d) | model reviewer·diff-guard·`worker-start --agent` | `references/reviewer.md` |
-| 대기 (e) | 대기와 무응답 판정 | `references/wait.md` |
+| 대기 (e) | 턴을 끝내고 Orca가 깨우면 메시지를 처리한다 | 아래 (e) |
 | 게이트 (f) | 독립 재검증, 통과 즉시 커밋 | `references/gate.md` |
 | 리뷰 분기 (g) | review-branch, 수정 라운드 | `references/review.md` |
 | 에스컬레이션 (h) | 설계 세션에 `ask`, 시도와 라운드 | `references/escalation.md` |
@@ -106,6 +107,14 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 예외 경로는 해당 상황에서만 읽는다.
 
 - 변이 테스트 게이트 → `references/gate-mutation.md`
+
+## (e) 대기 — Orca가 깨운다
+
+하위 워커를 띄운 뒤 턴을 끝낸다. Orca가 `worker_done`·`escalation`·`question`으로 진행자를 깨운다. 폴링하지 않는다 — 조용한 워커는 relay가 판정하지 않고 사람이 Orca UI로 본다(ADR 0009). 메시지 처리 순서(`reply`·ack)는 Orca 가이드를 따른다.
+
+- `worker_done` → 구현이면 (f), 리뷰면 (g).
+- `escalation` → 불변식의 `stopReason` 줄. `stopReason`이 없으면 (h).
+- `question` → spec 해석이나 범위 판단이 필요한 질문은 진행자가 답을 짓지 않는다. 같은 질문을 `ask`로 설계 세션에 올리고 — (h), 받은 답을 근거째 그대로 `reply`한다. 진행자가 직접 답할 때도 **판단의 근거까지 적는다** — 워커는 spec과 역할 파일만 알고 이 대화를 모르므로, 어느 spec 항목에 근거했는지, 그 발견을 finding으로 올릴지까지 함께 지시한다.
 
 ## (j) 컨텍스트 위생 규범
 

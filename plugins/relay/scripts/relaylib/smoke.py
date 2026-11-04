@@ -12,8 +12,6 @@ relay 가 워커를 띄우는 경로(`worker-start --agent`)를 smoke 전용 Run
 import json
 import time
 
-from relaylib import orca
-
 PING = "relay-smoke-ping"
 
 
@@ -67,12 +65,14 @@ def run_worker(agent, workdir, run, version=None, model=None, effort=None,
     result["turn_start"] = r.get("turnStart")
     result["mode"] = (r.get("mode") or {}).get("mode")
     result["effective"] = (r.get("launch") or {}).get("effective")
-    decision = orca.startup(resp)
-    result["startup"] = decision
-    if decision["action"] != "ok":
+    result["state"] = r.get("state")
+    dispatch = r.get("dispatchId") or ((r.get("dispatch") or {}).get("id") if isinstance(r.get("dispatch"), dict) else None)
+    if not resp.get("ok") or r.get("failedStage") or r.get("state") in ("failed", "outcome_unknown") or not dispatch:
+        # 영수증 그대로 보고한다 — 해석(재출발 여부)은 사람이 한다 (ADR 0009)
         result["failed_at"] = "start"
+        result["start_error"] = r.get("lastError") or (resp.get("error") or {}).get("code") or r.get("state")
         return result
-    dispatch = result["dispatch"] = decision["dispatch"]
+    result["dispatch"] = dispatch
 
     stray = []
     for _ in range(wait_rounds):

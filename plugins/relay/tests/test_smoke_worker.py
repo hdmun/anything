@@ -106,7 +106,7 @@ class WorkerPath(unittest.TestCase):
         o = FakeOrca(fixture("worker-start-readiness-failed.json"))
         r = smoke.run_worker("codex", "C:/w", o.run, version="1")
         self.assertEqual((r["passed"], r["failed_at"]), (False, "start"))
-        self.assertEqual(r["startup"]["action"], "retry")
+        self.assertEqual(r["start_error"], "timeout")
         self.assertEqual(o.made("check"), [])
         self.assertEqual(o.made("worker-release"), [])
 
