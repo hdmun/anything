@@ -134,10 +134,62 @@ class SessionStructure(unittest.TestCase):
         self.assertIn("멈춤 보고", SKILL_MD)
 
 
+# 지운 감독 루프의 흔적 (성공 기준 3, #19). Orca 가이드가 하는 일을 relay 문서가 다시 적지 않는다.
+# 오탐을 보고 다듬는다 — 게이트 명령의 `--release`(cargo 등)는 잡지 않는다.
+FORBIDDEN = [
+    r"liveness", r"relay_cli\.py\"? startup", r"lookup_dispatch", r"confirm_delivery", r"STALL_MS", r"BLOCKED_RE",
+    r"check --wait", r"agentWait", r"requiresAction", r"nextAction",
+    r"(?<!--)\brelease\b", r"\bretain\b", r"worker-release", r"worker-retain", r"--retry-of",
+    r"빈 대기", r"기동 실패 예산", r"nested-depth", r"SUB-DISPATCH",
+]
+
+
+class SupervisionStaysInOrca(unittest.TestCase):
+    def test_no_forbidden_tokens_in_either_skill(self):
+        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, HANDOFF_DIR) for p in d.rglob("*.md")}
+        hits = ["%s: %s" % (p.relative_to(PLUGIN_ROOT), pat) for p, text in docs.items() for pat in FORBIDDEN
+                if re.search(pat, text)]
+        self.assertEqual(hits, [])
+
+    def test_release_flag_of_a_gate_is_not_a_hit(self):
+        self.assertIsNone(re.search(r"(?<!--)\brelease\b", "게이트 명령: `cargo test --release`"))
+        self.assertIsNotNone(re.search(r"(?<!--)\brelease\b", "워커를 release 한다"))
+
+    def test_relay_cli_has_no_supervision_commands(self):
+        self.assertFalse({"liveness", "startup"} & _subcommands())
+
+
+EVALS = PLUGIN_ROOT / "evals"
+EVAL_CASES = {"outcome-unknown", "prompt-blocked", "handoff-fires", "spec-violation-judge", "stop-reason-reinstruct",
+              "resume-skips-done", "mutation-dirty", "tsc-silent", "handoff-not-relay"}
+
+
+class Evals(unittest.TestCase):
+    """eval 9케이스 (#24). handoff 기동 줄을 바꾸면 eval 프롬프트도 같이 바꾼다."""
+
+    def test_the_nine_cases(self):
+        self.assertEqual({p.name for p in EVALS.iterdir() if p.is_dir() and p.name != "results"}, EVAL_CASES)
+
+    def test_coordinator_prompts_copy_the_handoff_launch_line(self):
+        line = next(l.strip() for l in HANDOFF_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
+        pattern = re.escape(line).replace(re.escape("<이슈 URL>"), r"\S+").replace(re.escape("<슬러그>"), r"[a-z0-9-]+")
+        for case in sorted(EVAL_CASES - {"handoff-fires", "handoff-not-relay"}):
+            prompt = (EVALS / case / "prompt.md").read_text(encoding="utf-8")
+            self.assertRegex(prompt, pattern, case)
+            self.assertNotIn("relay 진행자:", prompt, case)
+            self.assertNotIn("You are a dispatched worker", prompt, case)
+
+    def test_handoff_cases_check_which_skill_fired(self):
+        for case, name in (("handoff-fires", "relay-not-fired.md"), ("handoff-fires", "skill-fired.md"),
+                           ("handoff-not-relay", "handoff-not-fired.md"), ("handoff-not-relay", "relay-not-fired.md")):
+            self.assertTrue((EVALS / case / "graders" / name).exists(), (case, name))
+
+
 class SkillSkeleton(unittest.TestCase):
-    def test_skill_md_stays_within_500_lines(self):
+    def test_both_skill_mds_stay_within_500_lines(self):
         # 다시 비대해지는 것을 막는 상한 (분리 성공 기준). 컴팩션 생존은 리뷰에서 사람이 본다
-        self.assertLessEqual(len(SKILL_MD.splitlines()), 500)
+        for text in (SKILL_MD, HANDOFF_MD):
+            self.assertLessEqual(len(text.splitlines()), 500)
 
     def test_invariants_live_in_skill_md_itself(self):
         # 컴팩션 뒤에는 SKILL.md 앞부분만 다시 붙는다 — 불변식은 references 에만 있으면 안 된다
