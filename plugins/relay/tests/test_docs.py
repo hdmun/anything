@@ -185,6 +185,32 @@ class Evals(unittest.TestCase):
             self.assertTrue((EVALS / case / "graders" / name).exists(), (case, name))
 
 
+class Frontmatter(unittest.TestCase):
+    """스킬 머리말이 YAML 로 읽혀야 스킬이 뜬다.
+
+    회귀: 3.0.0 description 의 따옴표 없는 `relay: 구현 이슈` 가 YAML 을 깨뜨려 relay 스킬이 사라졌다
+    (eval 2026-11-05, `Unknown skill: relay`).
+    """
+
+    def test_descriptions_are_safe_yaml_scalars(self):
+        for md in (SKILL_MD, HANDOFF_MD):
+            head = md.split("---")[1]
+            for line in head.strip().splitlines():
+                key, _, value = line.partition(": ")
+                value = value.strip()
+                if value[:1] in ("'", '"'):
+                    self.assertEqual(value[-1], value[0], line)
+                    if value[0] == "'":
+                        self.assertNotIn("'", value[1:-1].replace("''", ""), line)
+                else:
+                    self.assertNotIn(": ", value, "%s: 따옴표 없는 값에 ': ' 가 있다" % key)
+                    self.assertNotIn(" #", value, "%s: 따옴표 없는 값에 ' #' 가 있다" % key)
+
+    def test_skill_names(self):
+        self.assertIn("\nname: relay\n", SKILL_MD[:40])
+        self.assertIn("\nname: handoff\n", HANDOFF_MD[:40])
+
+
 class SkillSkeleton(unittest.TestCase):
     def test_both_skill_mds_stay_within_500_lines(self):
         # 다시 비대해지는 것을 막는 상한 (분리 성공 기준). 컴팩션 생존은 리뷰에서 사람이 본다

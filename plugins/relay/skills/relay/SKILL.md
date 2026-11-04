@@ -1,6 +1,6 @@
 ---
 name: relay
-description: Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리뷰어(codex)로 구현 이슈 하나를 PR 까지 옮기는 진행자 세션의 스킬이다. 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. 기동 줄이 "relay: 구현 이슈 <URL>" 인 진행자 세션으로 떴을 때, 그리고 사람이 relay 로 구현 이슈를 진행하라고 할 때 쓴다. 구현 이슈를 진행자에게 넘기는 일은 `relay:handoff` 다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(감독·리뷰 없이 맡기기)에는 쓰지 않는다.
+description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리뷰어(codex)로 구현 이슈 하나를 PR 까지 옮기는 진행자 세션의 스킬이다. 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. 기동 줄이 "relay: 구현 이슈 <URL>" 인 진행자 세션으로 떴을 때, 그리고 사람이 relay 로 구현 이슈를 진행하라고 할 때 쓴다. 구현 이슈를 진행자에게 넘기는 일은 `relay:handoff` 다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(감독·리뷰 없이 맡기기)에는 쓰지 않는다.'
 ---
 
 # relay
