@@ -11,11 +11,12 @@
   python relay_cli.py snapshot --issue <URL|path> --worktree <dir> --slug <slug>   (spec 스냅숏을 쓰고 JSON 한 줄)
   python relay_cli.py handoff-check --issue <URL|path> [--json]        (검사기 — 기동 전 검사: 태스크 수·필수 절·작성자)
   python relay_cli.py resume --worktree <dir> --tasks I-<a>,I-<b> [--base-branch main]   (결정기 — 재개: 다음 태스크)
+  python relay_cli.py judgment validate <판정.json> [--reason spec_violation|repeated_finding|question]   (검사기)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
-  python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
-  python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
+  python relay_cli.py model designer|coordinator|implementer|reviewer|judge [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
+  python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 역할 전부 한눈에)
   python relay_cli.py models-init [--repo <dir> | --user] [--<역할>-model M] [--<역할>-effort E] ...
-                                  [--force] [--print] [--no-verify]   (설정 파일 생성, 역할: designer|coordinator|implementer|reviewer)
+                                  [--force] [--print] [--no-verify]   (설정 파일 생성, 역할: designer|coordinator|implementer|reviewer|judge)
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
   python relay_cli.py smoke --dir <orca worktree> [--agent antigravity|codex|all]   (검사기 — worker-start 리허설, 수동)
@@ -33,7 +34,7 @@ import pathlib
 import subprocess
 import sys
 
-from relaylib import doctor, handoff, issue, models, orca, resume, review, roles, smoke, trust
+from relaylib import doctor, handoff, issue, judgment, models, orca, resume, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -151,7 +152,14 @@ def cmd_resume(a):
     return _emit(resume.decide(tasks, resume.done_tasks(out.splitlines())))
 
 
-ATTRIBUTION_KEYS = ("Implemented-by", "Reviewed-by")
+ATTRIBUTION_KEYS = ("Implemented-by", "Reviewed-by", "Judged-by")
+
+
+def cmd_judgment(a):
+    errs = judgment.check_file(a.path, a.reason)
+    for e in errs:
+        print(e, file=sys.stderr)
+    return 1 if errs else 0
 
 
 def cmd_snapshot(a):
@@ -199,6 +207,8 @@ def _decide_model(role, cfg, codex_config=None):
         return orca.implementer_model(cfg, _agy_models_text())
     if role == "coordinator":
         return orca.coordinator_model(cfg)
+    if role == "judge":
+        return orca.judge_model(cfg)
     return orca.session_model(role, cfg)
 
 
@@ -459,6 +469,12 @@ def build_parser():
     hc.add_argument("--json", action="store_true")
     hc.set_defaults(func=cmd_handoff_check)
 
+    jg = sub.add_parser("judgment", help="판정 서브에이전트 출력 검증 (judgment-schema.json)")
+    jg.add_argument("op", choices=("validate",))
+    jg.add_argument("path")
+    jg.add_argument("--reason", choices=tuple(judgment.DECISIONS), help="맡긴 사유 — 판정의 reason 과 같아야 한다")
+    jg.set_defaults(func=cmd_judgment)
+
     rs = sub.add_parser("resume", help="Relay-Done 트레일러로 끝난 태스크를 보고 다음 태스크 (JSON 한 줄)")
     rs.add_argument("--worktree", required=True)
     rs.add_argument("--tasks", required=True, help="DAG 순서의 태스크 ID, 쉼표로")
@@ -476,7 +492,7 @@ def build_parser():
     _add_models_args(m)
     m.set_defaults(func=cmd_model)
 
-    ms = sub.add_parser("models", help="4역할의 model·effort 를 한 번에")
+    ms = sub.add_parser("models", help="역할 전부의 model·effort 를 한 번에")
     _add_models_args(ms)
     ms.set_defaults(func=cmd_models)
 

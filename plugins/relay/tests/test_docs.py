@@ -117,6 +117,15 @@ class SessionStructure(unittest.TestCase):
         self.assertIn("Closes #", finish)
         self.assertIn("태스크 도중 이슈가 바뀜: 반영 안 됨", finish)
 
+    def test_judgment_subagent_runs_through_stop_md(self):
+        # 판정 서브에이전트의 입출력 계약 (#23): 경로 입력, 스키마 검증, 판정 기록, judge 역할
+        self.assertFalse((SKILL_DIR / "references" / "escalation.md").exists())
+        stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
+        for phrase in ("model judge", "judgment validate", "judgment-schema.json", ".ai/judgments/I-<n>.jN.json",
+                       "Judged-by: claude/", "Relay-Done: I-<n>", "Agent 도구"):
+            self.assertIn(phrase, stop)
+        self.assertTrue((SKILL_DIR / "references" / "judgment-schema.json").exists())
+
     def test_stops_with_a_report_not_ask_or_decision_gates(self):
         # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")

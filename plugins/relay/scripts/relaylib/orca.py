@@ -58,9 +58,19 @@ def implementer_model(cfg=None, agy_models_text=None):
 
 
 def coordinator_model(cfg=None):
-    """진행자 워커 기동 인자. 설계 세션이 worker-start --agent claude 의 --model·--effort 로 그대로 준다 (ADR 0004)."""
+    """진행자 세션 기동 인자. relay:handoff 가 진행자 기동의 --model·--effort 로 그대로 준다 (ADR 0005)."""
     r = models.resolve("coordinator", cfg or {})
     return _d("launch", agent="claude", model=r["model"], effort=r["effort"],
+              source="relay_models" if r["configured"] else "default")
+
+
+def judge_model(cfg=None):
+    """판정 서브에이전트 인자. 진행자가 Agent 도구의 model·effort 로 그대로 준다 (#23 결정 5)."""
+    r = models.resolve("judge", cfg or {})
+    if r["model"] not in models.AGENT_ALIASES:
+        return _d("human", reason="judge_model_invalid",
+                  detail="Agent 도구는 모델 별칭(%s)만 받는다: %r" % ("|".join(models.AGENT_ALIASES), r["model"]))
+    return _d("launch", agent="subagent", model=r["model"], effort=r["effort"],
               source="relay_models" if r["configured"] else "default")
 
 

@@ -144,6 +144,11 @@ class CommitGuard(GitRepoCase):
         self.assertIn("fix(analysis)", err)
         self.assertNotIn("feat(I-42)", err)
 
+    def test_judgment_commit_is_attributed(self):
+        self.commit("j.json", "judge(I-42): j1 dismiss\n\nJudged-by: claude/opus\nRelay-Done: I-42")
+        r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
     def test_merge_commits_ignored(self):
         git(self.repo, "checkout", "-q", "-b", "side")
         self.commit("s.txt", "feat(T-1): s\n\nImplemented-by: agy/x")

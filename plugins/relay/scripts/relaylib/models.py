@@ -18,19 +18,22 @@ import re
 USER_PATH = pathlib.Path.home() / ".relay" / "models.json"
 REPO_REL = ".ai/relay-models.json"
 
-ROLES = ("designer", "coordinator", "implementer", "reviewer")
+ROLES = ("designer", "coordinator", "implementer", "reviewer", "judge")
 FIELDS = ("model", "effort")
 
 _CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 EFFORTS = {
     "designer": _CLAUDE_EFFORTS,
     "coordinator": _CLAUDE_EFFORTS,
+    "judge": _CLAUDE_EFFORTS,
     "implementer": ("low", "medium", "high", "xhigh", "max"),   # agy --help
     "reviewer": ("low", "medium", "high", "xhigh", "max", "ultra"),  # codex models_cache.json 의 supported_reasoning_levels 합집합
 }
-DEFAULT_EFFORT = {"designer": "high", "coordinator": "low", "implementer": None, "reviewer": "high"}
-# 진행자는 플러그인이 띄우는 워커라(ADR 0004) 모델 계열 기본값이 있다. 설계자는 사람이 연 세션이라 없다.
-DEFAULT_MODEL = {"coordinator": "opus"}
+DEFAULT_EFFORT = {"designer": "high", "coordinator": "low", "implementer": None, "reviewer": "high", "judge": "high"}
+# 진행자(handoff 가 띄운다)와 판정 서브에이전트(진행자가 띄운다)는 모델 계열 기본값이 있다. 설계자는 사람이 연 세션이라 없다.
+DEFAULT_MODEL = {"coordinator": "opus", "judge": "opus"}
+# 판정 서브에이전트는 Agent 도구로 띄운다 — Agent 도구의 model 은 별칭만 받는다
+AGENT_ALIASES = ("opus", "sonnet", "haiku", "fable")
 
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 

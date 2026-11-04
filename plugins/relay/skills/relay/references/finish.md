@@ -50,7 +50,12 @@ spec: .ai/specs/I-<n>-<슬러그>.md (태스크마다)
 review: .ai/reviews/I-<n>.rN.json (태스크마다 마지막 리뷰)
 gate: <실행한 게이트 명령> — 통과
 warnings: <doctor WARN, 미검증 버전 | 없음>
+
+기각한 지적:
+- I-<n> j<N> (<dismiss|accept>): <판정 파일의 instruction>
 ```
+
+- 「기각한 지적」은 `.ai/judgments/` 에서 `decision` 이 `dismiss`·`accept` 인 판정 파일의 `instruction` 을 모은 것이다. 없으면 이 절을 뺀다.
 
 - 태스크마다 이슈의 지금 `updatedAt` 을 스냅숏 머리말의 값과 비교한다. 다르면 본문에 `태스크 도중 이슈가 바뀜: 반영 안 됨 — I-<n>` 줄을 더한다. 진행자는 바뀐 내용을 반영하지 않는다(ADR 0006).
 
