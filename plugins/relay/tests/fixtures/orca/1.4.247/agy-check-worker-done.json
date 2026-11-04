@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "result": {
+    "messages": [
+      {
+        "id": "msg_83c527020136",
+        "type": "worker_done",
+        "from": "term_7b712a69-1b12-4334-8b2a-523962b37ece",
+        "subject": "Measurement task completed",
+        "body": "Ran the requested 60-second measurement command without modifying any files. The command exited with code 0 and output 'done-sleep'. There are no remaining actions.",
+        "payload": {
+          "taskId": "task_38419a814317",
+          "dispatchId": "ctx_74e37942793b",
+          "outcome": "succeeded"
+        }
+      }
+    ]
+  }
+}

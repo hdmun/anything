@@ -1,0 +1,30 @@
+{
+  "id": "3660e133-c205-40e5-83e8-c7e3f6e64e32",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+      "ptyId": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts@@7216be85",
+      "incarnationId": "c06005f4-9d44-4c63-8aad-4bd226d3e9a9",
+      "orphaned": false,
+      "worktreeId": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts",
+      "worktreePath": "C:/Users/hdmun/scripts",
+      "branch": "refs/heads/main",
+      "tabId": "29e0b50e-e8b6-455e-b5a2-7e50b76341f0",
+      "leafId": "8c5bc6ec-09b4-4c46-85c0-6bf8ab64fcc1",
+      "title": "codex | scripts",
+      "connected": true,
+      "writable": true,
+      "lastOutputAt": 1793758390414,
+      "preview": "r turn.\n+ Show details\nWorking (28s • esc to interrupt)\n› Ask Codex to do anything\nGPT-6.1-Sol medium · ~\\scripts · GPT-6.1-Sol · scripts · main · Working · Context 97% left · Context 3% used · 5h 100% left · weekly 80% left · 0.159.3 · 475K window · 13.2K used · 92.1K in · 409 out …\n? for shortcuts",
+      "executionHostId": "local",
+      "agentIdentity": "codex",
+      "paneRuntimeId": 1,
+      "rendererGraphEpoch": 0,
+      "agentWait": null
+    }
+  },
+  "_meta": {
+    "runtimeId": "d27cd29f-ccac-40c3-8922-5b786a42ebc3"
+  }
+}

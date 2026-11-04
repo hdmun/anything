@@ -1,0 +1,213 @@
+{
+  "id": "cd5ac1be-1b2f-4eda-bf74-dd2c6b557509",
+  "ok": true,
+  "result": {
+    "dispatch": {
+      "id": "ctx_f96bfc569075",
+      "runId": "run_0444a45255d0",
+      "taskId": "task_97a31cea4267",
+      "task_id": "task_97a31cea4267",
+      "contractVersion": 1,
+      "assigneeHandle": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+      "assigneePaneKey": "29e0b50e-e8b6-455e-b5a2-7e50b76341f0:8c5bc6ec-09b4-4c46-85c0-6bf8ab64fcc1",
+      "processIncarnation": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts@@7216be85:c06005f4-9d44-4c63-8aad-4bd226d3e9a9",
+      "capabilityRevokedAt": null,
+      "retryOfDispatchId": null,
+      "creatorDispatchId": null,
+      "followUpOf": null,
+      "hostScope": {
+        "kind": "local",
+        "hostId": "local"
+      },
+      "status": "dispatched",
+      "failureCount": 0,
+      "lastFailure": null,
+      "terminationReason": null,
+      "depth": 1,
+      "dispatchedAt": "2026-11-04 02:12:26",
+      "completedAt": null,
+      "createdAt": "2026-11-04 02:12:26",
+      "lastHeartbeatAt": null
+    },
+    "worker": {
+      "dispatchId": "ctx_f96bfc569075",
+      "runtimeEpoch": "d27cd29f-ccac-40c3-8922-5b786a42ebc3",
+      "state": "ready",
+      "stage": "input_accepted",
+      "worktreeId": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts",
+      "agentTerminalHandle": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+      "setupState": "not_applicable",
+      "effects": [
+        {
+          "kind": "worktree",
+          "action": "reused",
+          "id": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts"
+        },
+        {
+          "kind": "setup",
+          "action": "not_applicable",
+          "state": "not_applicable"
+        },
+        {
+          "kind": "terminal",
+          "role": "agent",
+          "action": "created",
+          "id": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+          "surface": "visible"
+        },
+        {
+          "kind": "dispatch_input",
+          "role": "agent",
+          "id": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+          "state": "accepted"
+        }
+      ],
+      "residualResources": [
+        {
+          "kind": "terminal",
+          "role": "agent",
+          "action": "created",
+          "id": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+          "surface": "visible"
+        }
+      ],
+      "startOptions": {
+        "worktree": "current",
+        "mode": {
+          "mode": "terminal",
+          "preferred": "terminal",
+          "reason": "user_default",
+          "detail": "Started a terminal agent worker, the default for new agent tabs in your settings."
+        },
+        "resolvedWorktreeId": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts",
+        "name": null,
+        "repo": null,
+        "baseBranch": null,
+        "terminal": null,
+        "agent": "codex",
+        "launch": {
+          "requested": {
+            "agent": "codex",
+            "model": null,
+            "effort": null
+          },
+          "effective": {
+            "agent": "codex",
+            "model": null,
+            "effort": null
+          }
+        },
+        "timeoutMs": 60000,
+        "setup": "not_applicable",
+        "setupSource": "existing_worktree"
+      },
+      "lastError": null,
+      "createdAt": "2026-11-04 02:12:26",
+      "updatedAt": "2026-11-04 02:12:37"
+    },
+    "projection": {
+      "id": "ctx_f96bfc569075",
+      "dispatchId": "ctx_f96bfc569075",
+      "taskId": "task_97a31cea4267",
+      "runId": "run_0444a45255d0",
+      "role": "worker",
+      "parent": null,
+      "provider": {
+        "id": "codex",
+        "model": "gpt-6.1-sol"
+      },
+      "host": {
+        "kind": "local",
+        "id": "local"
+      },
+      "workspace": {
+        "id": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts",
+        "kind": "folder_or_worktree"
+      },
+      "stage": {
+        "worker": "ready",
+        "dispatch": "dispatched",
+        "detail": "input_accepted",
+        "activity": "working"
+      },
+      "outcome": "in_progress",
+      "liveness": {
+        "verdict": "live",
+        "observedAt": 1793758383926,
+        "source": "agent_status"
+      },
+      "evidence": {
+        "durable": true,
+        "liveStatus": "fresh",
+        "lastObservedAt": 1793758383926
+      },
+      "resource": {
+        "state": "owned",
+        "id": "wtr_7f83227ccb2f",
+        "ownerDispatchId": "ctx_f96bfc569075",
+        "releaseState": "not_requested",
+        "terminalState": "active"
+      },
+      "nextAction": {
+        "kind": "none",
+        "argv": []
+      },
+      "attention": {
+        "categories": [],
+        "requiresAction": false
+      }
+    },
+    "terminal": {
+      "handle": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+      "ptyId": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts@@7216be85",
+      "incarnationId": "c06005f4-9d44-4c63-8aad-4bd226d3e9a9",
+      "orphaned": false,
+      "worktreeId": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts",
+      "worktreePath": "C:/Users/hdmun/scripts",
+      "branch": "refs/heads/main",
+      "tabId": "29e0b50e-e8b6-455e-b5a2-7e50b76341f0",
+      "leafId": "8c5bc6ec-09b4-4c46-85c0-6bf8ab64fcc1",
+      "title": "codex | scripts",
+      "connected": true,
+      "writable": true,
+      "lastOutputAt": 1793758384529,
+      "preview": "nes (ctrl+t to expand)\nWorking (22s • esc to interrupt)\n› Ask Codex to do anything\nGPT-6.1-Sol medium · ~\\scripts · GPT-6.1-Sol · scripts · main · Working · Context 98% left · Context 2% used · 5h 100% left · weekly 80% left · 0.159.3 · 475K window · 11.3K used · 67.3K in · 284 out …\n? for shortcuts",
+      "executionHostId": "local",
+      "agentIdentity": "codex",
+      "paneRuntimeId": 1,
+      "rendererGraphEpoch": 0,
+      "agentWait": null
+    },
+    "observation": {
+      "status": "live",
+      "exactWorker": true,
+      "agentWait": null
+    },
+    "terminalResource": {
+      "id": "wtr_7f83227ccb2f",
+      "ownershipState": "owned",
+      "releaseState": "not_requested",
+      "retainedReason": null,
+      "terminalHandle": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+      "worktreeId": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts",
+      "endpointId": "d27cd29f-ccac-40c3-8922-5b786a42ebc3",
+      "endpointIncarnation": "279a14d3-cfd8-44d8-8302-b3bb9ecfe592::C:/Users/hdmun/scripts@@7216be85:c06005f4-9d44-4c63-8aad-4bd226d3e9a9",
+      "originDispatchId": "ctx_f96bfc569075",
+      "ownerDispatchId": "ctx_f96bfc569075",
+      "releaseRequestedAt": null,
+      "releaseCompletedAt": null,
+      "releaseError": null,
+      "recoveryAttemptCount": 0,
+      "lastRecoveryAt": null,
+      "autoReleaseAt": null,
+      "archive": {
+        "source": null,
+        "status": null
+      }
+    },
+    "autoReleaseAt": null
+  },
+  "_meta": {
+    "runtimeId": "d27cd29f-ccac-40c3-8922-5b786a42ebc3"
+  }
+}
