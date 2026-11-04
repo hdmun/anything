@@ -3,6 +3,22 @@
 출처: 플러그인 검토 + poker-server T-004 장애 리포트 + grilling 세션(질문 1~19).
 용어는 [CONTEXT.md](../CONTEXT.md), 구조 결정은 [ADR 0001](adr/0001-policy-in-code.md).
 
+## 재구성 — Orca 스킬(실행)과 wayfinder(설계) 위로 (2026-11-05, v3.0.0, `hdmun/relay-restructure`)
+
+설계: wayfinder 지도 [hdmun/anything#11](https://github.com/hdmun/anything/issues/11), 구현: [hdmun/anything#25](https://github.com/hdmun/anything/issues/25) (진행 상태는 그 체크리스트), 결정: ADR 0005~0010.
+
+| 커밋 | 바뀐 것 |
+|---|---|
+| 1 `ee6e0ba` | 감독 보강(폴링·`startup`·`liveness`·기동 실패 예산) 삭제. 남는 감독 정책 3줄 (ADR 0009) |
+| 2 `90f6281` | 작업 단위 = 구현 이슈 `I-<n>`, 태스크 시작 때 spec 스냅숏(`relay_cli snapshot`) (ADR 0006·0007) |
+| 3 `d189d38` | 설계 세션 → `relay:handoff` → 진행자 세션. `handoff-check`, 이슈 워크트리, 워커 `--worktree current`, 출구 세 줄, PR 이슈당 하나, `orca:nested-depth` 삭제 (ADR 0005·0010) |
+| 4 `c5918d4` | 재개: `relay_cli resume` + `Relay-Done` 트레일러, `review_round_limit` 삭제 (ADR 0010) |
+| 5 `8340305` | 판정 서브에이전트: `stop.md`, `judgment-schema.json`, `judgment validate`, 판정 기록, `judge` 역할 (ADR 0008) |
+| 6 `19772dd` | `test_docs` 금지 토큰·500줄 검사, eval 9케이스 |
+| 7 | README·이 문서, `plugin.json` 3.0.0 |
+
+남은 일: eval 전체 실행(새 기준선)과 재구성 보고서 → rebase·`--no-ff` 머지 → 배포 → 실전 Run(poker-server #45 Ante). 순서와 조건은 #25 에 있다.
+
 ## 트랙 0 — 완료
 
 - [x] codex 0.159.3 준비 감지 실패 원인 규명 및 해결 — `~/.codex/config.toml` 에
@@ -372,6 +388,16 @@ T-007 은 v1.2.3 으로 성공 종료(구현 2·리뷰 2, r2 pass). 그 세션�
 - codex 작업 중 터미널 제목이 working 으로 바뀌는지 (smoke 로 확인)
 
 ## 미검증 (smoke·실전에서 확인)
+
+3.0.0 (첫 실전 Run 에서 확인):
+
+- `worktree create --agent claude --prompt` 로 띄운 진행자 세션이 기동 줄로 relay 스킬을 부르는가
+- 진행자 세션이 `worker-start --worktree current` 로 이슈 워크트리에 워커를 띄우는가
+- `worker_done` 뒤 닫힌 구현 워커에 `send` 하면 후속 Task 로 다시 열리는가 (Orca 1.4.247 가이드로만 확인)
+- 판정 서브에이전트(Agent 도구, `model judge`)가 경로만으로 판정 JSON 을 내는가
+- 재개: 같은 이름 워크트리에 `agent launch` → `resume` → 멈춘 태스크 스냅숏 다시 커밋
+
+2.x 이전:
 
 - `--command '$null=1; agy --model … --effort …'` 로 모델 핀 — 플래그는 `-p` 모드에서 실측(1.3.3), Orca `tui-idle` 통과는 smoke 1/1 (위 「기능」), 표본 추가 필요. codex `--terminal` 경로는 v1.2.5 에서 확인
 - ~~`worker-release` 가 수동 생성 터미널을 닫는가~~ → 닫지 않는다(`retained / external_terminal`, 2026-10-10). (i) 의 `terminal close` 가 필요하다
