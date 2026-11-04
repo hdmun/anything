@@ -22,6 +22,7 @@ description: Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리
 | 진행자 | Claude Code | Opus / low — `model coordinator` 를 handoff 가 기동 인자로 준다 | 진행자 세션 — Run 을 소유한 코디네이터 |
 | 구현자 | agy (Antigravity CLI) | agy 기본 모델 — (d) 참조 | supervised worker (깊이 1) |
 | 리뷰어 | codex | 모델 설정 파일의 `reviewer.model` (필수) / high | supervised worker (깊이 1) |
+| 판정 | Claude Code 서브에이전트 | Opus / high — `model judge` 를 Agent 도구 인자로 준다 | 진행자의 일회성 서브에이전트 (Orca 밖) |
 
 **이 스킬은 모델 버전을 적지 않는다.** 위 표는 **기본값**(모델 계열)이고, 사용자가 정하는 값은 설정 파일에 있다. 실제로 쓰인 버전은 커밋 트레일러(`Implemented-by:`, `Reviewed-by:`)에 사후로 남긴다.
 
@@ -59,7 +60,7 @@ description: Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리
   - **`agent_prompt_blocked`면 사람을 부른다.** 워커의 확인창·프롬프트(업데이트·trust·승인)는 사람이 그 워커 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 키를 보내지 않고, 보낼 키를 선택지로 묻지도 않는다 — 사람에게 알리고 기다린다. 'Skip'처럼 안전해 보이는 선택도 사람이 고르고 사람이 누른다. 알려진 확인창의 예방책은 `doctor`가 검사한다.
   - **`outcome_unknown`이면 스스로 재출발하지 않고 사람을 부른다.** 워커는 `worker-keep-open`으로 남긴다 — 입력이 늦게 도착하면 같은 Task를 두 워커가 하게 된다.
   - **워커의 `escalation`에 `stopReason`이 있으면** spec의 해당 절을 근거로 `send`로 한 번 다시 지시한다. 같은 워커가 두 번째로 멈추면 사람이 필요한 것으로 (h). 다시 지시는 라운드로 세지 않는다.
-- 진행자가 혼자 판단할 수 없는 것(SPEC_VIOLATION, 반복 지적, 라운드 한도, 사람이 필요한 상황)은 **멈춤 보고**로 끝낸다 — (h). 진행자는 spec 을 스스로 해석하지 않는다. decision gate는 쓰지 않는다.
+- **진행자는 spec 을 스스로 해석하지 않는다.** SPEC_VIOLATION·반복 지적·spec 해석 질문은 **판정 서브에이전트**에 맡기고, 판정은 spec 안에서만 한다. spec 이 틀렸거나 spec 에 없는 결정이 필요하면, 그리고 라운드 한도·사람이 필요한 상황이면 **멈춤 보고**를 남기고 끝난다 — (h). 진행자는 구현 이슈를 고치지 않는다(ADR 0008). decision gate는 쓰지 않는다.
 - `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다. `$RELAY`는 이 스킬을 불러왔을 때 표시되는 *Base directory*에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
 - Orca 가이드와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다. 일부러 다르게 하는 것은 아래 「Orca 기본과 다른 점」에만 둔다.
 - references Read가 "파일 없음"으로 실패하면 플러그인이 갱신된 것이다. `/reload-plugins` 후 처음 Read 한 단계 파일부터 다시 한다.
@@ -85,7 +86,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 대기 (e) | 턴을 끝내고 Orca가 깨우면 메시지를 처리한다 | 아래 (e) |
 | 게이트 (f) | 독립 재검증, 통과 즉시 커밋 | `references/gate.md` |
 | 리뷰 분기 (g) | review-branch, 수정 라운드 | `references/review.md` |
-| 멈춤 (h) | 멈춤 보고, 시도와 라운드 | `references/escalation.md` |
+| 판정·멈춤 (h) | 판정 서브에이전트, 판정 기록, 멈춤 보고, 시도와 라운드 | `references/stop.md` |
 | 종료 (i) | 워커 출구, PR(경로 A/B), 사람에게 보고 | `references/finish.md` |
 
 예외 경로는 해당 상황에서만 읽는다.
@@ -98,7 +99,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 
 - `worker_done` → 구현이면 (f), 리뷰면 (g).
 - `escalation` → 불변식의 `stopReason` 줄. `stopReason`이 없으면 (h).
-- `question` → spec 해석이나 범위 판단이 필요한 질문은 진행자가 답을 짓지 않는다 — (h). spec 에 답이 그대로 있는 질문만 직접 답하고, **판단의 근거까지 적는다** — 워커는 spec과 역할 파일만 알고 이 대화를 모르므로, 어느 spec 항목에 근거했는지, 그 발견을 finding으로 올릴지까지 함께 지시한다.
+- `question` → spec 해석이나 범위 판단이 필요한 질문은 진행자가 답을 짓지 않고 판정 서브에이전트에 맡긴다 — (h). spec 해석이 아닌 질문(절차·도구)만 직접 답하고, **판단의 근거까지 적는다** — 워커는 spec과 역할 파일만 알고 이 대화를 모르므로, 어느 spec 항목에 근거했는지, 그 발견을 finding으로 올릴지까지 함께 지시한다.
 
 ## (j) 컨텍스트 위생 규범
 

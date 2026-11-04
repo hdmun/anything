@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://relay.local/schemas/judgment-schema.json",
+  "title": "relay judgment",
+  "$comment": "판정 서브에이전트가 돌려주는 JSON 하나. 정본 검증은 relay_cli.py judgment validate (scripts/relaylib/judgment.py) 다. 판정은 spec 안에서만 한다 — spec 이 틀렸거나 spec 에 없는 결정이 필요하면 stop.",
+  "type": "object",
+  "properties": {
+    "reason": { "type": "string", "enum": ["spec_violation", "repeated_finding", "question"] },
+    "decision": { "type": "string", "enum": ["fix_impl", "dismiss", "another_round", "accept", "answer", "stop"] },
+    "rationale": { "type": "string", "minLength": 1, "$comment": "spec 항목·지적(파일·요약)·파일:줄" },
+    "instruction": { "type": "string", "minLength": 1, "$comment": "fix_impl·another_round: 수정 라운드 지시 / answer: 구현자에게 줄 답 / dismiss·accept: PR 본문에 옮길 기각 근거" },
+    "stop_summary": { "type": "string", "minLength": 1, "$comment": "stop: 멈춤 보고의 첫 줄 — 사람이 정해야 할 것 한 줄" }
+  },
+  "required": ["reason", "decision", "rationale"],
+  "additionalProperties": false,
+  "allOf": [
+    { "if": { "properties": { "reason": { "const": "spec_violation" } } },
+      "then": { "properties": { "decision": { "enum": ["fix_impl", "dismiss", "stop"] } } } },
+    { "if": { "properties": { "reason": { "const": "repeated_finding" } } },
+      "then": { "properties": { "decision": { "enum": ["another_round", "accept", "stop"] } } } },
+    { "if": { "properties": { "reason": { "const": "question" } } },
+      "then": { "properties": { "decision": { "enum": ["answer", "stop"] } } } },
+    { "if": { "properties": { "decision": { "const": "stop" } }, "required": ["decision"] },
+      "then": { "required": ["stop_summary"] },
+      "else": { "required": ["instruction"], "not": { "required": ["stop_summary"] } } }
+  ]
+}
