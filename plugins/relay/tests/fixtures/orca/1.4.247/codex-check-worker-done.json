@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "result": {
+    "messages": [
+      {
+        "id": "msg_0c86e859bde3",
+        "type": "worker_done",
+        "from": "term_32fe4f69-b5d6-458d-bbe7-9adf3cdba534",
+        "subject": "Measurement succeeded",
+        "body": "Ran git status --short exactly once without editing files. The command exited with code 0 and its output was empty. Nothing remains for this task.",
+        "payload": {
+          "taskId": "task_97a31cea4267",
+          "dispatchId": "ctx_f96bfc569075",
+          "outcome": "succeeded"
+        }
+      }
+    ]
+  }
+}
