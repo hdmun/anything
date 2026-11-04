@@ -30,7 +30,10 @@ python "$RELAY/scripts/relay_cli.py" review-branch --task I-<n> --worktree <work
 review(I-<n>): rN <verdict>
 
 Reviewed-by: codex/<리뷰 워커 영수증의 launch.effective.model>
+Relay-Done: I-<n>          ← `success` 일 때만. 진행자가 붙인다
 ```
+
+**`Relay-Done: I-<n>` 은 재개의 근거다**(ADR 0010). `relay_cli resume` 이 이 트레일러로 끝난 태스크를 건너뛴다. 빠뜨리면 재개 때 그 태스크를 다시 돈다. 워커가 아니라 진행자가 커밋할 때 붙인다 — commit-guard 와 같은 이유다.
 
 ### 수정 라운드는 구현 dispatch 에 `send` 한다
 

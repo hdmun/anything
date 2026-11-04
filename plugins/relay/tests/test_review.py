@@ -192,11 +192,20 @@ class Branch(unittest.TestCase):
         d = self.decide(impl=3)
         self.assertEqual((d["action"], d["reason"]), ("human", "total_round_limit"))
 
-    def test_review_round_limit_escalates(self):
+    def test_no_review_round_limit(self):
+        # review_round_limit 은 지웠다 — 한도는 total_round_limit 하나다 (ADR 0010)
         for n, s in enumerate("abcd", 1):
             self.put(n, report("changes_requested", finding("MAJOR", summary=s)))
-        d = self.decide(impl=1)
-        self.assertEqual((d["action"], d["reason"]), ("escalate", "review_round_limit"))
+        self.assertEqual(self.decide(impl=1)["action"], "fix_round")
+        self.assertFalse(hasattr(review, "MAX_REVIEW_ROUNDS"))
+
+    def test_only_counts_reports_of_this_attempt(self):
+        # 재개한 태스크는 라운드를 처음부터 센다 — 옛 r1·r2 는 세지 않고, 번호는 이어 간다
+        self.put(1, report("changes_requested", finding("MAJOR", summary="a")))
+        self.put(2, report("changes_requested", finding("MAJOR", summary="a")))
+        self.put(3, report("changes_requested", finding("MAJOR", summary="a")))
+        d = review.decide(self.dir, "I-42", impl_rounds=1, only={"I-42.r3.json"})
+        self.assertEqual((d["action"], d["review_rounds"], d["round"]), ("fix_round", 1, 4))
 
     def test_limits_do_not_block_success(self):
         for n, s in enumerate("abc", 1):
