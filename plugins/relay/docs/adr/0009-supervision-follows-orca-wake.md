@@ -21,7 +21,7 @@ Orca 1.4.247 가이드는 워커를 띄운 뒤 턴을 끝내면 Orca 가 진행�
 
 ## Consequences
 
-- `references/wait.md`, `relaylib/orca.py` 의 `startup`·`liveness`(와 `BLOCKED_RE`·`STALL_MS`·`STARTUP_BUDGET`), 그 CLI 하위 명령·테스트, 이것들에 기댄 eval 케이스(`startup-no-dispatch`·`delivery-failed`·`update-prompt-blocked`)가 지울 대상이 된다.
+- `references/wait.md`, `relaylib/orca.py` 의 `startup`·`liveness`(와 `BLOCKED_RE`·`STALL_MS`·`STARTUP_BUDGET`), 그 CLI 하위 명령·테스트, eval 케이스 `startup-no-dispatch` 가 지울 대상이 된다. `delivery-failed`·`update-prompt-blocked` 는 남는 정책(재출발 금지·키 금지)을 시험하므로 `outcome-unknown`·`prompt-blocked` 로 다시 쓴다.
 - 조용히 멈춘 워커는 relay 가 감지하지 않는다. 이 공백이 실제로 문제가 되면 relay 가 아니라 Orca 에 기능을 요청한다.
 - 작업 중 승인창이 다시 관측되면(예: codex 가 yolo 가 아닌 모드로 뜨게 바뀜) 이 결정을 다시 연다.
 - codex 사전 조건(`check_for_update_on_startup = false`, `tui.terminal_title`)은 기동 때의 확인창·준비 timeout 을 막는 예방책이라 남는다.
