@@ -8,10 +8,10 @@
 
 **구현 워커(agy)**
 
-1. `worktree create` 로 worktree 경로를 확보한다. relay 값: `--name T-NNN`, `--base-branch main`, `--setup run`.
+1. `worktree create` 로 worktree 경로를 확보한다. relay 값: `--name I-<n>-<슬러그>`, `--base-branch main`, `--setup run`.
    - **`--base-branch`를 반드시 명시한다.** 생략하면 repo의 `defaultBaseRef`를 쓰는데, 그 값이 `null`인 저장소에서는 엉뚱한 지점에서 분기된다.
    - 만든 직후 `git -C <worktree> log --oneline -1`로 base가 의도한 커밋인지 확인한다. 어긋났으면 `git -C <worktree> reset --hard <base>`로 맞춘다(추적되지 않은 파일은 보존된다).
-   - **이 커밋 SHA를 적어둔다.** 리뷰 워커의 Task spec에 `<base>`로 넣어야 한다.
+   - 이어서 spec 스냅숏을 커밋한다 — `start.md` 3. **그 커밋 직후의 SHA를 `<base>`로 적어둔다.** 리뷰 워커의 Task spec에 넣어야 한다.
 
    **그리고 워커를 띄우기 전에 게이트를 한 번 돌려 기준선이 녹색인지 확인한다.** 이것이 (d) 전체에서 가장 자주 걸리는 함정이다.
 
@@ -43,7 +43,7 @@
 
    - `human / agy_model_invalid`면 설정이 agy와 맞지 않는다(`detail`에 사유). `human / effort_needs_model`이면 설정에 effort만 있다 — Orca는 `--effort`를 `--model` 없이 받지 않는다. 어느 쪽이든 기동하지 않고 `detail`을 (h)로 올린다.
    - `launch`면 preamble SUB-DISPATCH의 `worker-start` 명령을 그대로 쓰고, relay가 정하는 값만 채운다:
-     - `--spec` — `T-NNN 구현. 역할: .ai/roles/implementer.md / spec: .ai/specs/T-NNN-<슬러그>.md / base: <base>`
+     - `--spec` — `I-<n> 구현. 역할: .ai/roles/implementer.md / spec: .ai/specs/I-<n>-<슬러그>.md / base: <base>`
      - `--worktree id:<wt>` — 1에서 만든 워크트리
      - `--agent antigravity`, 그리고 `model`이 있을 때만 `--model <model>`(`effort`가 있으면 `--effort <effort>`)
    - `model`이 `null`이면 **agy 기본 모델**로 뜬다. 응답의 `launch.effective.model`도 `null`이다.

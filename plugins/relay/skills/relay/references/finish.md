@@ -44,9 +44,9 @@ GitHub 리모트가 있고 다른 사람이 머지를 승인하는 경우:
 ```bash
 git -C <worktree> push -u origin HEAD
 gh pr create --head <branch> --base main \
-  --title "T-NNN: <제목>" \
-  --body "spec: .ai/specs/T-NNN-<슬러그>.md
-review: .ai/reviews/T-NNN.rN.json
+  --title "I-<n>: <제목>" \
+  --body "spec: .ai/specs/I-<n>-<슬러그>.md
+review: .ai/reviews/I-<n>.rN.json
 gate: <실행한 게이트 명령> — 통과"
 ```
 
@@ -76,17 +76,17 @@ git -C <repo> merge --no-ff <branch> -m "Merge branch '<branch>'"
 
 진행자 워커의 끝은 세션 종료가 아니라 **보고**다. 설계 세션은 이 보고만 보고 다음 태스크로 넘어간다 — (b) 감독 루프 4).
 
-1. **보고 파일을 쓴다** — `~/.relay/reports/<run_id>/T-NNN.md`. 워크트리 밖이라 커밋되지 않는다. 설계 세션이 이 파일에서 워크트리·`<base>`·브랜치를 읽어 확인한다.
+1. **보고 파일을 쓴다** — `~/.relay/reports/<run_id>/I-<n>.md`. 워크트리 밖이라 커밋되지 않는다. 설계 세션이 이 파일에서 워크트리·`<base>`·브랜치를 읽어 확인한다.
 
    ```
    run: <run_id>
-   task: T-NNN (<task_id>)
+   task: I-<n> (<task_id>)
    outcome: succeeded | failed
    worktree: <worktree 경로>
    base: <base SHA>
    branch: <브랜치>
    pr: <PR URL | 없음 (경로 B)>
-   review: <worktree>/.ai/reviews/T-NNN.rN.json (<verdict>)
+   review: <worktree>/.ai/reviews/I-<n>.rN.json (<verdict>)
    commits:
    <git -C <worktree> log --oneline <base>..HEAD 출력>
    retained: <worker-retain 한 하위 dispatch ID | 없음>

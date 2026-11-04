@@ -1,6 +1,6 @@
 ---
 name: relay
-description: Orca orchestration 위에서 설계자·진행자(Claude)·구현자(agy)·리뷰어(codex) 4역할 파이프라인을 굴릴 때 사용한다. spec 작성부터 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. "relay", relay Run 감독, T-NNN spec 설계를 요청할 때, 그리고 Task 첫 줄이 "relay 진행자:" 인 Orca 워커로 떴을 때 쓴다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(handoff — 감독·리뷰 없이 맡기기)에는 쓰지 않는다.
+description: Orca orchestration 위에서 설계자·진행자(Claude)·구현자(agy)·리뷰어(codex) 4역할 파이프라인을 굴릴 때 사용한다. spec 작성부터 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. "relay", relay Run 감독, 구현 이슈를 relay 로 진행하라고 요청할 때, 그리고 Task 첫 줄이 "relay 진행자:" 인 Orca 워커로 떴을 때 쓴다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(handoff — 감독·리뷰 없이 맡기기)에는 쓰지 않는다.
 ---
 
 # relay
@@ -9,8 +9,8 @@ description: Orca orchestration 위에서 설계자·진행자(Claude)·구현�
 
 ## 진입 약속과 세션 판정
 
-**사람은 첫 요청에 "relay"를 명시해 이 스킬을 부른다.** 예: "relay로 T-NNN 설계해줘", "relay Run `<id>` 이어서 감독해줘". 그 세션이 **설계 세션**이다.
-**진행자 워커**는 설계 세션이 태스크마다 띄운다. Task spec 첫 줄 `relay 진행자: Run <run_id> / T-NNN`이 워커 안에서 이 스킬을 부른다.
+**사람은 첫 요청에 "relay"를 명시해 이 스킬을 부른다.** 예: "relay로 구현 이슈 #42 진행해줘", "relay Run `<id>` 이어서 감독해줘". 그 세션이 **설계 세션**이다.
+**진행자 워커**는 설계 세션이 태스크마다 띄운다. Task spec 첫 줄 `relay 진행자: Run <run_id> / I-<n>`이 워커 안에서 이 스킬을 부른다.
 
 **판정 기준은 Orca preamble 하나다** — Orca 가이드의 역할 판정과 같다(ADR 0004).
 
@@ -45,17 +45,17 @@ description: Orca orchestration 위에서 설계자·진행자(Claude)·구현�
 [설계 세션 Opus·high]  /grill-with-docs  (발동 기준은 (b) 참고)
                          ├─ CONTEXT.md 갱신
                          └─ ADR 추가 (해당 시)
-                       .ai/specs/T-NNN.md 작성
+                       구현 이슈 확인 (하위 이슈 = 태스크, ADR 0007)
                        run-create / task-create --deps
                        ready 태스크마다(순차): 진행자 워커 기동 → 대기·question 에 답 → worker_done 확인 → release
                                ↓ worker-start --agent claude
-[진행자 워커 Opus·low]   preamble 의 Task → 워크트리·기준선 → 구현 워커 기동
+[진행자 워커 Opus·low]   preamble 의 Task → 워크트리·spec 스냅숏·기준선 → 구현 워커 기동
                                ↓
 [구현 agy]             구현 + 자체 게이트 루프
                                ↓
 [진행자 워커]           게이트 독립 재검증
                                ↓
-[리뷰 codex·high]      .ai/reviews/T-NNN.rN.json 작성
+[리뷰 codex·high]      .ai/reviews/I-<n>.rN.json 작성
                                ↓
 [진행자 워커]           스키마 검증 → 심각도 분기 → PR 생성 → 하위 워커 정리 → worker_done
 ```

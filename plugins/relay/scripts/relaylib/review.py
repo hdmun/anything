@@ -23,7 +23,7 @@ FINDING_REQUIRED = ("severity", "file", "summary", "repro")
 MAX_REVIEW_ROUNDS = 3
 MAX_TOTAL_ROUNDS = 5
 
-REPORT_RE = re.compile(r"^(T-\d+)\.r(\d+)\.json$")
+REPORT_RE = re.compile(r"^(I-[a-z0-9-]+)\.r(\d+)\.json$")   # ADR 0007 — 옛 T-NNN 리포트는 맞지 않아 무시된다
 
 
 class ReviewError(Exception):
