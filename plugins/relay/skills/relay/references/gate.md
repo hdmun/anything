@@ -12,7 +12,7 @@
 python "$RELAY/scripts/relay_cli.py" commit-guard --worktree <worktree> --base <base> ; echo "exit=$?"
 ```
 
-- 종료코드 1이면 귀속 트레일러(`Implemented-by:`/`Reviewed-by:`)가 없는 커밋이 stderr에 나온다. **이력을 그대로 둔 채**(이력이 증거다) `worker-retain` 후 사람을 부른다.
+- 종료코드 1이면 귀속 트레일러(`Implemented-by:`/`Reviewed-by:`)가 없는 커밋이 stderr에 나온다. **이력을 그대로 둔 채**(이력이 증거다) 워커를 `worker-keep-open` 으로 남기고 멈춤 보고 — (h).
 - 리뷰 워커의 `worker_done` 뒤에도 같은 검사를 한다.
 
 - 이유 1: 워커의 자체 보고를 신뢰하되 검증한다.

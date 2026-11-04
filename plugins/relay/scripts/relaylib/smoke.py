@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """실제 에이전트 CLI 와 Orca 사이의 경계를 검증한다.
 
-relay 가 워커를 띄우는 경로(`worker-start --agent`)를 smoke 전용 Run 에서 worker_done·release 까지 잰다 (ADR 0003).
+relay 가 워커를 띄우는 경로(`worker-start --agent`)를 smoke 전용 Run 에서 worker_done 까지 잰다 (ADR 0003).
 터미널을 먼저 띄우던 리허설 경로는 relay 가 그 기동을 그만두면서 지웠다 (plan 트랙 3).
 
 수동 도구다(CI 아님). CLI 업데이트 뒤, doctor 가 미검증 버전을 알릴 때 돌린다.
@@ -22,7 +22,7 @@ def _json(out):
         return {}
 
 
-# Task 를 쓰므로 smoke 전용 Run 에 묶고, 정착(worker_done)과 release 까지 확인한다.
+# Task 를 쓰므로 smoke 전용 Run 에 묶고, 정착(worker_done)까지 확인한다.
 
 WORKER_SPEC = (PING + ": connectivity test only. Do not read, run, or modify anything in the repository. "
                "Immediately send worker_done with --outcome succeeded and the summary "
@@ -41,9 +41,9 @@ def _payload(msg):
 
 def run_worker(agent, workdir, run, version=None, model=None, effort=None,
                wait_ms=WORKER_WAIT_MS, wait_rounds=WAIT_ROUNDS, clock=time.monotonic):
-    """worker-start --agent 한 번 → worker_done → release. run(argv)->(rc, stdout).
+    """worker-start --agent 한 번 → worker_done → ack. run(argv)->(rc, stdout).
 
-    부재(대기 timeout)·질문은 release 근거가 아니다 — 워커를 남기고 dispatch 를 돌려준다 (Orca 가이드 「Outcome」).
+    부재(대기 timeout)·질문은 정착이 아니다 — ack 하지 않고 dispatch 를 돌려준다 (Orca 가이드 「Outcome」).
     """
     result = {"agent": agent, "path": "worker-start", "version": version, "model": model, "effort": effort,
               "passed": False, "failed_at": None}
@@ -94,8 +94,7 @@ def run_worker(agent, workdir, run, version=None, model=None, effort=None,
         if msg.get("type") != "worker_done":
             result["failed_at"] = msg.get("type")      # 질문·에스컬레이션은 사람이 본다 — ack 하지 않는다
             return result
-        _, out = run(["orca", "orchestration", "worker-release", "--dispatch", dispatch, "--json"])
-        result["release"] = (_json(out).get("result") or {}).get("processAction")
+        # 워커는 worker_done 뒤 스스로 닫힌다(Orca 1.4.247 자동 닫힘, ADR 0010) — release 하지 않고 ack 만 한다
         run(["orca", "orchestration", "check", "--ack", res.get("deliveryId"), "--json"])
         if _payload(msg).get("outcome") == "succeeded":
             result["passed"] = True

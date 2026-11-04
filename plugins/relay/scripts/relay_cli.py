@@ -9,6 +9,7 @@
   python relay_cli.py validate-review <I-<n>.rN.json>                   (검사기)
   python relay_cli.py review-branch --task I-<n> --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
   python relay_cli.py snapshot --issue <URL|path> --worktree <dir> --slug <slug>   (spec 스냅숏을 쓰고 JSON 한 줄)
+  python relay_cli.py handoff-check --issue <URL|path> [--json]        (검사기 — 기동 전 검사: 태스크 수·필수 절·작성자)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
@@ -31,7 +32,7 @@ import pathlib
 import subprocess
 import sys
 
-from relaylib import doctor, issue, models, orca, review, roles, smoke, trust
+from relaylib import doctor, handoff, issue, models, orca, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -284,30 +285,6 @@ def _orca_skills_installed():
     return {name: (ORCA_SKILLS_DIR / name / "SKILL.md").is_file() for name in doctor.ORCA_SKILLS}
 
 
-def _orca_nested_depth():
-    """Orca 프로필 저장소(profile-state.db)를 읽기 전용으로 열어 nestedWorkerMaxDepth 를 찾는다. 못 찾으면 None.
-
-    Orca 내부 형식이라 버전마다 바뀔 수 있다 — doctor 는 None 을 WARN 으로 둔다.
-    """
-    import sqlite3
-    root = pathlib.Path(os.environ.get("APPDATA") or (pathlib.Path.home() / "AppData" / "Roaming")) / "orca" / "profiles"
-    dbs = sorted(root.glob("*/profile-state.db"), key=lambda p: p.parent.name != "local-default")
-    for db in dbs:
-        try:
-            con = sqlite3.connect("file:%s?mode=ro" % db.as_posix(), uri=True)
-            try:
-                rows = con.execute("select payload from profile_state_documents where payload like ?",
-                                   ("%" + doctor.NESTED_DEPTH_KEY + "%",)).fetchall()
-            finally:
-                con.close()
-        except sqlite3.Error:
-            continue
-        depth = doctor.nested_depth_from_payloads([r[0] for r in rows])
-        if depth is not None:
-            return depth
-    return None
-
-
 def cmd_doctor(a):
     codex_cfg = pathlib.Path.home() / ".codex" / "config.toml"
     agy = trust.DEFAULT_SETTINGS
@@ -330,7 +307,6 @@ def cmd_doctor(a):
         "plugin_version": _plugin_version(),
         "installed_versions": _installed_versions(),
         "orca_skills": _orca_skills_installed(),
-        "nested_depth": _orca_nested_depth(),
     }
     checks = doctor.evaluate(facts)
     if a.fix and settings is not None:
@@ -338,15 +314,30 @@ def cmd_doctor(a):
         if dead:
             trust.save(agy, settings)
             checks.append({"name": "fix", "status": "ok", "detail": "trust 항목 %d개 정리: %s" % (len(dead), ", ".join(dead)), "fix": ""})
-    if a.json:
-        print(json.dumps(checks, ensure_ascii=False))
-    else:
-        mark = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
-        for c in checks:
-            print("%s %-16s %s" % (mark[c["status"]], c["name"], c["detail"]))
-            if c["status"] != "ok" and c["fix"]:
-                print("     %-16s → %s" % ("", c["fix"]))
+    _print_checks(checks, a.json)
     return doctor.exit_code(checks)
+
+
+def _print_checks(checks, as_json):
+    if as_json:
+        print(json.dumps(checks, ensure_ascii=False))
+        return
+    mark = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
+    for c in checks:
+        print("%s %-16s %s" % (mark[c["status"]], c["name"], c["detail"]))
+        if c["status"] != "ok" and c["fix"]:
+            print("     %-16s → %s" % ("", c["fix"]))
+
+
+def cmd_handoff_check(a):
+    result = handoff.check(a.issue, _run)
+    if a.json:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        _print_checks(result["checks"], False)
+        for t in result["tasks"]:
+            print("task %s %s — %s" % (t["task"], t["url"], t["title"]))
+    return handoff.exit_code(result["checks"])
 
 
 def cmd_warmup(a):
@@ -438,6 +429,11 @@ def build_parser():
     sn.add_argument("--slug", required=True, help="영문 소문자·숫자·하이픈")
     sn.set_defaults(func=cmd_snapshot)
 
+    hc = sub.add_parser("handoff-check", help="기동 전 검사: 태스크 수 ≤5·템플릿 필수 절·작성자 권한")
+    hc.add_argument("--issue", required=True, help="구현 이슈 URL 또는 .scratch/<feature>/issues/<NN>-<slug>.md")
+    hc.add_argument("--json", action="store_true")
+    hc.set_defaults(func=cmd_handoff_check)
+
     c = sub.add_parser("commit-guard", help="base..HEAD 에 귀속 트레일러 없는 커밋(워커 자체 커밋)이 없는지")
     c.add_argument("--worktree", required=True)
     c.add_argument("--base", required=True)
@@ -475,7 +471,7 @@ def build_parser():
     w.add_argument("agent", choices=("agy",))
     w.set_defaults(func=cmd_warmup)
 
-    sm = sub.add_parser("smoke", help="smoke 전용 Run 에서 worker-start --agent 기동·worker_done·release 확인 (수동)")
+    sm = sub.add_parser("smoke", help="smoke 전용 Run 에서 worker-start --agent 기동·worker_done 확인 (수동)")
     sm.add_argument("--dir", required=True, help="Orca 에 등록된 워크트리 경로")
     sm.add_argument("--agent", default="all", choices=("antigravity", "codex", "all"))
     sm.add_argument("--repeat", type=int, default=1, help="반복 횟수 — 전부 통과해야 통과")
