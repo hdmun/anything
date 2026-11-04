@@ -8,10 +8,10 @@ references의 "사람을 부른다"·"사용자에게 알린다"도 진행자 �
 | 트리거 | 판정 | 누가 답하는가 |
 |---|---|---|
 | `review-branch`의 `escalate` — `spec_violation`, `repeated_finding`, `review_round_limit` | (g) | 설계 세션 |
-| 하위 워커(구현자·리뷰어)가 `escalation` 발신, spec 해석이 필요한 `question` | (e) | 설계 세션 |
+| 하위 워커(구현자·리뷰어)의 `escalation`(`stopReason`이면 다시 지시한 뒤 두 번째), spec 해석이 필요한 `question` | (e) | 설계 세션 |
 | `review-branch`의 `human` — `total_round_limit` | (g) | 사람 |
-| 같은 Task의 기동 실패 2회 | 아래 「시도와 라운드」 | 사람 (원인을 넘기고 멈춘다) |
-| 무응답·확인창 (`liveness`의 `human`), `commit-guard` 실패, 그 밖에 문서가 사람을 부르라는 곳 | (e)(f) | 사람 |
+| Orca의 기동 실패 circuit-break | 아래 「시도와 라운드」 | 사람 (원인을 넘기고 멈춘다) |
+| 영수증의 `agent_prompt_blocked`·`outcome_unknown`, `commit-guard` 실패, 그 밖에 문서가 사람을 부르라는 곳 | (d)(f), SKILL.md 불변식 | 사람 |
 
 ### 시도와 라운드를 구분한다
 
@@ -19,14 +19,12 @@ references의 "사람을 부른다"·"사용자에게 알린다"도 진행자 �
 
 | 용어 | 뜻 | 세는 법 (진행자 워커가 바뀌어도 남는 곳) |
 |---|---|---|
-| **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 (d)의 **전달 확인** 실패를 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
+| **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 영수증으로 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 `outcome_unknown`을 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
 | **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 — **트레일러가 빠진 커밋은 세지 못한다** |
 | **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/T-NNN.r*.json` 파일 개수 |
 | **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (`review-branch`가 센다) |
 
-- **기동 실패는 2회에서 멈춘다.** Orca는 같은 Task가 3회 연속 실패하면 circuit-break한다. 2회째에 재시도하면 마지막 기회를 원인 모른 채 쓰게 된다.
-  원인을 찾아 해소했다면 그 Task에 Orca 가이드의 replacement(`--retry-of`)로 다시 띄운다 — `startup`의 `retry`.
-- **`agent_readiness` 실패는 한 번으로 그 Task를 `failed`로 만든다.** 같은 Task에 `--retry-of` 없이 `worker-start`를 다시 걸면 `task_not_startable`로 거부된다. 재출발은 항상 `--retry-of`다 — 그래야 Orca가 실패 횟수를 같은 Task에 쌓는다.
+- **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. breaker가 걸리면 사람을 부르고 멈춘다(ADR 0009).
 - 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
 
 ### 진행자 워커가 묻는 법

@@ -4,7 +4,7 @@
 
 ## (d) 워커 부트스트랩
 
-**구현·리뷰 워커 모두 `worker-start`로 띄운다.** 감독 워커라야 `worker-list`의 fleet projection, `worker-read`, `worker-release`가 열리며 — (e)와 (i)가 그것을 전제한다.
+**구현·리뷰 워커 모두 `worker-start`로 띄운다.** 감독 워커라야 Orca가 그 워커의 보고로 진행자를 깨운다 — (e)와 (i)가 그것을 전제한다.
 
 **구현 워커(agy)**
 
@@ -48,22 +48,11 @@
      - `--agent antigravity`, 그리고 `model`이 있을 때만 `--model <model>`(`effort`가 있으면 `--effort <effort>`)
    - `model`이 `null`이면 **agy 기본 모델**로 뜬다. 응답의 `launch.effective.model`도 `null`이다.
 
-   **`worker-start` 응답은 `startup`에 해석시킨다.** 종료코드 0과 `ok`만으로 믿지 않는다 — 준비 감지에 실패해도 `ok: true`가 올 수 있다(예: `failedStage: agent_readiness`).
+   **`worker-start` 영수증은 Orca 가이드대로 읽는다**(`state`·`failedStage`·`next`, 실패면 `recovery-and-cleanup` reference). relay가 더하는 것은 SKILL.md 불변식의 감독 정책뿐이다.
 
-   ```bash
-   # worker-start 의 JSON 응답을 start.json 으로 받는다
-   python "$RELAY/scripts/relay_cli.py" startup --response start.json [--prior-failures <이 태스크 계열의 이전 기동 실패 수>]
-   ```
-
-   | `action` | 할 일 |
-   |---|---|
-   | `ok` | `dispatch`와 `model`(= `launch.effective.model`, 커밋 트레일러에 쓴다)을 기록하고 (e)의 대기로. Orca가 `turnStart: observed`로 전달을 확인했다 |
-   | `lookup_dispatch` | `dispatch-show --task <task_id>` 로 조회한다. 추측하지 말 것 |
-   | `confirm_delivery` | (`turn_start_unobserved`) 입력은 썼는데 에이전트가 턴을 시작했는지 Orca가 못 봤다. 실패로 단정하지 않고 60초 뒤 `dispatch-show`의 `status`로 확인한다. `pending`이면 전달 실패 = 기동 실패다 — 재전송하지 않고 `worker-retain` 후 사람이 필요한 것으로 (h). **기동 실패 예산이 남아 있어도 스스로 재출발하지 않는다** — 입력이 늦게 도착하면 같은 Task를 두 워커가 하게 된다. 재출발은 답이 온 뒤 아래 `retry` 행대로. `dispatched`/`completed`면 정상 |
-   | `retry` | 기동 실패 1회. **그 Task는 이미 `failed`다.** 다시 띄우기 전에 Orca 가이드 `recovery-and-cleanup` reference를 읽고 그 replacement 절차(`--task <실패한 task_id> --retry-of <dispatch_id>`, 배치·`--agent` 인자를 다시 준다)를 따른다. 실패한 시도가 남긴 터미널은 영수증의 `worker-release`로 정리한다 |
-   | `human` | `startup_budget`(기동 실패 2회), `agent_prompt_blocked` 등 — 사람이 필요한 것으로 (h). `agent_prompt_blocked`면 그 프롬프트는 사람이 워커 터미널에서 직접 처리한다 — 진행자는 키를 보내지 않고, 보낼 키를 선택지로 제안하지도 않는다. codex 업데이트 프롬프트면 예방책(`~/.codex/config.toml`의 `check_for_update_on_startup = false`, `reviewer.md`)을 질문에 함께 적는다 |
-
-   - 기동 실패는 라운드로 세지 않는다 — (h) 「시도와 라운드」.
-   - 전달 확인은 Orca의 `turnStart`로 한다. agy 로그를 직접 세던 절차(`HandleUserInput`)는 Orca 1.4.245가 antigravity의 턴 시작을 관측하면서 지웠다(plan 트랙 0).
+   - 정상이면 `dispatchId`와 `launch.effective.model`(커밋 트레일러에 쓴다)을 적어 두고 턴을 끝낸다 — (e).
+   - 기동 실패는 Orca 가이드의 복구 절차대로 다시 띄운다. Orca의 3회 circuit-break가 끝이고, 걸리면 사람이 필요한 것으로 (h). 기동 실패는 라운드로 세지 않는다 — (h) 「시도와 라운드」.
+   - `agent_prompt_blocked`·`outcome_unknown`은 불변식대로 사람을 부른다. codex 업데이트 프롬프트였다면 예방책(`~/.codex/config.toml`의 `check_for_update_on_startup = false`, `reviewer.md`)을 질문에 함께 적는다.
+   - 전달 확인은 Orca가 한다(`turnStart`). relay는 따로 확인하지 않는다.
 
 **Git Bash 주의** — `terminal send --text "/clear"` 처럼 `/`로 시작하는 인자는 Git Bash가 `C:/Program Files/Git/clear`로 경로 변환한다. `MSYS_NO_PATHCONV=1`을 앞에 붙인다.

@@ -151,7 +151,7 @@ def parse_agy_models(text):
 
 
 def check_agy(model, effort, agy_models_text):
-    """(status, detail, fix). agy 가 실행 즉시 거부하는 조합을 미리 잡는다 — 거부되면 기동 실패 예산을 쓴다."""
+    """(status, detail, fix). agy 가 실행 즉시 거부하는 조합을 미리 잡는다 — 거부되면 기동 실패가 된다."""
     bases, ids = parse_agy_models(agy_models_text)
     if not ids:
         return "warn", "agy models 출력을 읽지 못해 모델·effort 를 대조하지 못했다", "agy models 를 직접 실행해 본다"
