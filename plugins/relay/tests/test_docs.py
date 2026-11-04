@@ -80,13 +80,13 @@ class SessionStructure(unittest.TestCase):
         # 판정은 진입 절에 있어야 첫 Read 에서 갈린다 (Q11). 옛 기준(run-use 여부)이 되살아나면 두 기준이 생긴다
         entry = SKILL_MD.split("## 진입 약속과 세션 판정")[1].split("\n## ")[0]
         self.assertIn("preamble", entry)
-        self.assertIn("relay 진행자: Run <run_id> / T-NNN", entry)
+        self.assertIn("relay 진행자: Run <run_id> / I-<n>", entry)
         self.assertNotIn("run-use로 기존 Run에 들어왔으면", SKILL_MD)
 
     def test_coordinator_task_spec_tells_the_worker_to_load_relay(self):
         # 회귀: preamble 뒤 `relay 진행자:` 줄만으로는 description 이 3회 중 1회 발동하지 않았다 (2026-11-03 eval)
         design = (SKILL_DIR / "references" / "design.md").read_text(encoding="utf-8")
-        spec_line = next(l for l in design.splitlines() if l.strip().startswith("relay 진행자: Run <run_id> / T-NNN"))
+        spec_line = next(l for l in design.splitlines() if l.strip().startswith("relay 진행자: Run <run_id> / I-<n>"))
         self.assertIn("Skill 도구로 relay 스킬을 먼저 부르고", spec_line)
 
     def test_escalation_goes_through_ask_not_decision_gates(self):

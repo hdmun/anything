@@ -59,16 +59,16 @@ class DiffGuard(GitRepoCase):
 
 class ReviewBranchCli(GitRepoCase):
     def test_counts_implemented_by_trailers(self):
-        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
-        self.commit("r.json", "review(T-004): r1 changes_requested\n\nReviewed-by: codex/gpt-6-luna")
-        self.commit("c.txt", "feat(T-004): fix\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
+        self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
+        self.commit("r.json", "review(I-42): r1 changes_requested\n\nReviewed-by: codex/gpt-6-luna")
+        self.commit("c.txt", "feat(I-42): fix\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
         reviews = self.repo / ".ai" / "reviews"
         reviews.mkdir(parents=True)
         for n, s in ((1, "a"), (2, "b"), (3, "c")):
-            (reviews / ("T-004.r%d.json" % n)).write_text(json.dumps({
-                "taskId": "T-004", "verdict": "changes_requested",
+            (reviews / ("I-42.r%d.json" % n)).write_text(json.dumps({
+                "taskId": "I-42", "verdict": "changes_requested",
                 "findings": [{"severity": "MAJOR", "file": "x", "summary": s, "repro": "r"}]}), encoding="utf-8")
-        r = cli("review-branch", "--task", "T-004", "--worktree", str(self.repo), "--base", self.base)
+        r = cli("review-branch", "--task", "I-42", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         # 구현 2 + 리뷰 3 = 5 → 한도 안. 리뷰 3회도 '초과'는 아니다
@@ -77,26 +77,26 @@ class ReviewBranchCli(GitRepoCase):
         self.assertEqual(d["review_rounds"], 3)
 
     def test_missing_reviews_is_input_error(self):
-        r = cli("review-branch", "--task", "T-004", "--worktree", str(self.repo), "--base", self.base)
+        r = cli("review-branch", "--task", "I-42", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 2)
 
 
 class CommitGuard(GitRepoCase):
     def test_attributed_commits_pass(self):
-        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/x")
-        self.commit("r.json", "review(T-004): r1 pass\n\nReviewed-by: codex/m")
+        self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/x")
+        self.commit("r.json", "review(I-42): r1 pass\n\nReviewed-by: codex/m")
         r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_worker_self_commit_fails(self):
         # 실측(T-004 dd95130): agy 가 git commit 권한으로 직접 커밋 — 트레일러 없음
-        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/x")
+        self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/x")
         self.commit("c.txt", "fix(analysis): 무작위 입력 검사 추가")
         r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 1)
         err = r.stderr.decode("utf-8")
         self.assertIn("fix(analysis)", err)
-        self.assertNotIn("feat(T-004)", err)
+        self.assertNotIn("feat(I-42)", err)
 
     def test_merge_commits_ignored(self):
         git(self.repo, "checkout", "-q", "-b", "side")
@@ -218,10 +218,10 @@ class ModelsInitCli(unittest.TestCase):
 class ValidateCli(unittest.TestCase):
     def test_exit_codes(self):
         with tempfile.TemporaryDirectory() as d:
-            p = pathlib.Path(d) / "T-004.r1.json"
-            p.write_text(json.dumps({"taskId": "T-004", "verdict": "pass", "findings": []}), encoding="utf-8")
+            p = pathlib.Path(d) / "I-42.r1.json"
+            p.write_text(json.dumps({"taskId": "I-42", "verdict": "pass", "findings": []}), encoding="utf-8")
             self.assertEqual(cli("validate-review", str(p)).returncode, 0)
-            p.write_text(json.dumps({"taskId": "T-005", "verdict": "pass", "findings": []}), encoding="utf-8")
+            p.write_text(json.dumps({"taskId": "I-43", "verdict": "pass", "findings": []}), encoding="utf-8")
             r = cli("validate-review", str(p))
             self.assertEqual(r.returncode, 1)
             self.assertIn("taskId", r.stderr.decode("utf-8"))

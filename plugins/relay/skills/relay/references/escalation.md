@@ -21,7 +21,7 @@ references의 "사람을 부른다"·"사용자에게 알린다"도 진행자 �
 |---|---|---|
 | **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 영수증으로 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 `outcome_unknown`을 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
 | **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 — **트레일러가 빠진 커밋은 세지 못한다** |
-| **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/T-NNN.r*.json` 파일 개수 |
+| **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/I-<n>.r*.json` 파일 개수 |
 | **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (`review-branch`가 센다) |
 
 - **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. breaker가 걸리면 사람을 부르고 멈춘다(ADR 0009).
@@ -32,7 +32,7 @@ references의 "사람을 부른다"·"사용자에게 알린다"도 진행자 �
 1. **증거를 커밋으로 남긴 뒤 묻는다.** 리뷰 리포트는 (g)대로 커밋한다. 구현 커밋은 (f)에서 이미 있다. 그래서 설계 세션은 워크트리를 뒤지지 않고 `git log --oneline <base>..HEAD`와 리뷰 파일로 바로 판단한다.
 2. **preamble의 `ask` 명령을 그대로 쓴다**(Orca 가이드 `worker-contract`). relay가 정하는 것은 질문의 형식이다.
    - `--question`: 한 줄 요약 + 근거 경로.
-     `T-NNN <사유>: <한 줄 요약>. 리뷰: <worktree>/.ai/reviews/T-NNN.rN.json / 워크트리: <worktree> / base: <base> / 브랜치: <branch>`
+     `I-<n> <사유>: <한 줄 요약>. 리뷰: <worktree>/.ai/reviews/I-<n>.rN.json / 워크트리: <worktree> / base: <base> / 브랜치: <branch>`
    - `--options`: 아래 표의 선택지. 쉼표로 구분하므로 선택지 안에 쉼표를 넣지 않는다.
 
      | 사유 | `--options` |

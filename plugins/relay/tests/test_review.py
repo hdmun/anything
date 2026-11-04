@@ -17,7 +17,7 @@ def finding(sev, file="a.go", summary="s", **kw):
     return f
 
 
-def report(verdict, *findings, task="T-004"):
+def report(verdict, *findings, task="I-42"):
     return {"taskId": task, "verdict": verdict, "findings": list(findings)}
 
 
@@ -79,8 +79,8 @@ class Validate(unittest.TestCase):
         self.bad(report("changes_requested"), "changes_requested")
 
     def test_task_id_must_match_file_name(self):
-        self.bad(report("pass", task="T-005"), "taskId", expected_task="T-004")
-        self.ok(report("pass"), expected_task="T-004")
+        self.bad(report("pass", task="I-43"), "taskId", expected_task="I-42")
+        self.ok(report("pass"), expected_task="I-42")
 
 
 class SchemaAndTemplateAgree(unittest.TestCase):
@@ -115,10 +115,10 @@ class Branch(unittest.TestCase):
     def tearDown(self):
         self._d.cleanup()
 
-    def put(self, n, r, task="T-004"):
+    def put(self, n, r, task="I-42"):
         (self.dir / ("%s.r%d.json" % (task, n))).write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
 
-    def decide(self, impl=1, task="T-004"):
+    def decide(self, impl=1, task="I-42"):
         return review.decide(self.dir, task, impl_rounds=impl)
 
     # (g) 심각도 분기
@@ -141,7 +141,7 @@ class Branch(unittest.TestCase):
         d = self.decide()
         self.assertEqual(d["action"], "fix_round")
         self.assertEqual(d["round"], 2)
-        self.assertEqual(d["report"], str(self.dir / "T-004.r1.json"))
+        self.assertEqual(d["report"], str(self.dir / "I-42.r1.json"))
 
     def test_invalid_report_asks_rewrite(self):
         self.put(1, report("pass", finding("MAJOR")))
@@ -161,7 +161,7 @@ class Branch(unittest.TestCase):
         self.assertEqual(self.decide(impl=10)["action"], "success")
 
     def test_other_tasks_ignored(self):
-        self.put(1, report("changes_requested", finding("MAJOR"), task="T-003"), task="T-003")
+        self.put(1, report("changes_requested", finding("MAJOR"), task="I-41"), task="I-41")
         self.put(1, report("pass"))
         self.assertEqual(self.decide()["action"], "success")
 

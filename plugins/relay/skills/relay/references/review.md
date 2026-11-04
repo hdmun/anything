@@ -2,15 +2,15 @@
 
 > 이 파일은 SKILL.md의 단계 절차 중 일부다. SKILL.md의 불변식과 함께 읽는다. (리뷰 분기)
 
-리뷰어는 `.ai/reviews/T-NNN.rN.json`(`N`은 리뷰 라운드 번호, 1부터)을 쓰고 `worker_done`의 `--report-path`로 경로를 넘긴다.
+리뷰어는 `.ai/reviews/I-<n>.rN.json`(`N`은 리뷰 라운드 번호, 1부터)을 쓰고 `worker_done`의 `--report-path`로 경로를 넘긴다.
 
 **라운드마다 파일을 따로 남기는 이유는 (h)의 카운터 때문이다.** 진행자 워커는 태스크마다 새로 뜨고 해제되므로 라운드 수를 컨텍스트에 들고 있을 수 없다. 파일 개수가 곧 라운드 수이고, git에 남아 워커와 무관하게 유지된다.
 
 `worker_done`을 받으면 **판정을 스크립트에 맡긴다.** 검증·심각도 분기·라운드 한도가 한 번에 나온다.
 
 ```bash
-python "$RELAY/scripts/relay_cli.py" review-branch --task T-NNN --worktree <worktree> --base <base>
-# {"action": "fix_round", "report": ".../T-NNN.r1.json", "review_rounds": 1, "impl_rounds": 1, "round": 2, "severities": ["MAJOR"]}
+python "$RELAY/scripts/relay_cli.py" review-branch --task I-<n> --worktree <worktree> --base <base>
+# {"action": "fix_round", "report": ".../I-<n>.r1.json", "review_rounds": 1, "impl_rounds": 1, "round": 2, "severities": ["MAJOR"]}
 ```
 
 | `action` | 할 일 |
@@ -27,7 +27,7 @@ python "$RELAY/scripts/relay_cli.py" review-branch --task T-NNN --worktree <work
 리뷰 리포트 커밋은 아래 형식을 따른다. 구현 커밋의 `Implemented-by:`와 짝이다.
 
 ```
-review(T-NNN): rN <verdict>
+review(I-<n>): rN <verdict>
 
 Reviewed-by: codex/<리뷰 워커 영수증의 launch.effective.model>
 ```
@@ -38,7 +38,7 @@ Reviewed-by: codex/<리뷰 워커 영수증의 launch.effective.model>
 
 1. `worker-show --dispatch <이전 구현 dispatch_id>` 로 에이전트 터미널 handle 을 되찾는다
 2. preamble SUB-DISPATCH의 `worker-start`로 같은 터미널에 새 Task를 건다. relay 값:
-   - `--spec "T-NNN 수정 라운드 N. 리뷰: .ai/reviews/T-NNN.rN.json / 원본 명세: .ai/specs/T-NNN-<슬러그>.md / base: <base>"`
+   - `--spec "I-<n> 수정 라운드 N. 리뷰: .ai/reviews/I-<n>.rN.json / 원본 명세: .ai/specs/I-<n>-<슬러그>.md / base: <base>"`
    - `--parent <이전 구현 task_id>`, `--worktree id:<wt>`, `--terminal <agent_terminal_handle>`
 3. 영수증을 `implementer.md` 4대로 읽는다
 

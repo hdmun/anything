@@ -36,7 +36,7 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
 - 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
 
 - **`worker-start --agent codex`로 띄운다.** preamble SUB-DISPATCH의 `worker-start` 명령을 그대로 쓰고, relay가 정하는 값만 채운다:
-  - `--spec` — `T-NNN 리뷰 rN. 역할: .ai/roles/reviewer.md / spec: .ai/specs/T-NNN-<슬러그>.md / base: <base> / 리포트: .ai/reviews/T-NNN.rN.json`
+  - `--spec` — `I-<n> 리뷰 rN. 역할: .ai/roles/reviewer.md / spec: .ai/specs/I-<n>-<슬러그>.md / base: <base> / 리포트: .ai/reviews/I-<n>.rN.json`
   - `--worktree id:<wt>` — 구현 워커와 같은 워크트리
   - `--agent codex --model <model reviewer 의 model> --effort <model reviewer 의 effort>`
 

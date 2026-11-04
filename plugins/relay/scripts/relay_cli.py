@@ -6,8 +6,9 @@
   python relay_cli.py trust add|remove <worktree> [--settings <file>]
   python relay_cli.py trust prune [--root <dir>] [--settings <file>] [--apply]
   python relay_cli.py diff-guard --worktree <dir> --base <sha>          (검사기)
-  python relay_cli.py validate-review <T-NNN.rN.json>                   (검사기)
-  python relay_cli.py review-branch --task T-NNN --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
+  python relay_cli.py validate-review <I-<n>.rN.json>                   (검사기)
+  python relay_cli.py review-branch --task I-<n> --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
+  python relay_cli.py snapshot --issue <URL|path> --worktree <dir> --slug <slug>   (spec 스냅숏을 쓰고 JSON 한 줄)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
@@ -30,7 +31,7 @@ import pathlib
 import subprocess
 import sys
 
-from relaylib import doctor, models, orca, review, roles, smoke, trust
+from relaylib import doctor, issue, models, orca, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -125,6 +126,10 @@ def cmd_review_branch(a):
 
 
 ATTRIBUTION_KEYS = ("Implemented-by", "Reviewed-by")
+
+
+def cmd_snapshot(a):
+    return _emit(issue.snapshot(a.issue, a.worktree, a.slug, _run))
 
 
 def cmd_commit_guard(a):
@@ -427,6 +432,12 @@ def build_parser():
     b.add_argument("--reviews", help="기본: <worktree>/.ai/reviews")
     b.set_defaults(func=cmd_review_branch)
 
+    sn = sub.add_parser("snapshot", help="구현 이슈 본문 → .ai/specs/<ID>-<slug>.md (작성자 권한 확인)")
+    sn.add_argument("--issue", required=True, help="GitHub 이슈 URL 또는 .scratch/<feature>/issues/<NN>-<slug>.md")
+    sn.add_argument("--worktree", required=True)
+    sn.add_argument("--slug", required=True, help="영문 소문자·숫자·하이픈")
+    sn.set_defaults(func=cmd_snapshot)
+
     c = sub.add_parser("commit-guard", help="base..HEAD 에 귀속 트레일러 없는 커밋(워커 자체 커밋)이 없는지")
     c.add_argument("--worktree", required=True)
     c.add_argument("--base", required=True)
@@ -484,7 +495,7 @@ def main(argv=None):
         ap.error("trust %s 에는 경로가 필요하다" % a.op)
     try:
         return a.func(a)
-    except (InputError, models.ModelsError, review.ReviewError, OSError, ValueError) as e:
+    except (InputError, issue.IssueError, models.ModelsError, review.ReviewError, OSError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 2
 
