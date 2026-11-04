@@ -10,6 +10,7 @@
   python relay_cli.py review-branch --task I-<n> --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
   python relay_cli.py snapshot --issue <URL|path> --worktree <dir> --slug <slug>   (spec 스냅숏을 쓰고 JSON 한 줄)
   python relay_cli.py handoff-check --issue <URL|path> [--json]        (검사기 — 기동 전 검사: 태스크 수·필수 절·작성자)
+  python relay_cli.py resume --worktree <dir> --tasks I-<a>,I-<b> [--base-branch main]   (결정기 — 재개: 다음 태스크)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
   python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
   python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
@@ -32,7 +33,7 @@ import pathlib
 import subprocess
 import sys
 
-from relaylib import doctor, handoff, issue, models, orca, review, roles, smoke, trust
+from relaylib import doctor, handoff, issue, models, orca, resume, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -123,7 +124,31 @@ def _impl_rounds(worktree, base):
 
 def cmd_review_branch(a):
     reviews = a.reviews or str(pathlib.Path(a.worktree) / ".ai" / "reviews")
-    return _emit(review.decide(reviews, a.task, _impl_rounds(a.worktree, a.base)))
+    return _emit(review.decide(reviews, a.task, _impl_rounds(a.worktree, a.base), _reports_since(a.worktree, a.base, reviews)))
+
+
+def _reports_since(worktree, base, reviews):
+    """base..HEAD 에서 생긴 리포트 이름 — 재개한 태스크는 라운드를 처음부터 센다(ADR 0010).
+
+    리포트는 커밋하기 전에 분기하므로 아직 추적되지 않은 파일도 센다.
+    """
+    rel = pathlib.Path(reviews)
+    try:
+        rel = rel.resolve().relative_to(pathlib.Path(worktree).resolve())
+    except ValueError:
+        return None          # 워크트리 밖 디렉터리(테스트·특수용)는 모두 센다
+    spec = rel.as_posix()
+    names = _git(worktree, "diff", "--name-only", "--diff-filter=A", base, "HEAD", "--", spec).split()
+    names += _git(worktree, "ls-files", "--others", "--exclude-standard", "--", spec).split()
+    return {pathlib.PurePosixPath(n).name for n in names}
+
+
+def cmd_resume(a):
+    tasks = [t.strip() for t in a.tasks.split(",") if t.strip()]
+    if not tasks:
+        raise InputError("--tasks 가 비었다")
+    out = _git(a.worktree, "log", "--format=%(trailers:key=" + resume.TRAILER + ",valueonly)", "%s..HEAD" % a.base_branch)
+    return _emit(resume.decide(tasks, resume.done_tasks(out.splitlines())))
 
 
 ATTRIBUTION_KEYS = ("Implemented-by", "Reviewed-by")
@@ -433,6 +458,12 @@ def build_parser():
     hc.add_argument("--issue", required=True, help="구현 이슈 URL 또는 .scratch/<feature>/issues/<NN>-<slug>.md")
     hc.add_argument("--json", action="store_true")
     hc.set_defaults(func=cmd_handoff_check)
+
+    rs = sub.add_parser("resume", help="Relay-Done 트레일러로 끝난 태스크를 보고 다음 태스크 (JSON 한 줄)")
+    rs.add_argument("--worktree", required=True)
+    rs.add_argument("--tasks", required=True, help="DAG 순서의 태스크 ID, 쉼표로")
+    rs.add_argument("--base-branch", default="main")
+    rs.set_defaults(func=cmd_resume)
 
     c = sub.add_parser("commit-guard", help="base..HEAD 에 귀속 트레일러 없는 커밋(워커 자체 커밋)이 없는지")
     c.add_argument("--worktree", required=True)

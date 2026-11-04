@@ -6,8 +6,8 @@
 
 | 트리거 | 판정 |
 |---|---|
-| `review-branch`의 `escalate` — `spec_violation`, `repeated_finding`, `review_round_limit` | (g) |
-| `review-branch`의 `human` — `total_round_limit` | (g) |
+| `review-branch`의 `escalate` — `spec_violation`, `repeated_finding` | (g) |
+| `review-branch`의 `human` — `total_round_limit`(총 라운드 5) | (g) |
 | 워커의 `escalation`(`stopReason`이면 다시 지시한 뒤 두 번째), spec 해석이 필요한 `question` | (e) |
 | `doctor`·`handoff-check` `FAIL`, 스냅숏 `author_not_trusted`, 빨간 기준선 | (c) |
 | Orca의 기동 실패 circuit-break | 아래 「시도와 라운드」 |

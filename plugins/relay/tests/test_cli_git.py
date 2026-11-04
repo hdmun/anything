@@ -76,9 +76,55 @@ class ReviewBranchCli(GitRepoCase):
         self.assertEqual(d["impl_rounds"], 2)
         self.assertEqual(d["review_rounds"], 3)
 
+    def test_resumed_task_counts_only_reports_after_base(self):
+        reviews = self.repo / ".ai" / "reviews"
+        reviews.mkdir(parents=True)
+        bad = {"taskId": "I-42", "verdict": "changes_requested",
+               "findings": [{"severity": "MAJOR", "file": "x", "summary": "같은 지적", "repro": "r"}]}
+        (reviews / "I-42.r1.json").write_text(json.dumps(bad), encoding="utf-8")
+        self.commit("b.txt", "review(I-42): r1\n\nReviewed-by: codex/m")
+        new_base = git(self.repo, "rev-parse", "HEAD")        # 재개: 스냅숏을 다시 뜬 직후
+        self.commit("c.txt", "feat(I-42): again\n\nImplemented-by: agy/x")
+        (reviews / "I-42.r2.json").write_text(json.dumps(bad), encoding="utf-8")   # 아직 커밋 안 함
+        r = cli("review-branch", "--task", "I-42", "--worktree", str(self.repo), "--base", new_base)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        # r1 은 앞 시도의 것이라 반복 지적으로 보지 않는다
+        self.assertEqual((d["action"], d["review_rounds"], d["round"]), ("fix_round", 1, 3))
+
     def test_missing_reviews_is_input_error(self):
         r = cli("review-branch", "--task", "I-42", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 2)
+
+
+class ResumeCli(GitRepoCase):
+    def resume(self, tasks):
+        r = cli("resume", "--worktree", str(self.repo), "--tasks", tasks)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def setUp(self):
+        super().setUp()
+        git(self.repo, "checkout", "-q", "-b", "I-45-ante")
+
+    def test_first_task_when_nothing_done(self):
+        self.assertEqual(self.resume("I-46,I-47"), {"action": "start", "task": "I-46", "done": []})
+
+    def test_skips_tasks_with_relay_done_trailer(self):
+        self.commit("r.json", "review(I-46): r1 pass\n\nReviewed-by: codex/m\nRelay-Done: I-46")
+        self.commit("s.md", "spec(I-47): 스냅숏")       # 멈춘 태스크 — 트레일러 없음
+        self.assertEqual(self.resume("I-46,I-47"), {"action": "start", "task": "I-47", "done": ["I-46"]})
+
+    def test_all_done_means_pr(self):
+        self.commit("r.json", "review(I-46): r1 pass\n\nReviewed-by: codex/m\nRelay-Done: I-46")
+        self.commit("q.json", "review(I-47): r2 pass\n\nReviewed-by: codex/m\nRelay-Done: I-47")
+        self.assertEqual(self.resume("I-46,I-47"), {"action": "pr", "done": ["I-46", "I-47"]})
+
+    def test_trailers_on_main_are_not_counted(self):
+        git(self.repo, "checkout", "-q", "main")
+        self.commit("old.json", "review(I-46): pass\n\nRelay-Done: I-46")
+        git(self.repo, "checkout", "-q", "-b", "I-45-other")
+        self.assertEqual(self.resume("I-46")["action"], "start")
 
 
 class CommitGuard(GitRepoCase):
