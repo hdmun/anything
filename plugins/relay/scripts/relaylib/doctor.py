@@ -4,7 +4,6 @@
 evaluate() 는 수집된 사실(facts)만 보고 판정한다. 수집과 --fix 쓰기는 relay_cli 가 한다.
 """
 import copy
-import json
 import pathlib
 import re
 
@@ -110,8 +109,6 @@ def _reviewer(f):
 
 
 ORCA_SKILLS = ("orchestration", "orca-cli")
-MIN_NESTED_DEPTH = 2     # 설계 세션 → 진행자 워커 → 구현자·리뷰어 (ADR 0004)
-NESTED_DEPTH_KEY = "nestedWorkerMaxDepth"
 
 
 def _orca_skill(name, installed):
@@ -121,39 +118,6 @@ def _orca_skill(name, installed):
         return _check(check, "ok", "~/.agents/skills/%s" % name)
     return _check(check, "fail", "~/.agents/skills/%s/SKILL.md 가 없다 — 코디네이터와 워커가 Orca 가이드를 불러올 수 없다" % name,
                   "Orca 설정 → 에이전트 오케스트레이션 → Orchestration skill 을 설치한다 (orca-cli 도 함께 깔린다)")
-
-
-def _nested_depth(depth):
-    fix = "Orca 설정 → 에이전트 오케스트레이션 → \"하위 에이전트 최대 생성 단계\"를 %d 이상으로" % MIN_NESTED_DEPTH
-    if depth is None:
-        return _check("orca:nested-depth", "warn", "Orca 설정에서 워커 중첩 깊이를 읽지 못했다 (내부 저장소 형식이 바뀌었을 수 있다)",
-                      "직접 확인: " + fix)
-    if depth >= MIN_NESTED_DEPTH:
-        return _check("orca:nested-depth", "ok", "워커 중첩 깊이 %d" % depth)
-    return _check("orca:nested-depth", "fail",
-                  "워커 중첩 깊이 %d — 진행자 워커가 구현자·리뷰어를 띄우지 못한다 (nested_worker_depth_exceeded)" % depth, fix)
-
-
-def nested_depth_from_payloads(payloads):
-    """Orca 설정 문서(JSON 문자열들)에서 nestedWorkerMaxDepth. 정수가 아니거나 없으면 None — 추측하지 않는다."""
-    def find(node):
-        if isinstance(node, dict):
-            if NESTED_DEPTH_KEY in node:
-                return node[NESTED_DEPTH_KEY]
-            for v in node.values():
-                r = find(v)
-                if r is not None:
-                    return r
-        return None
-
-    for text in payloads:
-        try:
-            value = find(json.loads(text))
-        except (TypeError, ValueError):
-            continue
-        if value is not None:
-            return value if isinstance(value, int) and not isinstance(value, bool) else None
-    return None
 
 
 def evaluate(f):
@@ -170,8 +134,6 @@ def evaluate(f):
     if "orca_skills" in f:
         for name in ORCA_SKILLS:
             checks.append(_orca_skill(name, (f.get("orca_skills") or {}).get(name)))
-    if "nested_depth" in f:
-        checks.append(_nested_depth(f.get("nested_depth")))
     return checks
 
 

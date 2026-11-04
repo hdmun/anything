@@ -1,67 +1,45 @@
-# 에스컬레이션과 포기 (h)
+# 멈춤 보고 (h)
 
-> 이 파일은 SKILL.md의 단계 절차 중 일부다. SKILL.md의 불변식과 함께 읽는다. (에스컬레이션)
+> 이 파일은 SKILL.md의 단계 절차 중 일부다. SKILL.md의 불변식과 함께 읽는다. (멈춤)
 
-진행자 워커가 혼자 판단할 수 없는 것은 **모두 `ask`로 설계 세션에 묻는다**(ADR 0004). 설계 세션이 직접 답하거나, 사람에게 넘긴 뒤 답한다.
-references의 "사람을 부른다"·"사용자에게 알린다"도 진행자 워커에게는 이 `ask`다. 진행자는 사람과 직접 대화하지 않는다.
+진행자 세션은 Run 을 소유한 최상위 코디네이터라 물어볼 위 세션이 없다(ADR 0005). 혼자 판단할 수 없으면 **멈춤 보고를 남기고 끝난다**(ADR 0008). 다음 결정을 어디서 할지는 사람이 정하고, 사람의 결정은 구현 이슈 본문으로만 전해진다. 재개는 같은 이슈로 다시 `relay:handoff` 한다.
 
-| 트리거 | 판정 | 누가 답하는가 |
-|---|---|---|
-| `review-branch`의 `escalate` — `spec_violation`, `repeated_finding`, `review_round_limit` | (g) | 설계 세션 |
-| 하위 워커(구현자·리뷰어)의 `escalation`(`stopReason`이면 다시 지시한 뒤 두 번째), spec 해석이 필요한 `question` | (e) | 설계 세션 |
-| `review-branch`의 `human` — `total_round_limit` | (g) | 사람 |
-| Orca의 기동 실패 circuit-break | 아래 「시도와 라운드」 | 사람 (원인을 넘기고 멈춘다) |
-| 영수증의 `agent_prompt_blocked`·`outcome_unknown`, `commit-guard` 실패, 그 밖에 문서가 사람을 부르라는 곳 | (d)(f), SKILL.md 불변식 | 사람 |
+| 트리거 | 판정 |
+|---|---|
+| `review-branch`의 `escalate` — `spec_violation`, `repeated_finding`, `review_round_limit` | (g) |
+| `review-branch`의 `human` — `total_round_limit` | (g) |
+| 워커의 `escalation`(`stopReason`이면 다시 지시한 뒤 두 번째), spec 해석이 필요한 `question` | (e) |
+| `doctor`·`handoff-check` `FAIL`, 스냅숏 `author_not_trusted`, 빨간 기준선 | (c) |
+| Orca의 기동 실패 circuit-break | 아래 「시도와 라운드」 |
+| 영수증의 `agent_prompt_blocked`·`outcome_unknown`, `commit-guard` 실패, 그 밖에 문서가 사람을 부르라는 곳 | (d)(f), SKILL.md 불변식 |
+
+`agent_prompt_blocked` 는 끝나지 않고 사람이 그 터미널에서 처리하기를 기다린다(SKILL.md 불변식). 사람이 처리했다고 이 세션에 말하면 막힌 단계부터 이어 간다.
+
+### 멈춤 보고의 형식
+
+1. **증거를 커밋으로 남긴다.** 리뷰 리포트는 (g)대로 커밋한다. 구현 커밋은 (f)에서 이미 있다.
+2. 정착한 워커는 출구 표대로 `worker-keep-open` 으로 남긴다 — (i).
+3. **구현 이슈에 코멘트를 단다**(경로 B 면 이슈 파일 끝에 덧붙이지 않고 사람에게만 보고한다). 첫 줄이 사람이 정해야 할 것 한 줄이다:
+
+   ```
+   relay 멈춤 — I-<n> <사유>: <사람이 정해야 할 것 한 줄>
+   근거: <worktree>/.ai/reviews/I-<n>.rN.json, <spec 절>, <파일:줄>
+   워크트리: <worktree> / base: <base> / 브랜치: <branch>
+   재개: 이슈를 고친 뒤 같은 이슈로 relay:handoff
+   ```
+
+4. 이 세션에도 같은 내용을 남기고 끝난다. 끝난 태스크의 커밋은 브랜치에 남는다(ADR 0007).
 
 ### 시도와 라운드를 구분한다
 
 용어의 정본은 `CONTEXT.md`다. 셋을 섞으면 예산이 엉뚱하게 깎인다.
 
-| 용어 | 뜻 | 세는 법 (진행자 워커가 바뀌어도 남는 곳) |
+| 용어 | 뜻 | 세는 법 (재개해도 남는 곳) |
 |---|---|---|
 | **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 영수증으로 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 `outcome_unknown`을 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
 | **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 — **트레일러가 빠진 커밋은 세지 못한다** |
 | **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/I-<n>.r*.json` 파일 개수 |
 | **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (`review-branch`가 센다) |
 
-- **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. breaker가 걸리면 사람을 부르고 멈춘다(ADR 0009).
+- **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. breaker가 걸리면 멈춤 보고(ADR 0009).
 - 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
-
-### 진행자 워커가 묻는 법
-
-1. **증거를 커밋으로 남긴 뒤 묻는다.** 리뷰 리포트는 (g)대로 커밋한다. 구현 커밋은 (f)에서 이미 있다. 그래서 설계 세션은 워크트리를 뒤지지 않고 `git log --oneline <base>..HEAD`와 리뷰 파일로 바로 판단한다.
-2. **preamble의 `ask` 명령을 그대로 쓴다**(Orca 가이드 `worker-contract`). relay가 정하는 것은 질문의 형식이다.
-   - `--question`: 한 줄 요약 + 근거 경로.
-     `I-<n> <사유>: <한 줄 요약>. 리뷰: <worktree>/.ai/reviews/I-<n>.rN.json / 워크트리: <worktree> / base: <base> / 브랜치: <branch>`
-   - `--options`: 아래 표의 선택지. 쉼표로 구분하므로 선택지 안에 쉼표를 넣지 않는다.
-
-     | 사유 | `--options` |
-     |---|---|
-     | `spec_violation` | `spec을 고친다,구현을 고친다,지적을 기각한다` |
-     | `repeated_finding`, `review_round_limit` | `수정 라운드를 한 번 더 연다,지금 상태로 성공 처리한다,태스크를 중단한다` |
-     | 사람이 필요한 것 | `사람이 해결했다 — 막힌 단계부터 이어간다,태스크를 중단한다` |
-
-   - **선택지 열거는 진행자가 해도 된다.** 기계적 작업이고, **선택**은 설계 세션이 한다. 판단 권한은 그대로 분리된다.
-3. **답을 기다린다.** `ask`의 대기는 한 번에 최대 30분(`--timeout-ms 1800000`)이다. timeout·끊김이면 새 질문을 만들지 않고 **같은 메시지 ID로 resume**한다. 사람이 답하는 데는 30분이 넘게 걸릴 수 있다.
-   - 기다리는 동안 정착한 하위 워커의 재사용·보존·해제를 정하지 않고, 그 Delivery의 ack도 미룬다. 답이 그것을 정한다(아래 4) — 수정 라운드면 재사용, 중단이면 보존, 성공이면 해제다. 사람이 그 터미널 화면을 봐야 할 수도 있다.
-4. **답의 「다음」대로 한다.**
-
-   | 답 | 진행자가 할 일 |
-   |---|---|
-   | `구현을 고친다`, `수정 라운드를 한 번 더 연다` | 수정 라운드 — (g). 답의 근거를 수정 Task spec에 넣는다 |
-   | `spec을 고친다` | 설계 세션이 워크트리에 spec 커밋을 남겼다. 답의 「다음」(수정 라운드 또는 재리뷰)을 따른다 |
-   | `지적을 기각한다`, `지금 상태로 성공 처리한다` | 성공 종료 — (i). 기각 근거를 보고 파일에 적는다 |
-   | `사람이 해결했다` | 막힌 단계부터 같은 자리에서 이어간다 |
-   | `태스크를 중단한다` | 정착한 하위 dispatch **전부**에 `worker-retain`(먼저 Orca 가이드 `recovery-and-cleanup` reference를 읽는다) → `worker_done --outcome failed` — (i) |
-
-   - 중단 때 하위 워커를 남기는 이유: 무응답이나 예상 밖 프롬프트는 사람이 터미널 화면을 직접 봐야 원인을 알 수 있다. 닫으면 증거가 사라진다. 하나라도 빠지면 `reclaimable`로 남는다.
-
-### 설계 세션이 답하는 법
-
-`check --wait`에 `question`이 오면 — (b) 감독 루프 3):
-
-1. **질문의 경로를 직접 읽는다** — 리뷰 파일, spec, `git -C <worktree> log --oneline <base>..HEAD`. 질문 한 줄만 보고 답하지 않는다.
-2. **설계 세션이 답할 것은 직접 답한다.** SPEC_VIOLATION·반복 지적·라운드 한도는 spec을 쓴 쪽의 판단이다. `spec을 고친다`를 고르면 먼저 `<worktree>/.ai/specs/`의 spec을 고쳐 설계자 주체 커밋으로 남긴다.
-3. **사람에게 넘길 것은 넘긴다** — 위 트리거 표에서 「사람」인 것, 되돌리기 어려운 결정, 설계 세션도 확신이 없는 것. 질문·선택지·증거 경로를 사용자에게 보여 주고 고른 답을 받는다. 그동안 진행자는 `ask` resume으로 기다린다.
-4. **`reply`의 body는 세 부분이다** — `<고른 선택지>. 근거: <spec 항목·리뷰 지적·파일:줄>. 다음: <진행자가 할 일 한 줄>`. 사람이 고른 답이면 근거에 `사람 결정`이라고 적는다.
-   - **근거까지 적는 이유**: 진행자는 spec과 역할 파일만 알고 이 대화를 모른다. "승인"만 보내면 다음 유사 상황에서 또 묻는다. 그 지적을 finding으로 남길지 기각할지까지 지시한다.
