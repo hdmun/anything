@@ -141,6 +141,29 @@ class WorkerPath(unittest.TestCase):
         self.assertEqual(r["stray"], ["ctx_old"])
         self.assertEqual(len(o.acks()), 2)
 
+    def test_asks_for_the_full_receipt(self):
+        # Orca 1.4.247 부터 기본은 간결 보기라 launch·turnStart 가 없다 — 전체 기록을 받는다
+        o = FakeOrca(CODEX, [done_message(CODEX_DISPATCH)])
+        smoke.run_worker("codex", "C:/w", o.run, version="1")
+        self.assertIn("--full", o.made("worker-start")[0])
+
+    def test_full_receipt_from_1_4_247_records_launch(self):
+        start = fixture("1.4.247/codex-worker-start-yolo.json")
+        o = FakeOrca(start, [done_message(start["result"]["dispatchId"])])
+        r = smoke.run_worker("codex", "C:/w", o.run, version="0.159.3")
+        self.assertTrue(r["passed"], r)
+        self.assertEqual((r["mode"], r["turn_start"]), ("terminal", "observed"))
+        self.assertEqual(r["effective"], {"agent": "codex", "model": None, "effort": None})
+
+    def test_concise_receipt_does_not_crash(self):
+        # 간결 보기의 mode 는 문자열이다 (Orca 1.4.248 smoke 에서 AttributeError 로 죽었다)
+        start = fixture("1.4.247/agy-worker-start.json")
+        o = FakeOrca(start, [done_message(start["result"]["dispatchId"])])
+        r = smoke.run_worker("antigravity", "C:/w", o.run, version="1.5.0")
+        self.assertTrue(r["passed"], r)
+        self.assertEqual(r["mode"], "terminal")
+        self.assertIsNone(r["effective"])
+
     def test_commands_start_with_orca(self):
         o = FakeOrca(CODEX, [done_message(CODEX_DISPATCH)])
         smoke.run_worker("codex", "C:/w", o.run, version="1")

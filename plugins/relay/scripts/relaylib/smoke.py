@@ -55,7 +55,7 @@ def run_worker(agent, workdir, run, version=None, model=None, effort=None,
             argv += ["--effort", effort]
     elif effort:
         result["effort_ignored"] = True      # Orca: --effort 는 --model 이 있어야 한다
-    argv.append("--json")
+    argv += ["--json", "--full"]         # 1.4.247+ 기본은 간결 보기 — launch·turnStart 는 전체 기록에만 있다
 
     t0 = clock()
     _, out = run(argv)
@@ -63,7 +63,8 @@ def run_worker(agent, workdir, run, version=None, model=None, effort=None,
     resp = _json(out)
     r = resp.get("result") or {}
     result["turn_start"] = r.get("turnStart")
-    result["mode"] = (r.get("mode") or {}).get("mode")
+    mode = r.get("mode")                 # 전체 기록은 {"mode": …}, 간결 보기는 문자열
+    result["mode"] = mode.get("mode") if isinstance(mode, dict) else mode
     result["effective"] = (r.get("launch") or {}).get("effective")
     result["state"] = r.get("state")
     dispatch = r.get("dispatchId") or ((r.get("dispatch") or {}).get("id") if isinstance(r.get("dispatch"), dict) else None)
