@@ -33,10 +33,19 @@ WAIT_TYPES = "worker_done,escalation,question"
 
 
 def _payload(msg):
+    p = msg.get("payload")
+    if isinstance(p, dict):              # 1.4.247+ 는 객체, 그 전은 JSON 문자열
+        return p
     try:
-        return json.loads(msg.get("payload") or "{}")
+        return json.loads(p or "{}")
     except ValueError:
         return {}
+
+
+def _ack(run, res):
+    """옛 Orca 만 ack 를 요구한다. 1.4.247+ 의 소비하는 check 는 스스로 처리 완료로 표시하고 deliveryId 를 주지 않는다."""
+    if res.get("deliveryId"):
+        run(["orca", "orchestration", "check", "--ack", res["deliveryId"], "--json"])
 
 
 def run_worker(agent, workdir, run, version=None, model=None, effort=None,
@@ -86,7 +95,7 @@ def run_worker(agent, workdir, run, version=None, model=None, effort=None,
             if not msgs:
                 break                        # 빈 대기 — 더 기다리지 않고 보고한다
             stray += [_payload(m).get("dispatchId") for m in msgs]
-            run(["orca", "orchestration", "check", "--ack", res.get("deliveryId"), "--json"])
+            _ack(run, res)
             continue
         msg = mine[0]
         result["done_ms"] = int((clock() - t0) * 1000)
@@ -96,7 +105,7 @@ def run_worker(agent, workdir, run, version=None, model=None, effort=None,
             result["failed_at"] = msg.get("type")      # 질문·에스컬레이션은 사람이 본다 — ack 하지 않는다
             return result
         # 워커는 worker_done 뒤 스스로 닫힌다(Orca 1.4.247 자동 닫힘, ADR 0010) — release 하지 않고 ack 만 한다
-        run(["orca", "orchestration", "check", "--ack", res.get("deliveryId"), "--json"])
+        _ack(run, res)
         if _payload(msg).get("outcome") == "succeeded":
             result["passed"] = True
         else:

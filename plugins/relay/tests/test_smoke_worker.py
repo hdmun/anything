@@ -28,6 +28,13 @@ def done_message(dispatch, outcome="succeeded", type_="worker_done", delivery="d
     return resp
 
 
+def done_message_1_4_247(dispatch, outcome="succeeded"):
+    """1.4.247+ check 응답: payload 가 객체이고 deliveryId 가 없다(소비하는 check 가 스스로 처리 완료로 표시한다)."""
+    resp = fixture("1.4.247/agy-check-worker-done.json")
+    resp["result"]["messages"][0]["payload"].update(dispatchId=dispatch, outcome=outcome)
+    return resp
+
+
 EMPTY_WAIT = {"ok": True, "result": {"messages": [], "count": 0, "timedOut": True}}
 
 
@@ -163,6 +170,20 @@ class WorkerPath(unittest.TestCase):
         self.assertTrue(r["passed"], r)
         self.assertEqual(r["mode"], "terminal")
         self.assertIsNone(r["effective"])
+
+    def test_object_payload_without_delivery_passes_without_ack(self):
+        # Orca 1.4.248 smoke 에서 json.loads(dict) 로 죽었다. deliveryId 가 없으면 ack 할 것도 없다
+        o = FakeOrca(CODEX, [done_message_1_4_247(CODEX_DISPATCH)])
+        r = smoke.run_worker("codex", "C:/w", o.run, version="1")
+        self.assertTrue(r["passed"], r)
+        self.assertEqual(o.acks(), [])
+
+    def test_object_payload_stray_is_skipped_without_ack(self):
+        o = FakeOrca(CODEX, [done_message_1_4_247("ctx_old"), done_message_1_4_247(CODEX_DISPATCH)])
+        r = smoke.run_worker("codex", "C:/w", o.run, version="1")
+        self.assertTrue(r["passed"], r)
+        self.assertEqual(r["stray"], ["ctx_old"])
+        self.assertEqual(o.acks(), [])
 
     def test_commands_start_with_orca(self):
         o = FakeOrca(CODEX, [done_message(CODEX_DISPATCH)])
