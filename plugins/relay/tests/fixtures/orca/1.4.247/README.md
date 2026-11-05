@@ -1,6 +1,6 @@
 # Orca 1.4.247 픽스처 후보
 
-2026-11-04 버리는 Run `run_0444a45255d0` 에서 실측했다. 아직 어떤 테스트도 이 파일들을 읽지 않는다.
+2026-11-04 버리는 Run `run_0444a45255d0` 에서 실측했다. `test_smoke_worker` 가 `agy-worker-start.json`(간결 보기), `codex-worker-start-yolo.json`(`--full`), `agy-check-worker-done.json`(객체 payload, deliveryId 없음)을 읽는다. 나머지는 아직 어떤 테스트도 읽지 않는다.
 상위 폴더의 픽스처는 2.0.0 이전 모양이다. 테스트에 쓸지는 relay 재구성 구현 때 정한다.
 
 ## agy (`--agent antigravity`, 60초 sleep Task)
