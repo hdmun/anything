@@ -39,6 +39,7 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
   - `--spec` — `I-<n> 리뷰 rN. 역할: .ai/roles/reviewer.md / spec: .ai/specs/I-<n>-<슬러그>.md / base: <base> / 리포트: .ai/reviews/I-<n>.rN.json`
   - `--worktree current` — 구현 워커와 같은 이슈 워크트리
   - `--agent codex --model <model reviewer 의 model> --effort <model reviewer 의 effort>`
+  - `--full` — 리뷰 리포트 트레일러의 `launch.effective.model` 은 전체 기록에만 있다(`implementer.md` 3)
 
   - Orca는 codex를 띄울 때 승인·샌드박스를 끄는 인자를 스스로 붙인다. 그래서 워커의 `worker_done` 전송이 샌드박스에 막히지 않는다(2026-11-02 실측 4/4). 직접 명령줄을 만들지 않는다.
   - 영수증은 구현 워커와 같이 읽는다 — `implementer.md` 3.
