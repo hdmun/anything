@@ -37,6 +37,7 @@
      - `--worktree current` — 이슈 워크트리
      - `--parent <태스크의 task_id>` — (c) 5 에서 만든 태스크
      - `--agent antigravity`, 그리고 `model`이 있을 때만 `--model <model>`(`effort`가 있으면 `--effort <effort>`)
+     - `--full` — 간결 보기에는 `launch` 가 없다. 커밋 트레일러의 모델명을 여기서 읽는다(SKILL.md 「Orca 기본과 다른 점」)
    - `model`이 `null`이면 **agy 기본 모델**로 뜬다. 응답의 `launch.effective.model`도 `null`이다.
 
    **`worker-start` 영수증은 Orca 가이드대로 읽는다**(`state`·`failedStage`·`next`, 실패면 `recovery-and-cleanup` reference). relay가 더하는 것은 SKILL.md 불변식의 감독 정책뿐이다.
