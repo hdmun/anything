@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "relay",
-  "version": "2.0.0",
-  "description": "Orca orchestration 위에서 설계 세션·진행자 워커(Claude)·구현자(agy)·리뷰어(codex) 4역할 파이프라인을 굴린다. spec 작성부터 진행자 워커 감독, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지.",
+  "version": "3.0.0",
+  "description": "Orca orchestration 위에서 구현 이슈 하나를 PR 까지 옮긴다. 설계 세션이 relay:handoff 로 진행자 세션(Claude)을 띄우고, 진행자가 구현자(agy)·리뷰어(codex)를 감독하며 게이트 재검증·리뷰 심각도 분기·판정 서브에이전트·PR 생성까지 한다.",
   "author": {
     "name": "hdmun"
   },

@@ -174,11 +174,12 @@ class WorkerObligations(unittest.TestCase):
         for p in self.TEMPLATES:
             self.assertNotRegex(p.read_text(encoding="utf-8"), r"orca orchestration \w", p.name)
 
-    def test_escalation_goes_to_the_design_session(self):
-        # 설계자(Opus)를 부르는 대신 진행자가 설계 세션에 ask 한다 (ADR 0004)
-        reviewer = (PLUGIN_ROOT / "templates" / "reviewer.md.tmpl").read_text(encoding="utf-8")
-        self.assertNotIn("설계자(Opus)", reviewer)
-        self.assertIn("설계 세션", reviewer)
+    def test_spec_violation_is_not_sent_to_a_design_session(self):
+        # 설계 세션은 handoff 뒤 끝난다 — 진행자는 위로 묻지 않고 멈춘다 (ADR 0005·0008)
+        for name in ("reviewer.md.tmpl", "implementer.md.tmpl"):
+            text = (PLUGIN_ROOT / "templates" / name).read_text(encoding="utf-8")
+            self.assertNotIn("설계자(Opus)", text)
+            self.assertNotIn("설계 세션", text)
 
 
 class Cli(TempRepoCase):

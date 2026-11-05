@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""smoke 의 worker-start 경로 — Orca 기본 기동(`worker-start --agent`)을 끝까지(worker_done·release) 잰다 (plan 트랙 0).
+"""smoke 의 worker-start 경로 — Orca 기본 기동(`worker-start --agent`)을 끝까지(worker_done) 잰다 (plan 트랙 0).
 
 픽스처는 2026-11-02 Orca 1.4.245 실측 응답이다 (agy 1.4.12, codex 0.159.3).
 """
@@ -64,7 +64,7 @@ AGY_DISPATCH = AGY["result"]["dispatchId"]
 
 
 class WorkerPath(unittest.TestCase):
-    def test_codex_pass_records_launch_then_releases_and_acks(self):
+    def test_codex_pass_records_launch_then_acks_without_release(self):
         o = FakeOrca(CODEX, [done_message(CODEX_DISPATCH)])
         r = smoke.run_worker("codex", "C:/w", o.run, model="gpt-6.1-sol", effort="high", version="0.159.3")
         self.assertTrue(r["passed"], r)
@@ -72,10 +72,10 @@ class WorkerPath(unittest.TestCase):
         self.assertEqual(r["turn_start"], "observed")
         self.assertEqual(r["mode"], "terminal")
         self.assertEqual(r["effective"], {"agent": "codex", "model": "gpt-6.1-sol", "effort": "high"})
-        self.assertEqual(r["release"], "closed_agent_terminal")
+        self.assertNotIn("release", r)
         verbs = [c[2] for c in o.calls]
-        # 정착 메시지를 처리(release)한 뒤에 ack 한다 (Orca 가이드 「Canonical supervised loop」)
-        self.assertEqual(verbs, ["worker-start", "check", "worker-release", "check"])
+        # 워커는 worker_done 뒤 스스로 닫힌다 — release 없이 ack 만 한다 (ADR 0010)
+        self.assertEqual(verbs, ["worker-start", "check", "check"])
         self.assertIn("--ack", o.calls[-1])
 
     def test_agy_default_model_passes_without_model_flags(self):
@@ -106,12 +106,12 @@ class WorkerPath(unittest.TestCase):
         o = FakeOrca(fixture("worker-start-readiness-failed.json"))
         r = smoke.run_worker("codex", "C:/w", o.run, version="1")
         self.assertEqual((r["passed"], r["failed_at"]), (False, "start"))
-        self.assertEqual(r["startup"]["action"], "retry")
+        self.assertEqual(r["start_error"], "timeout")
         self.assertEqual(o.made("check"), [])
         self.assertEqual(o.made("worker-release"), [])
 
     def test_no_worker_done_is_not_released(self):
-        # 부재는 release 근거가 아니다 — 워커를 남기고 dispatch 를 보고한다
+        # 부재는 정착이 아니다 — 워커를 남기고 dispatch 를 보고한다
         o = FakeOrca(CODEX, [EMPTY_WAIT])
         r = smoke.run_worker("codex", "C:/w", o.run, version="1", wait_rounds=1)
         self.assertEqual((r["passed"], r["failed_at"]), (False, "worker_done"))
@@ -125,11 +125,11 @@ class WorkerPath(unittest.TestCase):
         self.assertEqual(o.made("worker-release"), [])
         self.assertEqual(o.acks(), [], "답하지 않은 질문은 ack 하지 않는다")
 
-    def test_failed_outcome_is_released_but_not_passed(self):
+    def test_failed_outcome_is_acked_but_not_passed(self):
         o = FakeOrca(CODEX, [done_message(CODEX_DISPATCH, outcome="failed")])
         r = smoke.run_worker("codex", "C:/w", o.run, version="1")
         self.assertEqual((r["passed"], r["failed_at"]), (False, "outcome"))
-        self.assertEqual(len(o.made("worker-release")), 1, "받아들인 정착은 release 해도 된다")
+        self.assertEqual(o.made("worker-release"), [])
         self.assertEqual(len(o.acks()), 1)
 
     def test_stray_settlement_is_acked_and_waiting_continues(self):

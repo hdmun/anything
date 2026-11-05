@@ -12,7 +12,7 @@
 python "$RELAY/scripts/relay_cli.py" commit-guard --worktree <worktree> --base <base> ; echo "exit=$?"
 ```
 
-- 종료코드 1이면 귀속 트레일러(`Implemented-by:`/`Reviewed-by:`)가 없는 커밋이 stderr에 나온다. **이력을 그대로 둔 채**(이력이 증거다) `worker-retain` 후 사람을 부른다.
+- 종료코드 1이면 귀속 트레일러(`Implemented-by:`/`Reviewed-by:`)가 없는 커밋이 stderr에 나온다. **이력을 그대로 둔 채**(이력이 증거다) 워커를 `worker-keep-open` 으로 남기고 멈춤 보고 — (h).
 - 리뷰 워커의 `worker_done` 뒤에도 같은 검사를 한다.
 
 - 이유 1: 워커의 자체 보고를 신뢰하되 검증한다.
@@ -74,8 +74,8 @@ grep -cE "error TS[0-9]+" tsc.log
 
 - **이유**: 리뷰가 `SPEC_VIOLATION`이나 `BLOCKER`를 올려도 이미 코드는 게이트를 통과한 유효한 산출물이다. 커밋을 리뷰 결과 뒤로 미루면 에스컬레이션이 걸릴 때마다 워크트리에 커밋 안 된 변경만 남고, 사람이 diff로 확인할 수 있는 이력이 없다.
 - 커밋 이후 리뷰나 사람이 수정을 요구하면 그 수정은 **새 커밋**으로 쌓는다. 기존 커밋을 amend하지 않는다 — 라운드마다 커밋이 남아야 몇 번째 라운드에서 무엇이 고쳐졌는지 `git log`로 보인다.
-- 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(T-NNN): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<모델>`.
-  모델명은 추측하지 않는다. (d) 4의 `startup`이 준 `model`(= `launch.effective.model`)을 쓴다(예: `Implemented-by: agy/gemini-3.8-flash`).
+- 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(I-<n>): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<모델>`.
+  모델명은 추측하지 않는다. (d) 4의 영수증 `launch.effective.model`을 쓴다(예: `Implemented-by: agy/gemini-3.8-flash`).
   agy 기본 모델로 띄웠으면 그 값이 `null`이다 — 그때만 최신 agy 로그의 마지막 모델 라벨을 쓴다:
   `ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1 | xargs grep -o 'label="[^"]*"' | tail -1` (예: `label="Gemini 3.8 Flash (Medium)"` → `Implemented-by: agy/Gemini 3.8 Flash (Medium)`). 라벨이 없으면 `agy/unknown`.
   **산문(`구현: agy / ...`)이 아니라 트레일러여야 한다.** 포맷이 갈리면 `git log --format='%(trailers:key=Implemented-by)'` 같은 기계 판독이 깨지고, "`git log`만 보고 어느 단계가 무엇을 만들었는지 가린다"는 목적 자체가 무너진다.
