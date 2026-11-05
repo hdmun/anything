@@ -59,16 +59,16 @@ class DiffGuard(GitRepoCase):
 
 class ReviewBranchCli(GitRepoCase):
     def test_counts_implemented_by_trailers(self):
-        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
-        self.commit("r.json", "review(T-004): r1 changes_requested\n\nReviewed-by: codex/gpt-6-luna")
-        self.commit("c.txt", "feat(T-004): fix\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
+        self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
+        self.commit("r.json", "review(I-42): r1 changes_requested\n\nReviewed-by: codex/gpt-6-luna")
+        self.commit("c.txt", "feat(I-42): fix\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
         reviews = self.repo / ".ai" / "reviews"
         reviews.mkdir(parents=True)
         for n, s in ((1, "a"), (2, "b"), (3, "c")):
-            (reviews / ("T-004.r%d.json" % n)).write_text(json.dumps({
-                "taskId": "T-004", "verdict": "changes_requested",
+            (reviews / ("I-42.r%d.json" % n)).write_text(json.dumps({
+                "taskId": "I-42", "verdict": "changes_requested",
                 "findings": [{"severity": "MAJOR", "file": "x", "summary": s, "repro": "r"}]}), encoding="utf-8")
-        r = cli("review-branch", "--task", "T-004", "--worktree", str(self.repo), "--base", self.base)
+        r = cli("review-branch", "--task", "I-42", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 0, r.stderr)
         d = json.loads(r.stdout)
         # 구현 2 + 리뷰 3 = 5 → 한도 안. 리뷰 3회도 '초과'는 아니다
@@ -76,27 +76,78 @@ class ReviewBranchCli(GitRepoCase):
         self.assertEqual(d["impl_rounds"], 2)
         self.assertEqual(d["review_rounds"], 3)
 
+    def test_resumed_task_counts_only_reports_after_base(self):
+        reviews = self.repo / ".ai" / "reviews"
+        reviews.mkdir(parents=True)
+        bad = {"taskId": "I-42", "verdict": "changes_requested",
+               "findings": [{"severity": "MAJOR", "file": "x", "summary": "같은 지적", "repro": "r"}]}
+        (reviews / "I-42.r1.json").write_text(json.dumps(bad), encoding="utf-8")
+        self.commit("b.txt", "review(I-42): r1\n\nReviewed-by: codex/m")
+        new_base = git(self.repo, "rev-parse", "HEAD")        # 재개: 스냅숏을 다시 뜬 직후
+        self.commit("c.txt", "feat(I-42): again\n\nImplemented-by: agy/x")
+        (reviews / "I-42.r2.json").write_text(json.dumps(bad), encoding="utf-8")   # 아직 커밋 안 함
+        r = cli("review-branch", "--task", "I-42", "--worktree", str(self.repo), "--base", new_base)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        # r1 은 앞 시도의 것이라 반복 지적으로 보지 않는다
+        self.assertEqual((d["action"], d["review_rounds"], d["round"]), ("fix_round", 1, 3))
+
     def test_missing_reviews_is_input_error(self):
-        r = cli("review-branch", "--task", "T-004", "--worktree", str(self.repo), "--base", self.base)
+        r = cli("review-branch", "--task", "I-42", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 2)
+
+
+class ResumeCli(GitRepoCase):
+    def resume(self, tasks):
+        r = cli("resume", "--worktree", str(self.repo), "--tasks", tasks)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def setUp(self):
+        super().setUp()
+        git(self.repo, "checkout", "-q", "-b", "I-45-ante")
+
+    def test_first_task_when_nothing_done(self):
+        self.assertEqual(self.resume("I-46,I-47"), {"action": "start", "task": "I-46", "done": []})
+
+    def test_skips_tasks_with_relay_done_trailer(self):
+        self.commit("r.json", "review(I-46): r1 pass\n\nReviewed-by: codex/m\nRelay-Done: I-46")
+        self.commit("s.md", "spec(I-47): 스냅숏")       # 멈춘 태스크 — 트레일러 없음
+        self.assertEqual(self.resume("I-46,I-47"), {"action": "start", "task": "I-47", "done": ["I-46"]})
+
+    def test_all_done_means_pr(self):
+        self.commit("r.json", "review(I-46): r1 pass\n\nReviewed-by: codex/m\nRelay-Done: I-46")
+        self.commit("q.json", "review(I-47): r2 pass\n\nReviewed-by: codex/m\nRelay-Done: I-47")
+        self.assertEqual(self.resume("I-46,I-47"), {"action": "pr", "done": ["I-46", "I-47"]})
+
+    def test_trailers_on_main_are_not_counted(self):
+        git(self.repo, "checkout", "-q", "main")
+        self.commit("old.json", "review(I-46): pass\n\nRelay-Done: I-46")
+        git(self.repo, "checkout", "-q", "-b", "I-45-other")
+        self.assertEqual(self.resume("I-46")["action"], "start")
 
 
 class CommitGuard(GitRepoCase):
     def test_attributed_commits_pass(self):
-        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/x")
-        self.commit("r.json", "review(T-004): r1 pass\n\nReviewed-by: codex/m")
+        self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/x")
+        self.commit("r.json", "review(I-42): r1 pass\n\nReviewed-by: codex/m")
         r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_worker_self_commit_fails(self):
         # 실측(T-004 dd95130): agy 가 git commit 권한으로 직접 커밋 — 트레일러 없음
-        self.commit("b.txt", "feat(T-004): b\n\nImplemented-by: agy/x")
+        self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/x")
         self.commit("c.txt", "fix(analysis): 무작위 입력 검사 추가")
         r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
         self.assertEqual(r.returncode, 1)
         err = r.stderr.decode("utf-8")
         self.assertIn("fix(analysis)", err)
-        self.assertNotIn("feat(T-004)", err)
+        self.assertNotIn("feat(I-42)", err)
+
+    def test_judgment_commit_is_attributed(self):
+        self.commit("j.json", "judge(I-42): j1 dismiss\n\nJudged-by: claude/opus\nRelay-Done: I-42")
+        r = cli("commit-guard", "--worktree", str(self.repo), "--base", self.base)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_merge_commits_ignored(self):
         git(self.repo, "checkout", "-q", "-b", "side")
@@ -112,47 +163,6 @@ class CommitGuard(GitRepoCase):
 
 
 class OrcaCli(unittest.TestCase):
-    FIX = pathlib.Path(__file__).parent / "fixtures" / "orca"
-
-    def test_startup_reads_file(self):
-        r = cli("startup", "--response", str(self.FIX / "worker-start-readiness-failed.json"))
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(json.loads(r.stdout)["action"], "retry")
-
-    def test_startup_reads_stdin(self):
-        data = (self.FIX / "worker-start-no-dispatch.json").read_bytes()
-        r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "startup", "--response", "-"], input=data, capture_output=True)
-        self.assertEqual(json.loads(r.stdout)["action"], "lookup_dispatch")
-
-    def test_worker_read_json_with_box_drawing_is_read_as_utf8(self):
-        # T-007 보고: 박스 문자가 든 JSON 을 cp949 로 읽는가 → relay_cli 는 utf-8 로 읽는다
-        tail = ["▄▀▀▄  Antigravity CLI 1.3.3", "─" * 10, ">", "─" * 10, "Gemini 3.8 Flash (Medium) │ Idle"]
-        with tempfile.TemporaryDirectory() as d:
-            p = pathlib.Path(d) / "read.json"
-            p.write_text(json.dumps({"ok": True, "result": {"source": "terminal", "terminal": {"tail": tail}}}, ensure_ascii=False), encoding="utf-8")
-            env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING")}
-            r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "liveness", "--role", "implementer",
-                                "--read", str(p), "--empty-waits", "1", "--now", "1000"], capture_output=True, env=env)
-            self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
-            self.assertNotIn(b"UnicodeDecodeError", r.stderr)
-
-    def test_liveness_cli(self):
-        r = cli("liveness", "--worker", str(self.FIX / "worker-list-entry.json"), "--show", str(self.FIX / "worker-show-agy.json"),
-                "--role", "implementer", "--now", str(1793613865349 + 6 * 60_000))
-        self.assertEqual(json.loads(r.stdout)["reason"], "stalled")
-
-    def test_liveness_cli_read_on_first_empty_wait(self):
-        tail = (self.FIX / "codex-screen-approval.txt").read_text(encoding="utf-8").splitlines()
-        with tempfile.TemporaryDirectory() as d:
-            p = pathlib.Path(d) / "read.json"
-            p.write_text(json.dumps({"ok": True, "result": {"source": "terminal", "terminal": {"tail": tail}}}), encoding="utf-8")
-            r = cli("liveness", "--read", str(p), "--empty-waits", "1", "--role", "reviewer", "--now", "1000")
-            self.assertEqual(json.loads(r.stdout)["reason"], "blocked_prompt")
-
-    def test_liveness_cli_needs_worker_from_third_empty_wait(self):
-        r = cli("liveness", "--empty-waits", "3", "--role", "reviewer", "--now", "1000")
-        self.assertEqual(r.returncode, 2)
-
     def test_model_reviewer_cli(self):
         with tempfile.TemporaryDirectory() as d:
             c = pathlib.Path(d) / "config.toml"
@@ -259,10 +269,10 @@ class ModelsInitCli(unittest.TestCase):
 class ValidateCli(unittest.TestCase):
     def test_exit_codes(self):
         with tempfile.TemporaryDirectory() as d:
-            p = pathlib.Path(d) / "T-004.r1.json"
-            p.write_text(json.dumps({"taskId": "T-004", "verdict": "pass", "findings": []}), encoding="utf-8")
+            p = pathlib.Path(d) / "I-42.r1.json"
+            p.write_text(json.dumps({"taskId": "I-42", "verdict": "pass", "findings": []}), encoding="utf-8")
             self.assertEqual(cli("validate-review", str(p)).returncode, 0)
-            p.write_text(json.dumps({"taskId": "T-005", "verdict": "pass", "findings": []}), encoding="utf-8")
+            p.write_text(json.dumps({"taskId": "I-43", "verdict": "pass", "findings": []}), encoding="utf-8")
             r = cli("validate-review", str(p))
             self.assertEqual(r.returncode, 1)
             self.assertIn("taskId", r.stderr.decode("utf-8"))

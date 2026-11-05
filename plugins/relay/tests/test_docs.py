@@ -14,6 +14,12 @@ SKILL = "\n".join(
     p.read_text(encoding="utf-8")
     for p in [SKILL_DIR / "SKILL.md", *sorted((SKILL_DIR / "references").glob("*.md"))]
 )
+HANDOFF_DIR = PLUGIN_ROOT / "skills/handoff"
+HANDOFF_MD = (HANDOFF_DIR / "SKILL.md").read_text(encoding="utf-8")
+HANDOFF = "\n".join(
+    p.read_text(encoding="utf-8")
+    for p in [HANDOFF_DIR / "SKILL.md", *sorted((HANDOFF_DIR / "references").glob("*.md"))]
+)
 
 
 def _subcommands():
@@ -26,7 +32,7 @@ def _subcommands():
 
 class SkillCallsExistingCommands(unittest.TestCase):
     def test_every_relay_cli_call_is_a_real_subcommand(self):
-        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL))
+        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL + HANDOFF))
         self.assertTrue(called, "SKILL.md 에 relay_cli 호출이 하나도 없다")
         self.assertLessEqual(called - {"--help"}, _subcommands())
 
@@ -42,16 +48,6 @@ class SkillCallsExistingCommands(unittest.TestCase):
         for gone in ("$null=1", "--yolo", "tui-idle", "HandleUserInput called"):
             self.assertNotIn(gone, SKILL)
 
-    def test_every_liveness_call_passes_worker_output(self):
-        # 회귀: 확인창은 출력에만 보인다(T-007, agentWait null) — 출력 없이 묻는 liveness 는 빈 대기 30분을 쓴다.
-        # 관찰은 orchestration 동사로만 한다 (ADR 0003) — terminal read/show 로 되돌아가지 않게
-        calls = re.findall(r"relay_cli\.py\" liveness [^\n]*", SKILL)
-        self.assertTrue(calls)
-        for c in calls:
-            for flag in ("--show", "--read", "--empty-waits"):
-                self.assertIn(flag, c)
-            self.assertNotIn("--screen", c)
-
     def test_severity_table_not_reintroduced(self):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
@@ -64,17 +60,16 @@ class OrcaGuideIsTheSource(unittest.TestCase):
     """명령 문법은 Orca 가이드가 정본이다 — relay 문서는 Orca 스킬로 불러 따르고 스냅숏을 두지 않는다 (ADR 0003)."""
 
     def test_no_orca_command_snapshots(self):
-        hits = [line.strip() for line in SKILL.splitlines() if ORCA_COMMAND.search(line)]
+        hits = [line.strip() for line in (SKILL + HANDOFF).splitlines() if ORCA_COMMAND.search(line)]
         self.assertEqual(hits, [])
 
     def test_sessions_load_guides_through_orca_skills(self):
         start = (SKILL_DIR / "references" / "start.md").read_text(encoding="utf-8")
-        design = (SKILL_DIR / "references" / "design.md").read_text(encoding="utf-8")
-        for text in (start, design):
+        for text in (start, HANDOFF_MD):
             self.assertIn("Skill 도구", text)
-            self.assertIn("`orchestration`", text)
-        self.assertIn("`orca-cli`", start)       # 진행자 워커는 워크트리·터미널도 다룬다 (Q3)
-        self.assertNotIn("`orca-cli`", design)   # 설계 세션은 Run·Task·게이트만 다룬다
+            self.assertIn("`orca-cli`", text)
+        self.assertIn("`orchestration`", start)       # 진행자 세션은 Run 을 소유한다
+        self.assertNotIn("`orchestration`", HANDOFF_MD)  # handoff 는 워크트리와 진행자만 띄운다 — Run 은 진행자 것
 
     def test_deviations_from_orca_defaults_sit_after_invariants(self):
         # 컴팩션 뒤에도 남게 SKILL.md 앞부분, 불변식 바로 다음에 둔다
@@ -84,32 +79,143 @@ class OrcaGuideIsTheSource(unittest.TestCase):
 
 
 class SessionStructure(unittest.TestCase):
-    """설계 세션이 진행자 워커를 감독한다 (ADR 0004)."""
+    """설계 세션은 relay:handoff 로 진행자 세션을 띄우고 끝난다 (ADR 0005·0010)."""
 
-    def test_session_is_classified_by_orca_preamble(self):
-        # 판정은 진입 절에 있어야 첫 Read 에서 갈린다 (Q11). 옛 기준(run-use 여부)이 되살아나면 두 기준이 생긴다
-        entry = SKILL_MD.split("## 진입 약속과 세션 판정")[1].split("\n## ")[0]
-        self.assertIn("preamble", entry)
-        self.assertIn("relay 진행자: Run <run_id> / T-NNN", entry)
-        self.assertNotIn("run-use로 기존 Run에 들어왔으면", SKILL_MD)
+    def test_no_session_classification_or_depth_two(self):
+        self.assertNotIn("세션 판정", SKILL_MD)
+        self.assertNotIn("진행자 워커", SKILL)
+        self.assertNotIn("SUB-DISPATCH", SKILL)
+        self.assertNotIn("nested-depth", SKILL + HANDOFF)
 
-    def test_coordinator_task_spec_tells_the_worker_to_load_relay(self):
-        # 회귀: preamble 뒤 `relay 진행자:` 줄만으로는 description 이 3회 중 1회 발동하지 않았다 (2026-11-03 eval)
-        design = (SKILL_DIR / "references" / "design.md").read_text(encoding="utf-8")
-        spec_line = next(l for l in design.splitlines() if l.strip().startswith("relay 진행자: Run <run_id> / T-NNN"))
-        self.assertIn("Skill 도구로 relay 스킬을 먼저 부르고", spec_line)
+    def test_old_inputs_stop_with_the_compat_line(self):
+        entry = SKILL_MD.split("## 진입")[1].split("\n## ")[0]
+        self.assertIn("T-NNN", entry)
+        self.assertIn("relay 진행자:", entry)
+        self.assertIn("3.0.0 은 구현 이슈만 받는다. spec 을 이슈로 옮기고 `relay:handoff` 로 시작한다", entry)
 
-    def test_escalation_goes_through_ask_not_decision_gates(self):
-        # decision gate 는 세션 종료를 전제로 한 설계라 폐기했다 (Q12). 진행자는 ask 로 설계 세션에 묻는다
+    def test_handoff_launch_line_tells_the_session_to_load_relay(self):
+        # 회귀: 기동 줄만으로는 description 이 3회 중 1회 발동하지 않았다 (2026-11-03 eval)
+        line = next(l for l in HANDOFF_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
+        self.assertIn("Skill 도구로 relay 스킬을 먼저 부르고", line)
+        self.assertIn("relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그>", SKILL_MD)
+
+    def test_handoff_runs_both_checks_and_creates_the_issue_worktree(self):
+        for phrase in ("relay_cli.py\" doctor", "relay_cli.py\" handoff-check", "--no-parent", "--base-branch main",
+                       "--agent claude", "agent launch"):
+            self.assertIn(phrase, HANDOFF_MD)
+        self.assertTrue((HANDOFF_DIR / "references" / "spec-template.md").exists())
+        self.assertFalse((SKILL_DIR / "references" / "spec-template.md").exists())
+        self.assertFalse((SKILL_DIR / "references" / "design.md").exists())
+
+    def test_workers_run_in_the_issue_worktree_and_close_themselves(self):
+        self.assertIn("--worktree current", SKILL_MD)
+        self.assertNotIn("id:<wt>", SKILL)
+        self.assertNotIn("worker-release", SKILL)
+        self.assertNotIn("worker-retain", SKILL)
+        finish = (SKILL_DIR / "references" / "finish.md").read_text(encoding="utf-8")
+        self.assertIn("worker-keep-open", finish)
+        self.assertIn("Closes #", finish)
+        self.assertIn("태스크 도중 이슈가 바뀜: 반영 안 됨", finish)
+
+    def test_judgment_subagent_runs_through_stop_md(self):
+        # 판정 서브에이전트의 입출력 계약 (#23): 경로 입력, 스키마 검증, 판정 기록, judge 역할
+        self.assertFalse((SKILL_DIR / "references" / "escalation.md").exists())
+        stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
+        for phrase in ("model judge", "judgment validate", "judgment-schema.json", ".ai/judgments/I-<n>.jN.json",
+                       "Judged-by: claude/", "Relay-Done: I-<n>", "Agent 도구"):
+            self.assertIn(phrase, stop)
+        self.assertTrue((SKILL_DIR / "references" / "judgment-schema.json").exists())
+
+    def test_stops_with_a_report_not_ask_or_decision_gates(self):
+        # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
-        escalation = (SKILL_DIR / "references" / "escalation.md").read_text(encoding="utf-8")
-        self.assertIn("같은 메시지 ID로 resume", escalation)    # ask 30분 timeout 뒤 중복 질문을 만들지 않는다
+        self.assertNotIn("설계 세션에 `ask`", SKILL)
+        self.assertNotIn("ask` 로 설계 세션", SKILL)
+        self.assertIn("멈춤 보고", SKILL_MD)
+
+
+# 지운 감독 루프의 흔적 (성공 기준 3, #19). Orca 가이드가 하는 일을 relay 문서가 다시 적지 않는다.
+# 오탐을 보고 다듬는다 — 게이트 명령의 `--release`(cargo 등)는 잡지 않는다.
+FORBIDDEN = [
+    r"liveness", r"relay_cli\.py\"? startup", r"lookup_dispatch", r"confirm_delivery", r"STALL_MS", r"BLOCKED_RE",
+    r"check --wait", r"agentWait", r"requiresAction", r"nextAction",
+    r"(?<!--)\brelease\b", r"\bretain\b", r"worker-release", r"worker-retain", r"--retry-of",
+    r"빈 대기", r"기동 실패 예산", r"nested-depth", r"SUB-DISPATCH",
+]
+
+
+class SupervisionStaysInOrca(unittest.TestCase):
+    def test_no_forbidden_tokens_in_either_skill(self):
+        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, HANDOFF_DIR) for p in d.rglob("*.md")}
+        hits = ["%s: %s" % (p.relative_to(PLUGIN_ROOT), pat) for p, text in docs.items() for pat in FORBIDDEN
+                if re.search(pat, text)]
+        self.assertEqual(hits, [])
+
+    def test_release_flag_of_a_gate_is_not_a_hit(self):
+        self.assertIsNone(re.search(r"(?<!--)\brelease\b", "게이트 명령: `cargo test --release`"))
+        self.assertIsNotNone(re.search(r"(?<!--)\brelease\b", "워커를 release 한다"))
+
+    def test_relay_cli_has_no_supervision_commands(self):
+        self.assertFalse({"liveness", "startup"} & _subcommands())
+
+
+EVALS = PLUGIN_ROOT / "evals"
+EVAL_CASES = {"outcome-unknown", "prompt-blocked", "handoff-fires", "spec-violation-judge", "stop-reason-reinstruct",
+              "resume-skips-done", "mutation-dirty", "tsc-silent", "handoff-not-relay"}
+
+
+class Evals(unittest.TestCase):
+    """eval 9케이스 (#24). handoff 기동 줄을 바꾸면 eval 프롬프트도 같이 바꾼다."""
+
+    def test_the_nine_cases(self):
+        self.assertEqual({p.name for p in EVALS.iterdir() if p.is_dir() and p.name != "results"}, EVAL_CASES)
+
+    def test_coordinator_prompts_copy_the_handoff_launch_line(self):
+        line = next(l.strip() for l in HANDOFF_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
+        pattern = re.escape(line).replace(re.escape("<이슈 URL>"), r"\S+").replace(re.escape("<슬러그>"), r"[a-z0-9-]+")
+        for case in sorted(EVAL_CASES - {"handoff-fires", "handoff-not-relay"}):
+            prompt = (EVALS / case / "prompt.md").read_text(encoding="utf-8")
+            self.assertRegex(prompt, pattern, case)
+            self.assertNotIn("relay 진행자:", prompt, case)
+            self.assertNotIn("You are a dispatched worker", prompt, case)
+
+    def test_handoff_cases_check_which_skill_fired(self):
+        for case, name in (("handoff-fires", "relay-not-fired.md"), ("handoff-fires", "skill-fired.md"),
+                           ("handoff-not-relay", "handoff-not-fired.md"), ("handoff-not-relay", "relay-not-fired.md")):
+            self.assertTrue((EVALS / case / "graders" / name).exists(), (case, name))
+
+
+class Frontmatter(unittest.TestCase):
+    """스킬 머리말이 YAML 로 읽혀야 스킬이 뜬다.
+
+    회귀: 3.0.0 description 의 따옴표 없는 `relay: 구현 이슈` 가 YAML 을 깨뜨려 relay 스킬이 사라졌다
+    (eval 2026-11-05, `Unknown skill: relay`).
+    """
+
+    def test_descriptions_are_safe_yaml_scalars(self):
+        for md in (SKILL_MD, HANDOFF_MD):
+            head = md.split("---")[1]
+            for line in head.strip().splitlines():
+                key, _, value = line.partition(": ")
+                value = value.strip()
+                if value[:1] in ("'", '"'):
+                    self.assertEqual(value[-1], value[0], line)
+                    if value[0] == "'":
+                        self.assertNotIn("'", value[1:-1].replace("''", ""), line)
+                else:
+                    self.assertNotIn(": ", value, "%s: 따옴표 없는 값에 ': ' 가 있다" % key)
+                    self.assertNotIn(" #", value, "%s: 따옴표 없는 값에 ' #' 가 있다" % key)
+
+    def test_skill_names(self):
+        self.assertIn("\nname: relay\n", SKILL_MD[:40])
+        self.assertIn("\nname: handoff\n", HANDOFF_MD[:40])
 
 
 class SkillSkeleton(unittest.TestCase):
-    def test_skill_md_stays_within_500_lines(self):
+    def test_both_skill_mds_stay_within_500_lines(self):
         # 다시 비대해지는 것을 막는 상한 (분리 성공 기준). 컴팩션 생존은 리뷰에서 사람이 본다
-        self.assertLessEqual(len(SKILL_MD.splitlines()), 500)
+        for text in (SKILL_MD, HANDOFF_MD):
+            self.assertLessEqual(len(text.splitlines()), 500)
 
     def test_invariants_live_in_skill_md_itself(self):
         # 컴팩션 뒤에는 SKILL.md 앞부분만 다시 붙는다 — 불변식은 references 에만 있으면 안 된다

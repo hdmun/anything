@@ -6,15 +6,17 @@
   python relay_cli.py trust add|remove <worktree> [--settings <file>]
   python relay_cli.py trust prune [--root <dir>] [--settings <file>] [--apply]
   python relay_cli.py diff-guard --worktree <dir> --base <sha>          (검사기)
-  python relay_cli.py validate-review <T-NNN.rN.json>                   (검사기)
-  python relay_cli.py review-branch --task T-NNN --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
+  python relay_cli.py validate-review <I-<n>.rN.json>                   (검사기)
+  python relay_cli.py review-branch --task I-<n> --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
+  python relay_cli.py snapshot --issue <URL|path> --worktree <dir> --slug <slug>   (spec 스냅숏을 쓰고 JSON 한 줄)
+  python relay_cli.py handoff-check --issue <URL|path> [--json]        (검사기 — 기동 전 검사: 태스크 수·필수 절·작성자)
+  python relay_cli.py resume --worktree <dir> --tasks I-<a>,I-<b> [--base-branch main]   (결정기 — 재개: 다음 태스크)
+  python relay_cli.py judgment validate <판정.json> [--reason spec_violation|repeated_finding|question]   (검사기)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
-  python relay_cli.py startup --response <file|-> [--prior-failures N]  (결정기)
-  python relay_cli.py liveness [--worker <file>] [--show <file>] [--read <file>] --empty-waits N --role implementer|reviewer   (결정기)
-  python relay_cli.py model designer|coordinator|implementer|reviewer [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
-  python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 4역할 한눈에)
+  python relay_cli.py model designer|coordinator|implementer|reviewer|judge [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
+  python relay_cli.py models [--repo <dir>] [--user-config <file>]      (결정기 — 역할 전부 한눈에)
   python relay_cli.py models-init [--repo <dir> | --user] [--<역할>-model M] [--<역할>-effort E] ...
-                                  [--force] [--print] [--no-verify]   (설정 파일 생성, 역할: designer|coordinator|implementer|reviewer)
+                                  [--force] [--print] [--no-verify]   (설정 파일 생성, 역할: designer|coordinator|implementer|reviewer|judge)
   python relay_cli.py doctor [--fix] [--json]                           (검사기 — 머신 점검)
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
   python relay_cli.py smoke --dir <orca worktree> [--agent antigravity|codex|all]   (검사기 — worker-start 리허설, 수동)
@@ -32,9 +34,7 @@ import pathlib
 import subprocess
 import sys
 
-import time
-
-from relaylib import doctor, models, orca, review, roles, smoke, trust
+from relaylib import doctor, handoff, issue, judgment, models, orca, resume, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -125,10 +125,45 @@ def _impl_rounds(worktree, base):
 
 def cmd_review_branch(a):
     reviews = a.reviews or str(pathlib.Path(a.worktree) / ".ai" / "reviews")
-    return _emit(review.decide(reviews, a.task, _impl_rounds(a.worktree, a.base)))
+    return _emit(review.decide(reviews, a.task, _impl_rounds(a.worktree, a.base), _reports_since(a.worktree, a.base, reviews)))
 
 
-ATTRIBUTION_KEYS = ("Implemented-by", "Reviewed-by")
+def _reports_since(worktree, base, reviews):
+    """base..HEAD 에서 생긴 리포트 이름 — 재개한 태스크는 라운드를 처음부터 센다(ADR 0010).
+
+    리포트는 커밋하기 전에 분기하므로 아직 추적되지 않은 파일도 센다.
+    """
+    rel = pathlib.Path(reviews)
+    try:
+        rel = rel.resolve().relative_to(pathlib.Path(worktree).resolve())
+    except ValueError:
+        return None          # 워크트리 밖 디렉터리(테스트·특수용)는 모두 센다
+    spec = rel.as_posix()
+    names = _git(worktree, "diff", "--name-only", "--diff-filter=A", base, "HEAD", "--", spec).split()
+    names += _git(worktree, "ls-files", "--others", "--exclude-standard", "--", spec).split()
+    return {pathlib.PurePosixPath(n).name for n in names}
+
+
+def cmd_resume(a):
+    tasks = [t.strip() for t in a.tasks.split(",") if t.strip()]
+    if not tasks:
+        raise InputError("--tasks 가 비었다")
+    out = _git(a.worktree, "log", "--format=%(trailers:key=" + resume.TRAILER + ",valueonly)", "%s..HEAD" % a.base_branch)
+    return _emit(resume.decide(tasks, resume.done_tasks(out.splitlines())))
+
+
+ATTRIBUTION_KEYS = ("Implemented-by", "Reviewed-by", "Judged-by")
+
+
+def cmd_judgment(a):
+    errs = judgment.check_file(a.path, a.reason)
+    for e in errs:
+        print(e, file=sys.stderr)
+    return 1 if errs else 0
+
+
+def cmd_snapshot(a):
+    return _emit(issue.snapshot(a.issue, a.worktree, a.slug, _run))
 
 
 def cmd_commit_guard(a):
@@ -145,34 +180,6 @@ def cmd_commit_guard(a):
     for b in bad:
         print("귀속 트레일러 없는 커밋: %s" % b, file=sys.stderr)
     return 1 if bad else 0
-
-
-def _read_json_arg(path):
-    text = sys.stdin.read() if path == "-" else pathlib.Path(path).read_text(encoding="utf-8")
-    return json.loads(text)
-
-
-def _result(doc):
-    # orca ... --json 출력({ok, result:{...}})과 맨 객체 둘 다 받는다
-    return doc["result"] if isinstance(doc, dict) and "result" in doc else doc
-
-
-def cmd_startup(a):
-    return _emit(orca.startup(_read_json_arg(a.response), prior_failures=a.prior_failures))
-
-
-def cmd_liveness(a):
-    worker = _read_json_arg(a.worker) if a.worker else {}
-    if isinstance(worker, dict) and "result" in worker:
-        r = worker["result"]
-        ws = r.get("workers") if isinstance(r, dict) else r
-        worker = ws[0] if isinstance(ws, list) and ws else r
-    show = _result(_read_json_arg(a.show)) if a.show else {}
-    read = _result(_read_json_arg(a.read)) if a.read else None
-    now = a.now if a.now is not None else int(time.time() * 1000)
-    if not a.worker and (a.empty_waits is None or a.empty_waits >= orca.LAYER1_EMPTY_WAITS):
-        raise InputError("빈 대기 %d회째부터는 --worker(worker-list --json 출력)가 필요하다" % orca.LAYER1_EMPTY_WAITS)
-    return _emit(orca.liveness(worker, show, a.role, now, read=read, empty_waits=a.empty_waits))
 
 
 def _models_cfg(a):
@@ -200,6 +207,8 @@ def _decide_model(role, cfg, codex_config=None):
         return orca.implementer_model(cfg, _agy_models_text())
     if role == "coordinator":
         return orca.coordinator_model(cfg)
+    if role == "judge":
+        return orca.judge_model(cfg)
     return orca.session_model(role, cfg)
 
 
@@ -311,30 +320,6 @@ def _orca_skills_installed():
     return {name: (ORCA_SKILLS_DIR / name / "SKILL.md").is_file() for name in doctor.ORCA_SKILLS}
 
 
-def _orca_nested_depth():
-    """Orca 프로필 저장소(profile-state.db)를 읽기 전용으로 열어 nestedWorkerMaxDepth 를 찾는다. 못 찾으면 None.
-
-    Orca 내부 형식이라 버전마다 바뀔 수 있다 — doctor 는 None 을 WARN 으로 둔다.
-    """
-    import sqlite3
-    root = pathlib.Path(os.environ.get("APPDATA") or (pathlib.Path.home() / "AppData" / "Roaming")) / "orca" / "profiles"
-    dbs = sorted(root.glob("*/profile-state.db"), key=lambda p: p.parent.name != "local-default")
-    for db in dbs:
-        try:
-            con = sqlite3.connect("file:%s?mode=ro" % db.as_posix(), uri=True)
-            try:
-                rows = con.execute("select payload from profile_state_documents where payload like ?",
-                                   ("%" + doctor.NESTED_DEPTH_KEY + "%",)).fetchall()
-            finally:
-                con.close()
-        except sqlite3.Error:
-            continue
-        depth = doctor.nested_depth_from_payloads([r[0] for r in rows])
-        if depth is not None:
-            return depth
-    return None
-
-
 def cmd_doctor(a):
     codex_cfg = pathlib.Path.home() / ".codex" / "config.toml"
     agy = trust.DEFAULT_SETTINGS
@@ -357,7 +342,6 @@ def cmd_doctor(a):
         "plugin_version": _plugin_version(),
         "installed_versions": _installed_versions(),
         "orca_skills": _orca_skills_installed(),
-        "nested_depth": _orca_nested_depth(),
     }
     checks = doctor.evaluate(facts)
     if a.fix and settings is not None:
@@ -365,15 +349,30 @@ def cmd_doctor(a):
         if dead:
             trust.save(agy, settings)
             checks.append({"name": "fix", "status": "ok", "detail": "trust 항목 %d개 정리: %s" % (len(dead), ", ".join(dead)), "fix": ""})
-    if a.json:
-        print(json.dumps(checks, ensure_ascii=False))
-    else:
-        mark = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
-        for c in checks:
-            print("%s %-16s %s" % (mark[c["status"]], c["name"], c["detail"]))
-            if c["status"] != "ok" and c["fix"]:
-                print("     %-16s → %s" % ("", c["fix"]))
+    _print_checks(checks, a.json)
     return doctor.exit_code(checks)
+
+
+def _print_checks(checks, as_json):
+    if as_json:
+        print(json.dumps(checks, ensure_ascii=False))
+        return
+    mark = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
+    for c in checks:
+        print("%s %-16s %s" % (mark[c["status"]], c["name"], c["detail"]))
+        if c["status"] != "ok" and c["fix"]:
+            print("     %-16s → %s" % ("", c["fix"]))
+
+
+def cmd_handoff_check(a):
+    result = handoff.check(a.issue, _run)
+    if a.json:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        _print_checks(result["checks"], False)
+        for t in result["tasks"]:
+            print("task %s %s — %s" % (t["task"], t["url"], t["title"]))
+    return handoff.exit_code(result["checks"])
 
 
 def cmd_warmup(a):
@@ -459,24 +458,33 @@ def build_parser():
     b.add_argument("--reviews", help="기본: <worktree>/.ai/reviews")
     b.set_defaults(func=cmd_review_branch)
 
+    sn = sub.add_parser("snapshot", help="구현 이슈 본문 → .ai/specs/<ID>-<slug>.md (작성자 권한 확인)")
+    sn.add_argument("--issue", required=True, help="GitHub 이슈 URL 또는 .scratch/<feature>/issues/<NN>-<slug>.md")
+    sn.add_argument("--worktree", required=True)
+    sn.add_argument("--slug", required=True, help="영문 소문자·숫자·하이픈")
+    sn.set_defaults(func=cmd_snapshot)
+
+    hc = sub.add_parser("handoff-check", help="기동 전 검사: 태스크 수 ≤5·템플릿 필수 절·작성자 권한")
+    hc.add_argument("--issue", required=True, help="구현 이슈 URL 또는 .scratch/<feature>/issues/<NN>-<slug>.md")
+    hc.add_argument("--json", action="store_true")
+    hc.set_defaults(func=cmd_handoff_check)
+
+    jg = sub.add_parser("judgment", help="판정 서브에이전트 출력 검증 (judgment-schema.json)")
+    jg.add_argument("op", choices=("validate",))
+    jg.add_argument("path")
+    jg.add_argument("--reason", choices=tuple(judgment.DECISIONS), help="맡긴 사유 — 판정의 reason 과 같아야 한다")
+    jg.set_defaults(func=cmd_judgment)
+
+    rs = sub.add_parser("resume", help="Relay-Done 트레일러로 끝난 태스크를 보고 다음 태스크 (JSON 한 줄)")
+    rs.add_argument("--worktree", required=True)
+    rs.add_argument("--tasks", required=True, help="DAG 순서의 태스크 ID, 쉼표로")
+    rs.add_argument("--base-branch", default="main")
+    rs.set_defaults(func=cmd_resume)
+
     c = sub.add_parser("commit-guard", help="base..HEAD 에 귀속 트레일러 없는 커밋(워커 자체 커밋)이 없는지")
     c.add_argument("--worktree", required=True)
     c.add_argument("--base", required=True)
     c.set_defaults(func=cmd_commit_guard)
-
-    s = sub.add_parser("startup", help="worker-start 응답 → 다음 행동")
-    s.add_argument("--response", required=True, help="worker-start --json 출력 파일, - 면 stdin")
-    s.add_argument("--prior-failures", type=int, default=0, help="이 태스크 계열의 이전 기동 실패 수")
-    s.set_defaults(func=cmd_startup)
-
-    lv = sub.add_parser("liveness", help="빈 대기 뒤 무응답 판정")
-    lv.add_argument("--worker", help="worker-list --json 출력(또는 그 항목) 파일, - 면 stdin. 빈 대기 3회째부터 필요")
-    lv.add_argument("--show", help="worker-show --json 출력 파일 — observation.agentWait, terminal.lastOutputAt")
-    lv.add_argument("--role", required=True, choices=tuple(orca.STALL_MS))
-    lv.add_argument("--read", help="worker-read --json 출력 파일 — 터미널로 읽히면 확인창에서 멈췄는지 본다")
-    lv.add_argument("--empty-waits", type=int, help="연속 빈 대기 횟수. 3 미만이면 화면만 보고 기다린다")
-    lv.add_argument("--now", type=int, help="epoch ms (테스트용)")
-    lv.set_defaults(func=cmd_liveness)
 
     m = sub.add_parser("model", help="역할별 모델·effort (설정 파일 → 실제 인자)")
     m.add_argument("role", choices=models.ROLES)
@@ -484,7 +492,7 @@ def build_parser():
     _add_models_args(m)
     m.set_defaults(func=cmd_model)
 
-    ms = sub.add_parser("models", help="4역할의 model·effort 를 한 번에")
+    ms = sub.add_parser("models", help="역할 전부의 model·effort 를 한 번에")
     _add_models_args(ms)
     ms.set_defaults(func=cmd_models)
 
@@ -510,7 +518,7 @@ def build_parser():
     w.add_argument("agent", choices=("agy",))
     w.set_defaults(func=cmd_warmup)
 
-    sm = sub.add_parser("smoke", help="smoke 전용 Run 에서 worker-start --agent 기동·worker_done·release 확인 (수동)")
+    sm = sub.add_parser("smoke", help="smoke 전용 Run 에서 worker-start --agent 기동·worker_done 확인 (수동)")
     sm.add_argument("--dir", required=True, help="Orca 에 등록된 워크트리 경로")
     sm.add_argument("--agent", default="all", choices=("antigravity", "codex", "all"))
     sm.add_argument("--repeat", type=int, default=1, help="반복 횟수 — 전부 통과해야 통과")
@@ -530,7 +538,7 @@ def main(argv=None):
         ap.error("trust %s 에는 경로가 필요하다" % a.op)
     try:
         return a.func(a)
-    except (InputError, models.ModelsError, review.ReviewError, OSError, ValueError) as e:
+    except (InputError, issue.IssueError, models.ModelsError, review.ReviewError, OSError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 2
 

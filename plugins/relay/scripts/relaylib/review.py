@@ -3,10 +3,10 @@
 
 decide() 는 결정만 돌려준다. 그 결정을 orca 명령으로 옮기는 일은 SKILL.md 가 한다 (ADR 0001).
 
-  success   게이트·리뷰 통과. 리포트 커밋 후 성공 종료 (i)
-  fix_round 새 Task + 새 Dispatch 로 수정 라운드 (g)
-  escalate  설계 세션(Opus)으로 — decision gate (h)
-  human     사람 호출, 태스크 중단 (h)
+  success   게이트·리뷰 통과. 리포트 커밋(Relay-Done 트레일러) 후 다음 태스크
+  fix_round 구현 dispatch 에 send 로 수정 라운드 (g)
+  escalate  spec_violation·repeated_finding — 멈춤 보고 (h)
+  human     total_round_limit — 멈춤 보고 (h)
   rewrite   리포트 형식 위반 — 리뷰어에게 재작성 요구
 """
 import json
@@ -20,10 +20,9 @@ TOP_REQUIRED = ("taskId", "verdict", "findings")
 FINDING_FIELDS = ("severity", "file", "line", "summary", "repro", "specRef")
 FINDING_REQUIRED = ("severity", "file", "summary", "repro")
 
-MAX_REVIEW_ROUNDS = 3
 MAX_TOTAL_ROUNDS = 5
 
-REPORT_RE = re.compile(r"^(T-\d+)\.r(\d+)\.json$")
+REPORT_RE = re.compile(r"^(I-[a-z0-9-]+)\.r(\d+)\.json$")   # ADR 0007 — 옛 T-NNN 리포트는 맞지 않아 무시된다
 
 
 class ReviewError(Exception):
@@ -89,15 +88,18 @@ def load_report(path):
     return r, validate(r, expected_task=m.group(1) if m else None)
 
 
-def reports(reviews_dir, task):
-    """[(라운드 번호, 경로)] — 번호 순(r10 이 r9 뒤)."""
+def reports(reviews_dir, task, only=None):
+    """[(라운드 번호, 경로)] — 번호 순(r10 이 r9 뒤). only 가 있으면 그 파일 이름만 센다.
+
+    재개한 태스크는 라운드를 처음부터 센다(ADR 0010) — 진행자는 only 에 base..HEAD 에서 생긴 리포트만 준다.
+    """
     d = pathlib.Path(reviews_dir)
     if not d.is_dir():
         raise ReviewError("리뷰 디렉터리가 없다: %s" % d)
     out = []
     for p in d.iterdir():
         m = REPORT_RE.match(p.name)
-        if m and m.group(1) == task:
+        if m and m.group(1) == task and (only is None or p.name in only):
             out.append((int(m.group(2)), p))
     return sorted(out)
 
@@ -116,8 +118,8 @@ def _d(action, **kw):
     return dict(action=action, **kw)
 
 
-def decide(reviews_dir, task, impl_rounds):
-    found = reports(reviews_dir, task)
+def decide(reviews_dir, task, impl_rounds, only=None):
+    found = reports(reviews_dir, task, only)
     if not found:
         raise ReviewError("%s 의 리뷰 리포트가 없다: %s/%s.r*.json" % (task, reviews_dir, task))
     n, path = found[-1]
@@ -140,7 +142,5 @@ def decide(reviews_dir, task, impl_rounds):
         prev, _ = load_report(found[-2][1])
         if prev and _blocking_keys(prev) & _blocking_keys(r):
             return _d("escalate", **base, reason="repeated_finding")
-    if len(found) > MAX_REVIEW_ROUNDS:
-        return _d("escalate", **base, reason="review_round_limit")
     return _d("fix_round", **base, round=n + 1,
                 severities=sorted(sevs & set(BLOCKING), key=SEVERITIES.index))
