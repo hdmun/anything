@@ -11,3 +11,6 @@ __pycache__/
 
 # claude plugin eval 실행 산출물 (리포트·트레이스)
 plugins/*/evals/results/
+
+# agent-accounts 계정 목록 (개인)
+agent-accounts/accounts.psd1
