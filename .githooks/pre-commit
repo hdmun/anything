@@ -1,6 +1,22 @@
 #!/bin/sh
-# relay 플러그인 단위 테스트 — plugins/relay/ 아래 변경이 스테이징됐을 때만 돈다.
 # 켜기: git config core.hooksPath .githooks
+
+# 규칙 생성 파일 검사 — agent-rules/·CLAUDE.md·AGENTS.md 가 스테이징됐을 때만 돈다.
+# relay 블록이 GIT_INDEX_FILE 을 지우기 전에 돌아야 `git commit -a` 의 임시 인덱스를 본다.
+if git diff --cached --name-only | grep -qE '^(agent-rules/|CLAUDE\.md$|AGENTS\.md$)'; then
+  # 작업 트리 = 스테이징이어야 build.sh --check 결과가 커밋 내용과 같다
+  if ! git diff --quiet -- agent-rules CLAUDE.md AGENTS.md ||
+    [ -n "$(git ls-files --others --exclude-standard -- agent-rules)" ]; then
+    echo "pre-commit: agent-rules/·CLAUDE.md·AGENTS.md 에 스테이징하지 않은 변경이 있다 — 모두 스테이징하거나 되돌린 뒤 커밋한다" >&2
+    exit 1
+  fi
+  if ! sh agent-rules/build.sh --check > /dev/null; then
+    echo "pre-commit: CLAUDE.md·AGENTS.md 가 agent-rules/ 와 다르다 — sh agent-rules/build.sh 실행 후 스테이징한다" >&2
+    exit 1
+  fi
+fi
+
+# relay 플러그인 단위 테스트 — plugins/relay/ 아래 변경이 스테이징됐을 때만 돈다.
 if git diff --cached --name-only | grep -q '^plugins/relay/'; then
   # 훅 환경의 GIT_INDEX_FILE 등이 테스트의 임시 저장소를 이 저장소로 돌려놓는다
   unset $(git rev-parse --local-env-vars)
