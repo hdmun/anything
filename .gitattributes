@@ -2,3 +2,7 @@
 .githooks/* text eol=lf
 
 agent-rules/*.sh text eol=lf
+
+# synology: NAS 의 sh·python3 가 읽는다 — CRLF 로 올라가면 install.sh 가 깨진다
+synology/*.sh text eol=lf
+synology/*.py text eol=lf
