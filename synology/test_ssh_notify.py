@@ -3,11 +3,13 @@
 실제 journalctl·flock·디스코드는 다루지 않는다. README 의 '실제 시험'에서 확인한다.
 """
 import datetime
+import email.message
 import importlib.util
 import io
 import json
 import os
 import unittest
+import urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURE = os.path.join(HERE, "testdata", "sshd-journal.jsonl")
@@ -170,6 +172,129 @@ class PreviewTest(unittest.TestCase):
         out = io.StringIO()
         sn.preview([b"", b"not json", b"[1, 2]"], out, "nas", KST)
         self.assertEqual(out.getvalue(), "")
+
+
+class FakeHTTPError(Exception):
+    def __init__(self, code, headers=None):
+        super(FakeHTTPError, self).__init__("HTTP Error %d" % code)
+        self.code = code
+        self.headers = headers or {}
+
+
+class RetryTest(unittest.TestCase):
+    def run_sends(self, errors):
+        """errors 의 항목을 차례로 던지고(None 이면 성공) 결과와 기다린 시간들을 돌려준다."""
+        queue = list(errors)
+        sleeps = []
+
+        def send_once(content):
+            error = queue.pop(0) if queue else None
+            if error is not None:
+                raise error
+
+        result = sn.send_with_retry(send_once, "본문", sleep=sleeps.append)
+        return result, sleeps
+
+    def test_first_try_succeeds(self):
+        self.assertEqual(self.run_sends([None]), ((True, 1, ""), []))
+
+    def test_429_waits_retry_after(self):
+        result, sleeps = self.run_sends([FakeHTTPError(429, {"Retry-After": "2.5"}), None])
+        self.assertEqual(result, (True, 2, ""))
+        self.assertEqual(sleeps, [3])
+
+    def test_429_retry_after_is_capped_at_60(self):
+        _, sleeps = self.run_sends([FakeHTTPError(429, {"Retry-After": "120"}), None])
+        self.assertEqual(sleeps, [60])
+
+    def test_429_without_header_waits_default(self):
+        _, sleeps = self.run_sends([FakeHTTPError(429), None])
+        self.assertEqual(sleeps, [5])
+
+    def test_three_failures_give_up(self):
+        result, sleeps = self.run_sends([FakeHTTPError(500), OSError("timed out"), FakeHTTPError(404)])
+        self.assertEqual(result, (False, 3, "HTTP Error 404"))
+        self.assertEqual(sleeps, [5, 5])
+
+    def test_real_http_error_object(self):
+        headers = email.message.Message()
+        headers["Retry-After"] = "7"
+        error = urllib.error.HTTPError("https://example.invalid", 429, "Too Many Requests", headers, None)
+        self.assertEqual(sn.retry_delay(error), 7)
+
+    def test_webhook_target(self):
+        self.assertEqual(sn.webhook_target("https://x/api/webhooks/1/t"), "https://x/api/webhooks/1/t?wait=true")
+        self.assertEqual(sn.webhook_target("https://x/a?thread_id=1"), "https://x/a?thread_id=1&wait=true")
+
+
+class EnvAndLogTest(unittest.TestCase):
+    URL = "https://discord.com/api/webhooks/1/token"
+
+    def test_webhook_url_survives_notepad(self):
+        text = "﻿# 견본\r\nDISCORD_WEBHOOK_URL=\"%s\"\r\n" % self.URL
+        self.assertEqual(sn.parse_webhook_url(text), self.URL)
+
+    def test_webhook_url_missing_or_not_https(self):
+        self.assertIsNone(sn.parse_webhook_url("# 비어 있음\n"))
+        self.assertIsNone(sn.parse_webhook_url("DISCORD_WEBHOOK_URL=http://x\n"))
+        self.assertIsNone(sn.parse_webhook_url("DISCORD_WEBHOOK_URL=\n"))
+
+    def test_log_line(self):
+        now = datetime.datetime(2026, 11, 8, 9, 12, 30)
+        line = sn.format_log_line(now, "sent", [("kind", "access"), ("user", "user1"), ("attempts", 1)])
+        self.assertEqual(line, "2026-11-08 09:12:30 sent kind=access user=user1 attempts=1")
+
+    def test_log_line_has_no_newline(self):
+        now = datetime.datetime(2026, 11, 8, 9, 12, 30)
+        line = sn.format_log_line(now, "failed", [("error", "a\r\nb")])
+        self.assertNotIn("\n", line)
+
+
+class DetectorLineTest(unittest.TestCase):
+    """줄 하나 처리: 보낸 뒤에 cursor 를 저장하고, 실패해도 저장하고 넘어간다."""
+
+    def setUp(self):
+        self.events = []
+        self._saved = (sn.save_state, sn.write_log, sn.access_time)
+        sn.save_state = lambda state: self.events.append(("save", state["cursor"]))
+        sn.write_log = lambda result, *fields: self.events.append(("log", result, dict(fields)))
+        real_access_time = self._saved[2]
+        sn.access_time = lambda entry, tz=None: real_access_time(entry, KST)
+
+    def tearDown(self):
+        sn.save_state, sn.write_log, sn.access_time = self._saved
+
+    def detector(self, ok):
+        detector = sn.Detector("https://discord.com/api/webhooks/1/token", "부팅",
+                               {"boot_id": "b1", "cursor": None}, "nas")
+
+        def send(content):
+            self.events.append(("send", content.splitlines()[0]))
+            return (True, 1, "") if ok else (False, 3, "HTTP Error 404 https://discord.com/api/webhooks/1/token")
+
+        detector.send = send
+        return detector
+
+    def test_access_line_sends_then_saves(self):
+        entry = load_fixture()[0]
+        self.detector(True).handle_line(json.dumps(entry).encode())
+        kinds = [e[0] for e in self.events]
+        self.assertEqual(kinds, ["send", "log", "save"])
+        self.assertEqual(self.events[1][1], "sent")
+        self.assertEqual(self.events[1][2]["at"], "2026-11-07T16:24:53")
+        self.assertEqual(self.events[2][1], entry["__CURSOR"])
+
+    def test_failed_send_is_logged_without_url_and_cursor_still_saved(self):
+        entry = load_fixture()[0]
+        self.detector(False).handle_line(json.dumps(entry).encode())
+        self.assertEqual([e[0] for e in self.events], ["send", "log", "save"])
+        self.assertEqual(self.events[1][1], "failed")
+        self.assertNotIn("discord.com", self.events[1][2]["error"])
+
+    def test_other_line_only_saves_cursor(self):
+        entry = load_fixture()[3]
+        self.detector(True).handle_line(json.dumps(entry).encode())
+        self.assertEqual(self.events, [("save", entry["__CURSOR"])])
 
 
 if __name__ == "__main__":
