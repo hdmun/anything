@@ -135,7 +135,8 @@ def parse_entry(raw):
     """journal JSON 줄 하나(bytes 또는 str)를 dict 로 푼다. 풀 수 없으면 None."""
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8", errors="replace")
-    raw = raw.strip()
+    # Windows PowerShell 5.1 은 파이프로 넘길 때 맨 앞에 BOM 을 붙인다.
+    raw = raw.lstrip("﻿").strip()
     if not raw:
         return None
     try:

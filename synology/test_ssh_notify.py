@@ -168,6 +168,14 @@ class PreviewTest(unittest.TestCase):
         self.assertIn("출발지: 2001:db8::10", blocks[2])
         self.assertIn("사용자: user3", blocks[3])
 
+    def test_first_line_with_bom(self):
+        with open(FIXTURE, "rb") as f:
+            lines = f.read().splitlines()
+        lines[0] = b"\xef\xbb\xbf" + lines[0]
+        out = io.StringIO()
+        sn.preview(lines, out, "nas", KST)
+        self.assertEqual(len(out.getvalue().strip().split("\n\n")), 4)
+
     def test_skips_broken_lines(self):
         out = io.StringIO()
         sn.preview([b"", b"not json", b"[1, 2]"], out, "nas", KST)
