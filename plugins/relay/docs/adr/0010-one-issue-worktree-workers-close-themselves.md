@@ -18,5 +18,5 @@ ADR 0007 로 구현 이슈 하나가 브랜치 하나가 되었고, Orca 1.4.247
 ## Consequences
 
 - 「Orca 기본과 다른 점」에서 워크트리 선생성·`ask` 대기 중 정리 미루기·`check --wait 600000` 행이 빠지고, 게이트 상시 재검증·리뷰어 라운드마다 새 워커 행이 더해진다. `--base-branch main` 명시는 handoff 쪽 표에 둔다(`defaultBaseRef` 가 `null` 인 저장소).
-- `review_round_limit`(`MAX_REVIEW_ROUNDS`)은 정상 흐름에서 도달하지 않아 지운다. 한도는 `total_round_limit`(5)만 남고 그 결과는 멈춤 보고다.
+- `review_round_limit`(`MAX_REVIEW_ROUNDS`)은 정상 흐름에서 도달하지 않아 지운다. 한도는 `total_round_limit`(5)만 남고 그 결과는 멈춤 보고다. 2026-11-10 이 한도도 없앴다. 리뷰 라운드는 성공, `SPEC_VIOLATION`·`repeated_finding` 판정, 실패로만 끝난다. 근거: 「일괄 진행 한 번의 상한」(https://github.com/hdmun/anything/issues/69).
 - 트레일러가 빠진 성공 태스크는 재개 때 다시 돈다. commit-guard 와 같은 이유로 트레일러는 진행자가 커밋할 때 붙인다.
