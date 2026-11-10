@@ -38,7 +38,7 @@ claude plugin marketplace add C:\Users\hdmun\scripts
 claude plugin install relay@hdmun-scripts
 ```
 
-설정 디렉터리를 여러 개 쓰면(`~/.claude`, `~/.claude-sub`) 각각에서 설치한다. 스킬은 둘이다: `relay`(진행자 세션), `relay:handoff`(설계 세션).
+설정 디렉터리를 여러 개 쓰면(`~/.claude`, 서브 계정 폴더) 각각에서 설치한다. 스킬은 둘이다: `relay`(진행자 세션), `relay:handoff`(설계 세션).
 
 ## 사용
 
@@ -369,13 +369,13 @@ python "$P/scripts/relay_cli.py" models-init \
    git -C C:/Users/hdmun/scripts branch --show-current          # main 이어야 한다
    claude plugin marketplace update hdmun-scripts
    claude plugin update relay                                    # ~/.claude
-   CLAUDE_CONFIG_DIR=~/.claude-sub claude plugin update relay    # ~/.claude-sub
+   CLAUDE_CONFIG_DIR=<서브 계정 폴더> claude plugin update relay    # 서브 계정 폴더
    ```
 
 3. **설치된 버전을 확인한다.** 모두 `3.0.0` 이어야 한다.
 
    ```bash
-   for d in ~/.claude ~/.claude-sub; do
+   for d in ~/.claude <서브 계정 폴더>; do
      python -c "import json,sys; d=json.load(open(sys.argv[1]+'/plugins/installed_plugins.json')); print(sys.argv[1], [e['version'] for k,v in d['plugins'].items() if k.startswith('relay@') for e in v])" "$d"
    done
    ```

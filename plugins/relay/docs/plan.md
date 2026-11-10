@@ -38,7 +38,7 @@
    - (i) 수동 생성 터미널은 release 후 `terminal close`
 3. [x] 빈 diff 차단 — SKILL.md (g) 리뷰 워커 기동 전 `git diff --stat <base>..HEAD` 가 비면 중단 / 템플릿: reviewer 빈 diff → `failed`, implementer gate.log 서브셸
 4. [x] 모델 계열화 — SKILL.md 에서 버전 문자열 제거, `Reviewed-by:` 트레일러. spec-template ask 하드코딩 제거. `plugin.json` 1.1.2
-5. [x] 배포 — `.claude`·`.claude-sub` 양쪽 `claude plugin update relay` → poker-server 세션 재시작 → T-004 재개 (기존 리뷰 Task 포기, 새 리뷰 Task)
+5. [x] 배포 — `.claude`·서브 계정 폴더 양쪽 `claude plugin update relay` → poker-server 세션 재시작 → T-004 재개 (기존 리뷰 Task 포기, 새 리뷰 Task)
 
 ## 트랙 2 — 구조 개편 v1.2.0 (`hdmun/relay-v1.2.0-testable`, 직접 구현)
 
@@ -281,7 +281,7 @@
 
    **진행자 워커의 스킬 발동 (해결, 2026-11-03)**: preamble 이 긴 프롬프트에서 `relay 진행자:` 줄만으로는 3회 중 1회 발동하지 않았다. (a) 를 택해 design.md 의 Task spec 형식에 "Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다" 를 넣고 eval 6개의 TASK 줄을 맞췄다 → delivery-failed 3/3, 스킬 발동 3/3($0.51). description 은 바꾸지 않았다(다른 케이스의 발동 조건을 건드리지 않으려고).
 5. [x] 배포: `claude plugin update relay` 를 설정 디렉터리마다 → 사용 중 저장소마다 `/relay:init` 로 역할 파일 갱신. — 2026-11-03
-   - `~/.claude`(user)·`~/.claude-sub`(user, project `C:/Users/hdmun`) 세 설치 모두 2.0.0(`81853a0`). project 설치는 1.3.2 로 남아 있던 것을 함께 올렸다.
+   - `~/.claude`(user)·서브 계정 폴더(user, project `C:/Users/hdmun`) 세 설치 모두 2.0.0(`81853a0`). project 설치는 1.3.2 로 남아 있던 것을 함께 올렸다.
    - 설치본 `doctor`: `skill:*`·`orca:nested-depth`·`plugin` OK. `FAIL codex`(리뷰어 모델 미설정, `~/.relay/models.json` 없음)는 전환 전부터 있던 상태 — 설정하기 전에는 리뷰 단계가 시작되지 않는다.
    - poker-server: 드리프트 2개 파일(트랙 4 변경과 스탬프뿐) → `--force` → `336e7cf` (푸시 안 함). relay 를 쓰는 저장소는 이것 하나다.
 

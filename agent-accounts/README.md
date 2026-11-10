@@ -49,4 +49,4 @@ Get-AgentAccount
 ## 주의
 
 - `settings.json`(claude)·`config.toml`(codex)은 공유하지 않는다. 계정마다 따로 고친다.
-- 기존 `~/.claude-sub` 는 이 도구와 관계없이 그대로 둔다.
+- 이 도구 밖에서 따로 만든 Claude 설정 폴더(예: 서브 계정 폴더)는 이 도구와 관계없이 그대로 둔다.
