@@ -20,3 +20,6 @@ agent-accounts/accounts.psd1
 # 남으면 리뷰에서 SPEC_VIOLATION 으로 잡힌다 (synapse T-004 실측).
 gate.log
 # <<< relay gate logs <<<
+
+# Pester -CI 가 저장소 루트에 남기는 결과 파일 (pc-setup 게이트)
+testResults.xml
