@@ -1,0 +1,13 @@
+{
+  "default_branch": "main",
+  "rules_doc": "**[AGENTS.md](../../AGENTS.md)** — 이 저장소의 규칙(커밋 메시지, 브랜치, 이슈 트래커)",
+  "dep_rule": "표준 라이브러리만 쓴다(테스트는 `unittest`). pip 패키지를 추가하지 않는다",
+  "gate_cmd_prose": "저장소 루트에서 돌리는 **`python -m unittest discover -s plugins/relay/tests -q && python -m unittest discover -s synology -q && sh agent-rules/build.sh --check`**",
+  "gate_cmd_raw": "python -m unittest discover -s plugins/relay/tests -q && python -m unittest discover -s synology -q && sh agent-rules/build.sh --check",
+  "gate_prep": "",
+  "ask_extra": "- 실제 IP·PC 이름·웹훅 URL 같은 환경 값이 필요해 보인다 — 공개 저장소라 더미(RFC 5737 주소 등)를 쓸지 묻는다",
+  "gate_logs": [
+    "gate.log"
+  ],
+  "review_focus": "- **공개 저장소 유출** — `hdmun/anything` 은 공개 저장소다. 실제 IP·PC 이름·웹훅 URL·서브 계정 폴더 이름이 코드·문서·테스트 픽스처·커밋 메시지에 들어갔으면 지적한다. 예시 값은 더미(RFC 5737 주소 등)여야 한다.\n- **정본·용어 어긋남** — relay 문서가 `plugins/relay/CONTEXT.md` 의 용어와 `plugins/relay/docs/adr/` 의 결정에 맞는가. 같은 규칙을 코드와 문서 두 곳에 다시 적지 않았는가(정책의 정본은 `relay_cli.py`, ADR 0001). relay 문서에 orca 명령 문법을 적지 않았는가(Orca 가이드가 정본, ADR 0003)."
+}
