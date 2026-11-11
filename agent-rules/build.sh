@@ -1,7 +1,7 @@
 #!/bin/sh
-# 규칙 원본(agent-rules/)을 합쳐 CLAUDE.md·AGENTS.md 를 만든다.
+# 규칙 원본(agent-rules/)을 합쳐 AGENTS.md·CLAUDE.md 를 만든다.
 #
-#   sh agent-rules/build.sh            이 저장소의 CLAUDE.md, AGENTS.md 를 다시 만든다
+#   sh agent-rules/build.sh            이 저장소의 AGENTS.md 를 다시 만든다 (옛 생성 파일 CLAUDE.md 는 지운다)
 #   sh agent-rules/build.sh --global   전역 CLAUDE.md, AGENTS.md 도 다시 만든다
 #   sh agent-rules/build.sh --check    파일은 그대로 두고, 다시 만들어야 하면 exit 1
 #   --force                            --global 에서 생성 표시가 없는 전역 파일도 덮어쓴다
@@ -97,8 +97,30 @@ emit() {
   echo "만듦: $dest"
 }
 
-emit "$root/CLAUDE.md" claude project
+# 이 저장소의 규칙 파일은 AGENTS.md 하나다. Claude Code 는 저장소에 CLAUDE.md 가 없으면 AGENTS.md 를 읽는다.
+# 그래서 project/ 에는 도구별 접미사 파일을 두지 않는다 — 두 도구가 같은 파일을 읽는다.
+for f in "$src/project"/*.claude.md "$src/project"/*.codex.md; do
+  [ -e "$f" ] || continue
+  echo "build.sh: project/ 에는 접미사 파일을 두지 않는다 (AGENTS.md 하나를 두 도구가 함께 읽는다): ${f##*/}" >&2
+  exit 2
+done
+
 emit "$root/AGENTS.md" codex project
+
+# 루트에 CLAUDE.md 가 있으면 Claude Code 는 AGENTS.md 대신 그것을 읽는다. 옛 생성 파일이면 지운다.
+old_claude="$root/CLAUDE.md"
+if [ -f "$old_claude" ]; then
+  if [ "$mode" = check ]; then
+    echo "지워야 한다: $old_claude — 있으면 Claude Code 가 AGENTS.md 를 읽지 않는다" >&2
+    stale=1
+  elif head -n 1 "$old_claude" | grep -qF "$marker"; then
+    rm "$old_claude"
+    echo "지움: $old_claude"
+  else
+    echo "건너뜀: $old_claude — 생성 표시가 없다. 내용을 agent-rules/project/ 로 옮긴 뒤 지운다" >&2
+    refused=1
+  fi
+fi
 
 if [ "$global" = 1 ]; then
   claude_home=$(unix_path "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")
