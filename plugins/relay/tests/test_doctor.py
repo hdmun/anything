@@ -106,6 +106,45 @@ class Doctor(unittest.TestCase):
         c = by_name(doctor.evaluate(facts(versions={"codex": None, "antigravity": "1.2.16", "orca": "1.4.216"})))["version:codex"]
         self.assertEqual(c["status"], "fail")
 
+    def test_gitleaks_found_is_ok(self):
+        c = by_name(doctor.evaluate(facts(gitleaks="8.30.1")))["gitleaks"]
+        self.assertEqual(c["status"], "ok")
+        self.assertEqual(c["detail"], "8.30.1")
+
+    def test_missing_gitleaks_fails(self):
+        checks = doctor.evaluate(facts(gitleaks=None))
+        c = by_name(checks)["gitleaks"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("gitleaks 를 찾을 수 없다", c["detail"])
+        self.assertIn("winget", c["fix"])
+        self.assertEqual(doctor.exit_code(checks), 1)
+
+    def test_leak_rules_ok(self):
+        rules = 'title = "t"\n[[rules]]\nid = "r1"\nregex = "abc"\n'
+        c = by_name(doctor.evaluate(facts(leak_rules=rules)))["leak-rules"]
+        self.assertEqual(c["status"], "ok")
+        self.assertIn("규칙 1개", c["detail"])
+
+    def test_missing_leak_rules_fails(self):
+        checks = doctor.evaluate(facts(leak_rules=None))
+        c = by_name(checks)["leak-rules"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("~/.relay/leak-rules.toml 이 없다", c["detail"])
+        self.assertIn("빈 파일이라도", c["fix"])
+        self.assertEqual(doctor.exit_code(checks), 1)
+
+    def test_broken_leak_rules_toml_fails(self):
+        checks = doctor.evaluate(facts(leak_rules="invalid [[ toml"))
+        c = by_name(checks)["leak-rules"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("문법 오류", c["detail"])
+
+    def test_disallowed_keys_in_leak_rules_fails(self):
+        checks = doctor.evaluate(facts(leak_rules='[extend]\nuseDefault = true\n'))
+        c = by_name(checks)["leak-rules"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("허용되지 않은 키: extend", c["detail"])
+
     def test_dead_trust_entries_warn_and_are_listed(self):
         f = facts(exists=lambda p: False)
         c = by_name(doctor.evaluate(f))["trust"]

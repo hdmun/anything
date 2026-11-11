@@ -1,0 +1,31 @@
+title = "relay leak rules (default)"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "relay-discord-webhook"
+description = "Discord webhook URL"
+regex = '''discord(?:app)?\.com/api/webhooks/\d{17,20}/[\w-]+'''
+keywords = ["discord.com/api/webhooks", "discordapp.com/api/webhooks"]
+
+[[rules]]
+id = "relay-ipv4"
+description = "IPv4 address"
+regex = '''(?:^|[^a-zA-Z0-9.])((?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]))(?:$|[^a-zA-Z0-9.]|\.(?:[^0-9]|$))'''
+secretGroup = 1
+
+[rules.allowlist]
+regexes = [
+    '''^192\.0\.2\.''',
+    '''^198\.51\.100\.''',
+    '''^203\.0\.113\.''',
+    '''^127\.0\.0\.1$''',
+    '''^0\.0\.0\.0$'''
+]
+
+[[rules]]
+id = "relay-windows-pc-name"
+description = "Windows default PC name"
+regex = '''\bDESKTOP-[A-Z0-9]{7}\b'''
+keywords = ["desktop-"]

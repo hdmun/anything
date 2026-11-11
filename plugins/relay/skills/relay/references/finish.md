@@ -34,10 +34,14 @@ python "$RELAY/scripts/relay_cli.py" trust remove "<worktree path>"   # removed:
 
 GitHub 리모트가 있고 트래커가 GitHub 인 저장소. 제목은 **부모 이슈 제목**(하위 이슈가 없으면 이슈 제목)이다.
 
+진행자는 git push나 gh 명령을 직접 부르지 않는다. 그 앞에 유출 검사가 있다(`publish`).
+
 ```bash
-git -C <worktree> push -u origin HEAD
-gh pr create --head <branch> --base main --title "<부모 이슈 제목>" --body-file <본문 파일>
+python "$RELAY/scripts/relay_cli.py" publish push --worktree <worktree>
+python "$RELAY/scripts/relay_cli.py" publish pr --worktree <worktree> --title "<부모 이슈 제목>" --body-file <본문 파일>
 ```
+
+- 결과 처리: `stop` 이면 멈춤 보고 — (h). `exists` 면 PR 을 새로 만들지 않았다는 것을 보고에 적는다(재개 때 생긴다).
 
 본문:
 

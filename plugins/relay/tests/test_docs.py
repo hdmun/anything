@@ -69,6 +69,11 @@ class SkillCallsExistingCommands(unittest.TestCase):
         self.assertIn("같은 패턴", tmpl)
         self.assertIn("같은 패턴", review_md)
 
+    def test_publish_used_instead_of_direct_git_or_gh(self):
+        for gone in ("push -u origin", "gh pr create", "gh issue comment"):
+            self.assertNotIn(gone, SKILL)
+        self.assertIn('relay_cli.py" publish', SKILL)
+
 
 ORCA_COMMAND = re.compile(r"(?<![\w-])orca (orchestration|terminal|worktree|skills|agent|repo|status|open)(?![\w-])")
 
