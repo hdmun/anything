@@ -184,16 +184,24 @@ class Branch(unittest.TestCase):
         self.put(2, report("changes_requested", finding("MINOR", summary="이름"), finding("MAJOR", summary="new")))
         self.assertEqual(self.decide(impl=2)["action"], "fix_round")
 
-    def test_total_round_limit_calls_human(self):
-        # 구현 3 + 리뷰 3 = 6 > 5
-        self.put(1, report("changes_requested", finding("MAJOR", summary="a")))
-        self.put(2, report("changes_requested", finding("MAJOR", summary="b")))
-        self.put(3, report("changes_requested", finding("MAJOR", summary="c")))
+    def test_total_round_above_six_with_blocker_fixes_round(self):
+        # 총 라운드가 6 이상(impl_rounds 3 + 리뷰 리포트 4개)이어도 마지막 리포트에 BLOCKER 만 있으면 fix_round
+        for n, s in enumerate("abc", 1):
+            self.put(n, report("changes_requested", finding("MAJOR", summary=s)))
+        self.put(4, report("changes_requested", finding("BLOCKER", summary="d")))
         d = self.decide(impl=3)
-        self.assertEqual((d["action"], d["reason"]), ("human", "total_round_limit"))
+        self.assertEqual(d["action"], "fix_round")
+
+    def test_total_round_above_six_with_spec_violation_escalates(self):
+        # 같은 입력에서 SPEC_VIOLATION 이면 escalate
+        for n, s in enumerate("abc", 1):
+            self.put(n, report("changes_requested", finding("MAJOR", summary=s)))
+        self.put(4, report("changes_requested", finding("SPEC_VIOLATION", summary="d")))
+        d = self.decide(impl=3)
+        self.assertEqual((d["action"], d["reason"]), ("escalate", "spec_violation"))
 
     def test_no_review_round_limit(self):
-        # review_round_limit 은 지웠다 — 한도는 total_round_limit 하나다 (ADR 0010)
+        # review_round_limit 은 지웠다 (ADR 0010)
         for n, s in enumerate("abcd", 1):
             self.put(n, report("changes_requested", finding("MAJOR", summary=s)))
         self.assertEqual(self.decide(impl=1)["action"], "fix_round")

@@ -20,6 +20,12 @@ HANDOFF = "\n".join(
     p.read_text(encoding="utf-8")
     for p in [HANDOFF_DIR / "SKILL.md", *sorted((HANDOFF_DIR / "references").glob("*.md"))]
 )
+SPEC_DIR = PLUGIN_ROOT / "skills/spec"
+SPEC_MD = (SPEC_DIR / "SKILL.md").read_text(encoding="utf-8")
+SPEC = "\n".join(
+    p.read_text(encoding="utf-8")
+    for p in [SPEC_DIR / "SKILL.md", *sorted((SPEC_DIR / "references").glob("*.md"))]
+)
 
 
 def _subcommands():
@@ -32,7 +38,7 @@ def _subcommands():
 
 class SkillCallsExistingCommands(unittest.TestCase):
     def test_every_relay_cli_call_is_a_real_subcommand(self):
-        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL + HANDOFF))
+        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL + HANDOFF + SPEC))
         self.assertTrue(called, "SKILL.md 에 relay_cli 호출이 하나도 없다")
         self.assertLessEqual(called - {"--help"}, _subcommands())
 
@@ -52,6 +58,22 @@ class SkillCallsExistingCommands(unittest.TestCase):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
 
+    def test_round_limits_removed(self):
+        for phrase in ("total_round_limit", "MAX_TOTAL_ROUNDS", "라운드 한도"):
+            self.assertNotIn(phrase, SKILL)
+        review_py = (PLUGIN_ROOT / "scripts/relaylib/review.py").read_text(encoding="utf-8")
+        for phrase in ("MAX_TOTAL_ROUNDS", "total_round_limit"):
+            self.assertNotIn(phrase, review_py)
+        tmpl = (PLUGIN_ROOT / "templates" / "implementer.md.tmpl").read_text(encoding="utf-8")
+        review_md = (SKILL_DIR / "references" / "review.md").read_text(encoding="utf-8")
+        self.assertIn("같은 패턴", tmpl)
+        self.assertIn("같은 패턴", review_md)
+
+    def test_publish_used_instead_of_direct_git_or_gh(self):
+        for gone in ("push -u origin", "gh pr create", "gh issue comment"):
+            self.assertNotIn(gone, SKILL)
+        self.assertIn('relay_cli.py" publish', SKILL)
+
 
 ORCA_COMMAND = re.compile(r"(?<![\w-])orca (orchestration|terminal|worktree|skills|agent|repo|status|open)(?![\w-])")
 
@@ -60,7 +82,7 @@ class OrcaGuideIsTheSource(unittest.TestCase):
     """명령 문법은 Orca 가이드가 정본이다 — relay 문서는 Orca 스킬로 불러 따르고 스냅숏을 두지 않는다 (ADR 0003)."""
 
     def test_no_orca_command_snapshots(self):
-        hits = [line.strip() for line in (SKILL + HANDOFF).splitlines() if ORCA_COMMAND.search(line)]
+        hits = [line.strip() for line in (SKILL + HANDOFF + SPEC).splitlines() if ORCA_COMMAND.search(line)]
         self.assertEqual(hits, [])
 
     def test_sessions_load_guides_through_orca_skills(self):
@@ -103,9 +125,20 @@ class SessionStructure(unittest.TestCase):
         for phrase in ("relay_cli.py\" doctor", "relay_cli.py\" handoff-check", "--no-parent", "--base-branch main",
                        "--agent claude", "agent launch"):
             self.assertIn(phrase, HANDOFF_MD)
-        self.assertTrue((HANDOFF_DIR / "references" / "spec-template.md").exists())
+        self.assertTrue((SPEC_DIR / "references" / "spec-template.md").exists())
+        self.assertFalse((HANDOFF_DIR / "references" / "spec-template.md").exists())
         self.assertFalse((SKILL_DIR / "references" / "spec-template.md").exists())
         self.assertFalse((SKILL_DIR / "references" / "design.md").exists())
+
+    def test_spec_skill_exists_and_is_invocable(self):
+        self.assertTrue((SPEC_DIR / "SKILL.md").exists())
+        head = SPEC_MD.split("---")[1]
+        self.assertNotIn("disable-model-invocation", head)
+        self.assertIn('relay_cli.py" handoff-check', SPEC_MD)
+
+    def test_handoff_recommends_relay_spec(self):
+        entry = HANDOFF_MD.split("## 1. 구현 이슈를 쓴다")[1].split("\n## ")[0]
+        self.assertIn("`relay:spec`", entry)
 
     def test_workers_run_in_the_issue_worktree_and_close_themselves(self):
         self.assertIn("--worktree current", SKILL_MD)
@@ -146,7 +179,7 @@ FORBIDDEN = [
 
 class SupervisionStaysInOrca(unittest.TestCase):
     def test_no_forbidden_tokens_in_either_skill(self):
-        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, HANDOFF_DIR) for p in d.rglob("*.md")}
+        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, HANDOFF_DIR, SPEC_DIR) for p in d.rglob("*.md")}
         hits = ["%s: %s" % (p.relative_to(PLUGIN_ROOT), pat) for p, text in docs.items() for pat in FORBIDDEN
                 if re.search(pat, text)]
         self.assertEqual(hits, [])
@@ -193,7 +226,7 @@ class Frontmatter(unittest.TestCase):
     """
 
     def test_descriptions_are_safe_yaml_scalars(self):
-        for md in (SKILL_MD, HANDOFF_MD):
+        for md in (SKILL_MD, HANDOFF_MD, SPEC_MD):
             head = md.split("---")[1]
             for line in head.strip().splitlines():
                 key, _, value = line.partition(": ")
@@ -209,6 +242,7 @@ class Frontmatter(unittest.TestCase):
     def test_skill_names(self):
         self.assertIn("\nname: relay\n", SKILL_MD[:40])
         self.assertIn("\nname: handoff\n", HANDOFF_MD[:40])
+        self.assertIn("\nname: spec\n", SPEC_MD[:40])
 
 
 class SkillSkeleton(unittest.TestCase):

@@ -120,6 +120,32 @@ def _orca_skill(name, installed):
                   "Orca 설정 → 에이전트 오케스트레이션 → Orchestration skill 을 설치한다 (orca-cli 도 함께 깔린다)")
 
 
+def _gitleaks(version):
+    if version is not None:
+        return _check("gitleaks", "ok", version)
+    return _check("gitleaks", "fail", "gitleaks 를 찾을 수 없다 (PATH) — 유출 검사를 할 수 없다",
+                  "gitleaks 를 설치한다 (Windows: winget `Gitleaks.Gitleaks`)")
+
+
+def _leak_rules(text):
+    if text is None:
+        return _check("leak-rules", "fail", "~/.relay/leak-rules.toml 이 없다 — 이 PC 의 실제 값 목록 없이 유출 검사를 할 수 없다",
+                      "빈 파일이라도 만든다. 이 PC 의 실제 IP·PC 이름을 [[rules]] 로 적는다")
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib
+    try:
+        data = tomllib.loads(text)
+    except Exception as e:
+        return _check("leak-rules", "fail", f"~/.relay/leak-rules.toml 문법 오류: {e}")
+    for k in data:
+        if k not in ("title", "rules", "allowlists"):
+            return _check("leak-rules", "fail", f"~/.relay/leak-rules.toml 에 허용되지 않은 키: {k}")
+    count = len(data.get("rules", []))
+    return _check("leak-rules", "ok", f"규칙 {count}개")
+
+
 def evaluate(f):
     checks = [_codex(f.get("codex_config"), f.get("models_cfg")), _models(f)]
     rv = _reviewer(f)
@@ -134,6 +160,11 @@ def evaluate(f):
     if "orca_skills" in f:
         for name in ORCA_SKILLS:
             checks.append(_orca_skill(name, (f.get("orca_skills") or {}).get(name)))
+    if "gitleaks" in f:
+        checks.append(_gitleaks(f.get("gitleaks")))
+    if "leak_rules" in f or "leak-rules" in f:
+        val = f.get("leak_rules") if "leak_rules" in f else f.get("leak-rules")
+        checks.append(_leak_rules(val))
     return checks
 
 

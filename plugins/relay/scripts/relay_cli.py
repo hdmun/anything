@@ -21,6 +21,7 @@
   python relay_cli.py warmup agy                                        (결정기 — agy 업데이트를 Task 밖에서)
   python relay_cli.py smoke --dir <orca worktree> [--agent antigravity|codex|all]   (검사기 — worker-start 리허설, 수동)
                             [--repeat N] [--run <id>] [--model M] [--effort E]
+  python relay_cli.py publish push|pr|comment ...                       (결정기 — 유출 검사 후 원격에 내보낸다)
 
 규약 (docs/adr/0001):
   검사기 — 종료코드 0 통과 / 1 실패, 사유는 출력
@@ -34,7 +35,7 @@ import pathlib
 import subprocess
 import sys
 
-from relaylib import doctor, handoff, issue, judgment, models, orca, resume, review, roles, smoke, trust
+from relaylib import doctor, handoff, issue, judgment, leak, models, orca, resume, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -276,14 +277,22 @@ AGY_LOG_DIR = pathlib.Path.home() / ".gemini" / "antigravity-cli" / "log"
 CLI_BINARIES = {"codex": "codex", "antigravity": "agy", "orca": "orca"}
 
 
-def _run(argv, timeout=120):
+class RunResult(tuple):
+    def __new__(cls, rc, stdout, stderr=""):
+        return super().__new__(cls, (rc, stdout))
+
+    def __init__(self, rc, stdout, stderr=""):
+        self.stderr = stderr
+
+
+def _run(argv, timeout=120, cwd=None, stdin=None):
     """(rc, stdout). 실행 파일이 없으면 (127, '')."""
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=timeout, shell=(sys.platform == "win32"))
+        r = subprocess.run(argv, input=stdin, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout, cwd=cwd, shell=(sys.platform == "win32"))
     except (OSError, subprocess.TimeoutExpired):
-        return 127, ""
-    return r.returncode, r.stdout
+        return RunResult(127, "", "")
+    return RunResult(r.returncode, r.stdout, r.stderr)
 
 
 def _cli_version(agent):
@@ -329,6 +338,10 @@ def cmd_doctor(a):
         models_cfg, models_files = models.load_all(repo=a.repo, user_path=a.user_config)
     except models.ModelsError as e:
         models_error = str(e)
+    rc_leak, out_leak = _run(["gitleaks", "version"], timeout=30)
+    gitleaks_ver = doctor.parse_version(out_leak) if rc_leak == 0 else None
+    leak_rules_file = leak.USER_RULES
+    leak_rules_text = leak_rules_file.read_text(encoding="utf-8") if leak_rules_file.is_file() else None
     facts = {
         "models_error": models_error, "models_cfg": models_cfg, "models_files": models_files,
         "agy_models": _agy_models_text() if models_files else None,
@@ -342,6 +355,8 @@ def cmd_doctor(a):
         "plugin_version": _plugin_version(),
         "installed_versions": _installed_versions(),
         "orca_skills": _orca_skills_installed(),
+        "gitleaks": gitleaks_ver,
+        "leak_rules": leak_rules_text,
     }
     checks = doctor.evaluate(facts)
     if a.fix and settings is not None:
@@ -373,6 +388,21 @@ def cmd_handoff_check(a):
         for t in result["tasks"]:
             print("task %s %s — %s" % (t["task"], t["url"], t["title"]))
     return handoff.exit_code(result["checks"])
+
+
+def cmd_publish_push(a):
+    dec = leak.push(a.worktree, base=a.base, force_with_lease=a.force_with_lease, run=_run, git=_git)
+    return _emit(dec)
+
+
+def cmd_publish_pr(a):
+    dec = leak.pr(a.worktree, title=a.title, body_file=a.body_file, base=a.base, run=_run, git=_git)
+    return _emit(dec)
+
+
+def cmd_publish_comment(a):
+    dec = leak.comment(a.worktree, issue_url=a.issue, body_file=a.body_file, leak_notice=a.leak_notice, run=_run, git=_git)
+    return _emit(dec)
 
 
 def cmd_warmup(a):
@@ -527,6 +557,29 @@ def build_parser():
     sm.add_argument("--effort", help="설정 파일 대신 쓸 effort (--model 필요)")
     _add_models_args(sm)
     sm.set_defaults(func=cmd_smoke)
+
+    pub = sub.add_parser("publish", help="유출 검사 후 원격에 내보낸다 (결정기)")
+    pub_sub = pub.add_subparsers(dest="op", required=True)
+
+    p_push = pub_sub.add_parser("push")
+    p_push.add_argument("--worktree", required=True)
+    p_push.add_argument("--base", default="origin/main")
+    p_push.add_argument("--force-with-lease", action="store_true")
+    p_push.set_defaults(func=cmd_publish_push)
+
+    p_pr = pub_sub.add_parser("pr")
+    p_pr.add_argument("--worktree", required=True)
+    p_pr.add_argument("--title", required=True)
+    p_pr.add_argument("--body-file", required=True)
+    p_pr.add_argument("--base", default="main")
+    p_pr.set_defaults(func=cmd_publish_pr)
+
+    p_comment = pub_sub.add_parser("comment")
+    p_comment.add_argument("--worktree", required=True)
+    p_comment.add_argument("--issue", required=True)
+    p_comment.add_argument("--body-file")
+    p_comment.add_argument("--leak-notice", action="store_true")
+    p_comment.set_defaults(func=cmd_publish_comment)
     return ap
 
 
@@ -538,7 +591,7 @@ def main(argv=None):
         ap.error("trust %s 에는 경로가 필요하다" % a.op)
     try:
         return a.func(a)
-    except (InputError, issue.IssueError, models.ModelsError, review.ReviewError, OSError, ValueError) as e:
+    except (InputError, issue.IssueError, models.ModelsError, review.ReviewError, leak.LeakError, OSError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 2
 
