@@ -1,0 +1,6 @@
+{
+  "reason": "spec_violation",
+  "decision": "dismiss",
+  "rationale": "지적(plugins/relay/scripts/relaylib/leak.py:66, 사용자 규칙 파일의 최상위 `allowlists` 허용)은 spec 과 반대다. spec「동작 명세 > 설정 만들기」가 '사용자 파일(USER_RULES): … 최상위 키는 `title`·`rules`·`allowlists` 만 허용한다'와 '합친 설정 = 기본 설정 텍스트 + 사용자 파일의 `[[rules]]`·`[[allowlists]]` + 저장소 파일의 `[[allowlists]]`'로 명시한다. stop.md 오탐 재개 길도 '`~/.relay/leak-rules.toml` 이나 저장소의 `.ai/leak-allow.toml` 을 고친 뒤'로 사용자 파일에서 오탐을 푸는 것을 전제한다. 리뷰가 근거로 든「사실」절의 '최상위 키는 `title` 과 `rules` 뿐'은 이 PC 의 현재 파일 내용에 대한 관찰이지 허용 키 규칙이 아니다. 구현(leak.py:65-67)은 spec 그대로다.",
+  "instruction": "리뷰 지적 기각: spec「동작 명세 > 설정 만들기」가 사용자 규칙 파일(`~/.relay/leak-rules.toml`)의 최상위 키로 `title`·`rules`·`allowlists` 를 허용하고, 합친 설정에 사용자 파일의 `[[allowlists]]` 를 넣으라고 명시한다. 「사실」절의 '`title` 과 `rules` 뿐'은 이 PC 의 현재 파일 내용 관찰이다. 사용자 파일은 이 PC 의 사람만 고치는 로컬 파일이며, 오탐을 사용자 파일에서 푸는 길은 stop.md 재개 안내에도 들어 있다. 구현(leak.py:65-67)은 spec 과 일치한다."
+}
