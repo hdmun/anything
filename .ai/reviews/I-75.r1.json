@@ -1,0 +1,14 @@
+{
+  "taskId": "I-75",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "SPEC_VIOLATION",
+      "file": "plugins/relay/scripts/relaylib/leak.py",
+      "line": 66,
+      "summary": "사용자 규칙 파일에 spec이 허용하지 않은 최상위 `allowlists` 키를 허용해 저장소 유출 검사를 사용자가 우회할 수 있다.",
+      "repro": "`~/.relay/leak-rules.toml`에 `[[allowlists]]`와 실제 유출 값과 일치하는 `regexes`를 넣어 `publish push` 실행 → 파일이 오류 없이 합쳐지고, 해당 값은 검사에서 제외되어 원격으로 푸시된다.",
+      "specRef": "사실: 사용자 규칙 파일의 최상위 키는 `title`과 `rules`뿐이다. 사용자 파일 없음/`[extend]` 입력 오류 및 저장소 허용 목록은 `.ai/leak-allow.toml`에서 별도로 처리한다."
+    }
+  ]
+}
