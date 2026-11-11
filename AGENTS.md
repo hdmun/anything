@@ -24,3 +24,7 @@ Single-context: root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
 - 브랜치에 커밋이 2개 이상이면 `main` 기준으로 rebase한 뒤 non-ff 머지(`git merge --no-ff`)한다. 커밋이 1개면 `git merge --ff-only`로 머지한다.
 - 한 커밋에는 한 가지 논리적 변경만 담는다.
 - force push, `reset --hard` 등 되돌리기 어려운 명령은 사전 확인 후 실행한다.
+
+## relay
+
+relay 워커(구현자·리뷰어)의 역할 파일은 [`.ai/roles/implementer.md`](.ai/roles/implementer.md)·[`.ai/roles/reviewer.md`](.ai/roles/reviewer.md) 다. 생성 파일이므로 직접 고치지 않는다. 이 저장소 고유 값(게이트 명령, 리뷰 초점 등)은 `.ai/relay-roles.json` 을 고친 뒤 `/relay:init --force` 로 다시 만든다.
