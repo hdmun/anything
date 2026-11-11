@@ -8,7 +8,6 @@
 |---|---|
 | `review-branch`의 `escalate` — `spec_violation`, `repeated_finding` | 판정 |
 | 워커의 spec 해석 `question` | 판정 |
-| `review-branch`의 `human` — `total_round_limit`(총 라운드 5) | 멈춤 보고 (판정 없음) |
 | 워커의 `escalation`(`stopReason`이면 다시 지시한 뒤 두 번째), spec 해석이 아닌 질문 중 진행자가 답할 수 없는 것 | 멈춤 보고 |
 | `doctor`·`handoff-check` `FAIL`, 스냅숏 `author_not_trusted`, 빨간 기준선 | 멈춤 보고 — (c) |
 | Orca의 기동 실패 circuit-break, 영수증의 `outcome_unknown`, `commit-guard` 실패, 그 밖에 문서가 사람을 부르라는 곳 | 멈춤 보고 — (d)(f), SKILL.md 불변식 |
@@ -88,14 +87,14 @@ Relay-Done: I-<n>        ← dismiss·accept 일 때만
 
 ### 시도와 라운드를 구분한다
 
-용어의 정본은 `CONTEXT.md`다. 셋을 섞으면 예산이 엉뚱하게 깎인다.
+용어의 정본은 `CONTEXT.md`다.
 
 | 용어 | 뜻 | 세는 법 (재개해도 남는 곳) |
 |---|---|---|
 | **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 영수증으로 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 `outcome_unknown`을 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
 | **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 — **트레일러가 빠진 커밋은 세지 못한다** |
 | **리뷰 라운드** | 리뷰 리포트 하나 | `.ai/reviews/I-<n>.r*.json` 파일 개수 |
-| **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (`review-branch`가 센다) |
+| **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (기록용, 한도 없음) |
 
 - **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. breaker가 걸리면 멈춤 보고(ADR 0009).
-- 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드 예산을 깎지 않는다.
+- 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드로 세지 않는다.

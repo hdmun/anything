@@ -60,7 +60,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
   - **`agent_prompt_blocked`면 사람을 부른다.** 워커의 확인창·프롬프트(업데이트·trust·승인)는 사람이 그 워커 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 키를 보내지 않고, 보낼 키를 선택지로 묻지도 않는다 — 사람에게 알리고 기다린다. 'Skip'처럼 안전해 보이는 선택도 사람이 고르고 사람이 누른다. 알려진 확인창의 예방책은 `doctor`가 검사한다.
   - **`outcome_unknown`이면 스스로 재출발하지 않는다.** 워커는 `worker-keep-open`으로 남기고 **멈춤 보고 후 끝난다** — (h). 입력이 늦게 도착하면 같은 Task를 두 워커가 하게 된다. 사람의 판단을 이 세션에서 기다리지 않는다 — 다시 시작하는 것은 사람이 같은 이슈로 handoff 할 때다.
   - **워커의 `escalation`에 `stopReason`이 있으면** spec의 해당 절을 근거로 `send`로 한 번 다시 지시한다. 같은 워커가 두 번째로 멈추면 사람이 필요한 것으로 (h). 다시 지시는 라운드로 세지 않는다.
-- **진행자는 spec 을 스스로 해석하지 않는다.** SPEC_VIOLATION·반복 지적·spec 해석 질문은 **판정 서브에이전트**에 맡기고, 판정은 spec 안에서만 한다. spec 이 틀렸거나 spec 에 없는 결정이 필요하면, 그리고 라운드 한도·사람이 필요한 상황이면 **멈춤 보고**를 남기고 끝난다 — (h). 진행자는 구현 이슈를 고치지 않는다(ADR 0008). decision gate는 쓰지 않는다.
+- **진행자는 spec 을 스스로 해석하지 않는다.** SPEC_VIOLATION·반복 지적·spec 해석 질문은 **판정 서브에이전트**에 맡기고, 판정은 spec 안에서만 한다. spec 이 틀렸거나 spec 에 없는 결정이 필요하면, 그리고 사람이 필요한 상황이면 **멈춤 보고**를 남기고 끝난다 — (h). 진행자는 구현 이슈를 고치지 않는다(ADR 0008). decision gate는 쓰지 않는다.
 - `relay_cli` 결정기는 stdout JSON 한 줄의 `action`대로 행동한다. 검사기는 종료코드 0 통과 / 1 실패 / 2 입력 오류다. `$RELAY`는 이 스킬을 불러왔을 때 표시되는 *Base directory*에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
 - Orca 가이드와 충돌하면 Orca 가이드가 옳다. relay 문서를 고친다. 일부러 다르게 하는 것은 아래 「Orca 기본과 다른 점」에만 둔다.
 - references Read가 "파일 없음"으로 실패하면 플러그인이 갱신된 것이다. `/reload-plugins` 후 처음 Read 한 단계 파일부터 다시 한다.

@@ -58,6 +58,17 @@ class SkillCallsExistingCommands(unittest.TestCase):
         self.assertNotIn("| `MINOR`만 있음 |", SKILL)
         self.assertNotIn("| 총 라운드 5회 초과 |", SKILL)
 
+    def test_round_limits_removed(self):
+        for phrase in ("total_round_limit", "MAX_TOTAL_ROUNDS", "라운드 한도"):
+            self.assertNotIn(phrase, SKILL)
+        review_py = (PLUGIN_ROOT / "scripts/relaylib/review.py").read_text(encoding="utf-8")
+        for phrase in ("MAX_TOTAL_ROUNDS", "total_round_limit"):
+            self.assertNotIn(phrase, review_py)
+        tmpl = (PLUGIN_ROOT / "templates" / "implementer.md.tmpl").read_text(encoding="utf-8")
+        review_md = (SKILL_DIR / "references" / "review.md").read_text(encoding="utf-8")
+        self.assertIn("같은 패턴", tmpl)
+        self.assertIn("같은 패턴", review_md)
+
 
 ORCA_COMMAND = re.compile(r"(?<![\w-])orca (orchestration|terminal|worktree|skills|agent|repo|status|open)(?![\w-])")
 

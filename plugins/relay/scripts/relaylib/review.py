@@ -6,7 +6,6 @@ decide() 는 결정만 돌려준다. 그 결정을 orca 명령으로 옮기는 �
   success   게이트·리뷰 통과. 리포트 커밋(Relay-Done 트레일러) 후 다음 태스크
   fix_round 구현 dispatch 에 send 로 수정 라운드 (g)
   escalate  spec_violation·repeated_finding — 멈춤 보고 (h)
-  human     total_round_limit — 멈춤 보고 (h)
   rewrite   리포트 형식 위반 — 리뷰어에게 재작성 요구
 """
 import json
@@ -19,8 +18,6 @@ VERDICTS = ("pass", "changes_requested")
 TOP_REQUIRED = ("taskId", "verdict", "findings")
 FINDING_FIELDS = ("severity", "file", "line", "summary", "repro", "specRef")
 FINDING_REQUIRED = ("severity", "file", "summary", "repro")
-
-MAX_TOTAL_ROUNDS = 5
 
 REPORT_RE = re.compile(r"^(I-[a-z0-9-]+)\.r(\d+)\.json$")   # ADR 0007 — 옛 T-NNN 리포트는 맞지 않아 무시된다
 
@@ -133,9 +130,6 @@ def decide(reviews_dir, task, impl_rounds, only=None):
     if not sevs & set(BLOCKING):
         return _d("success", **base)
 
-    total = impl_rounds + len(found)
-    if total > MAX_TOTAL_ROUNDS:
-        return _d("human", **base, reason="total_round_limit")
     if "SPEC_VIOLATION" in sevs:
         return _d("escalate", **base, reason="spec_violation")
     if len(found) >= 2:
