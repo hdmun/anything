@@ -1,0 +1,6 @@
+{
+  "reason": "spec_violation",
+  "decision": "fix_impl",
+  "rationale": "spec 「동작 명세 > 공통」은 읽기에서 권한 오류(UnauthorizedAccessException·SecurityException·Access is denied)가 나면 -Check 는 '확인 못 함: 관리자 필요', 고치는 실행은 '실패: 관리자 필요'를 내라고 하며 세 스크립트 모두에 걸린다. pc-setup/windows/Power.ps1:24-27 의 Invoke-PowercfgQuery 는 2>&1 로 받은 출력을 버리고 종료 코드만 담아 throw 하므로, Invoke-Power(:61-70)의 Test-AccessDeniedException 이 'Access is denied' 를 볼 수 없다. 리뷰 지적이 맞다. 엣지 케이스 표의 '범위 밖' 문장은 「공통」 규칙을 면제하지 않는다. 고칠 범위는 Power.ps1 한 곳이고 새 결정이 필요 없다.",
+  "instruction": "pc-setup/windows/Power.ps1 의 Invoke-PowercfgQuery 에서 종료 코드가 0 이 아닐 때 던지는 예외 메시지에 받은 출력($output, stderr 포함)을 함께 넣는다. 예: throw \"powercfg /query SCHEME_CURRENT $SubGroup $Setting 실패 (종료 코드 $LASTEXITCODE): $($output -join ' ')\". 그러면 'Access is denied'(또는 '액세스가 거부되었습니다')를 Test-AccessDeniedException 이 알아보고, -Check 는 '확인 못 함: 관리자 필요', 고치는 실행은 '실패: 관리자 필요'를 낸다. 출력 문구로 AC/DC 값을 찾지 말라는 규칙은 지킨다. pc-setup/tests/WindowsScripts.Tests.ps1 에 Invoke-PowercfgQuery 를 Mock 해 'Access is denied' 로 throw 하게 하고 -Check 결과를 보는 테스트를 더해도 된다. 다른 파일과 동작은 바꾸지 않는다. 고친 뒤 게이트 명령을 다시 통과시킨다."
+}
