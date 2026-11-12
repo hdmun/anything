@@ -128,5 +128,59 @@ class Fetch(unittest.TestCase):
             self.assertIsNone(got["parent"])
 
 
+class SnapshotBody(unittest.TestCase):
+    def test_roundtrip_render_returns_original_body(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "## 배경\n\n본문 내용\n- 항목 1\n- 항목 2",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        text = issue.render(x)
+        self.assertEqual(issue.snapshot_body(text), x["body"])
+
+    def test_empty_body_render_returns_empty_string(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        text = issue.render(x)
+        self.assertEqual(issue.snapshot_body(text), "")
+
+    def test_body_with_hash_heading_preserves_hashes_in_body(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "## 배경\n\n# 하위 섹션 1\n\n내용\n# 하위 섹션 2",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        text = issue.render(x)
+        self.assertEqual(issue.snapshot_body(text), x["body"])
+
+    def test_missing_header_returns_none(self):
+        text = "# 제목\n\n## 배경\n\n본문"
+        self.assertIsNone(issue.snapshot_body(text))
+
+    def test_crlf_returns_same_as_lf(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "## 배경\n\n본문",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        lf_text = issue.render(x)
+        crlf_text = lf_text.replace("\n", "\r\n")
+        self.assertEqual(issue.snapshot_body(crlf_text), issue.snapshot_body(lf_text))
+
+    def test_invalid_formats_return_none(self):
+        self.assertIsNone(issue.snapshot_body(None))
+        self.assertIsNone(issue.snapshot_body(""))
+        self.assertIsNone(issue.snapshot_body("> 머리말만 있음\n> 이슈: ...\n"))
+        self.assertIsNone(issue.snapshot_body("일반 텍스트\n# 제목\n\n본문"))
+        self.assertIsNone(issue.snapshot_body("> 머리말\n\n# 제목\n빈줄없이본문"))
+
+
 if __name__ == "__main__":
     unittest.main()

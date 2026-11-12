@@ -93,6 +93,46 @@ def render(issue):
             "%s\n") % (issue["url"], issue["updated_at"], issue["title"], issue["body"].replace("\r\n", "\n").rstrip("\n"))
 
 
+def snapshot_body(text):
+    """spec 스냅숏 파일 내용 → 본문(render 의 역). 형식이 다르면 None."""
+    if not isinstance(text, str):
+        return None
+    text = text.replace("\r\n", "\n")
+    lines = text.split("\n")
+
+    title_idx = None
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            title_idx = i
+            break
+    if title_idx is None:
+        return None
+
+    header_lines = lines[:title_idx]
+    has_quote = False
+    for line in header_lines:
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith(">"):
+            has_quote = True
+        else:
+            return None
+    if not has_quote:
+        return None
+
+    if title_idx + 1 >= len(lines):
+        return None
+    if lines[title_idx + 1] != "":
+        return None
+
+    body_lines = lines[title_idx + 2:]
+    body = "\n".join(body_lines)
+    if body.endswith("\n"):
+        body = body[:-1]
+    return body
+
+
 def snapshot(issue_ref, worktree, slug, run):
     """이슈를 읽어 `.ai/specs/<ID>-<slug>.md` 를 쓴다. 결정 dict 를 돌려준다(커밋은 진행자가 한다)."""
     if not SLUG_RE.match(slug or ""):
