@@ -1,0 +1,6 @@
+{
+  "reason": "spec_violation",
+  "decision": "fix_impl",
+  "rationale": "리뷰 지적은 맞다. spec 「동작 명세 > Read-Declaration」은 성공 시 항목 [pscustomobject[]] 을, 엣지 케이스 #2 는 'Items = @() → 빈 배열, 문제 없음' 을 요구한다. pc-setup/lib/Declaration.psm1:201 의 return [pscustomobject[]]$validItems.ToArray() 는 파이프라인에서 배열이 풀려 빈 선언이면 $null, 항목 1개면 PSCustomObject 하나가 온다. pc-setup/tests/Declaration.Tests.ps1:58 의 $result.Count | Should -Be 0 은 $null 에도 통과해 위반을 잡지 못한다. spec 이 반환 모양을 이미 정했으므로 구현만 맞추면 된다.",
+  "instruction": "pc-setup/lib/Declaration.psm1 의 Read-Declaration 이 성공하면 항목 개수와 상관없이 늘 배열([pscustomobject[]])을 돌려주게 고친다. Write-Output -NoEnumerate ([pscustomobject[]]$validItems.ToArray()) 또는 return ,([pscustomobject[]]$validItems.ToArray()) 를 쓴다. 빈 선언은 길이 0 배열, 항목 1개는 길이 1 배열이 된다. pc-setup/tests/Declaration.Tests.ps1 의 엣지 케이스 2 테스트 단언을 강하게 바꾼다: $null -ne $result, $result -is [array], $result.Count 가 0. 다른 테스트 단언은 약하게 바꾸지 않는다. 두 파일 밖은 건드리지 않는다. 고친 뒤 게이트 명령을 저장소 루트(Git Bash)에서 돌려 종료코드 0 을 확인한다."
+}
