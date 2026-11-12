@@ -1,16 +1,24 @@
 #Requires -Version 7
-<#
-.SYNOPSIS
-PC 를 선언된 상태로 맞춘다 (셋업). 지금은 뼈대다: -Check 만 받는다.
-#>
 [CmdletBinding()]
 param(
-    [switch]$Check
+    [switch]$Check,
+    [string[]]$Skip = @(),
+    [ValidateSet('Elevated')][string]$Phase,
+    [string]$ResultPath
 )
 
-if (-not $Check) {
-    Write-Error '셋업은 아직 구현되지 않았다. -Check 만 받는다.'
-    exit 1
-}
+Import-Module (Join-Path $PSScriptRoot 'lib' 'Setup.psm1') -Force
 
-exit 0
+$normalizedSkip = @(
+    foreach ($item in $Skip) {
+        foreach ($part in ($item -split ',')) {
+            $trimmed = $part.Trim()
+            if ($trimmed -ne '') {
+                $trimmed
+            }
+        }
+    }
+)
+
+$exitCode = Invoke-Setup -Root $PSScriptRoot -Check:$Check -Skip $normalizedSkip -Phase $Phase -ResultPath ($ResultPath ?? '')
+exit $exitCode
