@@ -1,0 +1,14 @@
+{
+  "taskId": "I-87",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "SPEC_VIOLATION",
+      "file": "pc-setup/windows/Power.ps1",
+      "line": 26,
+      "summary": "powercfg query의 접근 거부 오류를 일반 종료 코드 오류로 바꿔 관리자 필요 결과를 반환하지 않는다",
+      "repro": "powercfg /query가 종료 코드 비 0과 stderr \"Access is denied\"를 반환하고 -Check로 실행 → Invoke-PowercfgQuery가 stderr를 버리고 일반 실패 메시지를 throw하므로 확인 못 함: 관리자 필요 대신 예기치 않은 예외가 나온다",
+      "specRef": "동작 명세 > 공통: 읽기에서 Access is denied 오류가 나면 -Check는 확인 못 함: 관리자 필요"
+    }
+  ]
+}
