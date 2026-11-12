@@ -22,6 +22,20 @@
             Value = 1
         }
         @{
+            Id       = 'RemoteDesktop'
+            Script   = $true
+            Elevated = $true
+        }
+        @{
+            Id       = 'Hibernate'
+            Script   = $true
+            Elevated = $true
+        }
+        @{
+            Id     = 'Power'
+            Script = $true
+        }
+        @{
             Id    = 'ShowFileExtensions'
             Path  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
             Name  = 'HideFileExt'

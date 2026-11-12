@@ -418,16 +418,19 @@ if (`$Check) {
 }
 
 Describe '실제 선언' {
-    It '저장소의 pc-setup/windows-settings.psd1 이 검사를 통과하고, Id 8개가 표 순서이며, DeveloperMode·LongPaths 만 Elevated' {
+    It '저장소의 pc-setup/windows-settings.psd1 이 검사를 통과하고, Id 11개가 표 순서이며, DeveloperMode·LongPaths·RemoteDesktop·Hibernate 만 Elevated' {
         $pcSetupRoot = Join-Path $PSScriptRoot '..'
         $items = Get-WindowsSettingItems -Root $pcSetupRoot
 
-        $items.Count | Should -Be 8
+        $items.Count | Should -Be 11
 
         $expectedIds = @(
             'PowerShell51ExecutionPolicy',
             'DeveloperMode',
             'LongPaths',
+            'RemoteDesktop',
+            'Hibernate',
+            'Power',
             'ShowFileExtensions',
             'ShowHiddenFiles',
             'DarkModeApps',
@@ -435,15 +438,15 @@ Describe '실제 선언' {
             'TaskbarSearchIcon'
         )
 
-        for ($i = 0; $i -lt 8; $i++) {
+        for ($i = 0; $i -lt 11; $i++) {
             $items[$i].Id | Should -Be $expectedIds[$i]
             $items[$i].Stage | Should -Be 'Windows 설정'
         }
 
         $elevatedIds = @($items | Where-Object { $_.Elevated } | ForEach-Object { $_.Id })
-        $elevatedIds | Should -Be @('DeveloperMode', 'LongPaths')
+        $elevatedIds | Should -Be @('DeveloperMode', 'LongPaths', 'RemoteDesktop', 'Hibernate')
 
         $nonElevatedIds = @($items | Where-Object { -not $_.Elevated } | ForEach-Object { $_.Id })
-        $nonElevatedIds.Count | Should -Be 6
+        $nonElevatedIds.Count | Should -Be 7
     }
 }
