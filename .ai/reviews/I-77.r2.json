@@ -1,0 +1,13 @@
+{
+  "taskId": "I-77",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "MAJOR",
+      "file": "plugins/relay/scripts/relaylib/batch.py",
+      "line": 64,
+      "summary": "여러 페이지의 의존성 응답을 파싱하지 못한다",
+      "repro": "이슈의 blocked_by 또는 blocking 관계가 한 페이지를 넘어 gh api --paginate 가 두 페이지를 출력함 → 페이지별 JSON 배열이 이어진 출력에 json.loads 가 실패하고 시작 이슈면 입력 오류, 다른 이슈면 read:#n FAIL 로 batch-plan 이 정상 진행 목록을 만들지 못함"
+    }
+  ]
+}
