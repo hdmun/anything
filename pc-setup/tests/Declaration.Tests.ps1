@@ -55,6 +55,8 @@ Describe 'Read-Declaration' {
     It '2: Items = @() -> 빈 배열, 문제 없음' {
         Set-Content -Path 'TestDrive:/case2.psd1' -Value '@{ Items = @() }'
         $result = Read-Declaration -Path 'TestDrive:/case2.psd1' -Schema $script:defaultSchema
+        $null -ne $result | Should -BeTrue
+        $result -is [array] | Should -BeTrue
         $result.Count | Should -Be 0
     }
 

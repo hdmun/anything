@@ -198,7 +198,7 @@ function Read-Declaration {
         throw [DeclarationException]::new([string[]]$allProblems.ToArray())
     }
 
-    return [pscustomobject[]]$validItems.ToArray()
+    return ,([pscustomobject[]]$validItems.ToArray())
 }
 
 function Expand-SetupPath {
