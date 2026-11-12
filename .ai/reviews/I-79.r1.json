@@ -1,0 +1,22 @@
+{
+  "taskId": "I-79",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "SPEC_VIOLATION",
+      "file": "plugins/relay/skills/relay/references/finish.md",
+      "line": 6,
+      "summary": "일괄 진행에서도 머지를 사람이 하라고 적어 자동 머지 경로와 충돌한다.",
+      "repro": "일괄 진행 세션이 PR 생성 후 finish.md를 읽음 → “아래 어느 경로든 머지 자체는 사람이 한다”를 따라 중단하고 merge.md의 자동 머지 단계를 건너뜀",
+      "specRef": "동작 명세 > 정상 경로 1: 진행 목록을 사람 없이 PR 머지와 이슈 닫힘까지 옮긴다; 5: 일괄 진행이면 PR 생성 뒤 merge.md로 간다."
+    },
+    {
+      "severity": "SPEC_VIOLATION",
+      "file": "plugins/relay/skills/relay/references/finish.md",
+      "line": 59,
+      "summary": "PR 템플릿이 실제 이슈의 머지 전 작업을 복사하지 않고 항상 없음으로 기록한다.",
+      "repro": "일반 relay 이슈의 “사람이 할 일”에 `머지 전: DB 백업`이 있음 → PR 본문은 `머지 전: 없음`으로 생성되어 필요한 작업이 누락됨",
+      "specRef": "동작 명세 > 정상 경로 5: 구현 이슈의 “사람이 할 일” 절에서 `머지 전:`·`머지 뒤:` 줄과 항목을 그대로 PR 본문에 옮긴다."
+    }
+  ]
+}
