@@ -1,8 +1,11 @@
 ﻿Import-Module (Join-Path $PSScriptRoot 'Report.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Elevation.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Declaration.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'WindowsSettings.psm1') -Force
 
-$script:DefaultStageProviders = @()   # 단계 함수를 부르는 스크립트 블록 목록. 다음 태스크부터 순서대로 더한다.
+$script:DefaultStageProviders = @(
+    { param($Root) Get-WindowsSettingItems -Root $Root }
+)
 
 function Set-AnythingRepo {
     # 사용자 환경 변수 ANYTHING_REPO 를 $Path 로 쓴다. 테스트는 이 함수를 Mock 한다.
