@@ -245,5 +245,17 @@ Power Scheme GUID: 9935e61f-1661-40c5-ae2f-8495027d5d5d  (AMD Ryzen™ High Perf
                 $Command -like '*monitor*'
             }
         }
+
+        It '읽기 권한 오류, -Check -> 확인 못 함: 관리자 필요' {
+            Mock Invoke-PowercfgQuery {
+                throw "powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE 실패 (종료 코드 1): Access is denied"
+            }
+
+            $resCheck = Invoke-Main -Check:$true
+            $resCheck | Should -Be '확인 못 함: 관리자 필요'
+
+            $resFix = Invoke-Main -Check:$false
+            $resFix | Should -Be '실패: 관리자 필요'
+        }
     }
 }

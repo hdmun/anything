@@ -23,7 +23,7 @@ function Invoke-PowercfgQuery {
     )
     $output = & powercfg.exe /query SCHEME_CURRENT $SubGroup $Setting 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "powercfg /query SCHEME_CURRENT $SubGroup $Setting 실패 (종료 코드 $LASTEXITCODE)"
+        throw "powercfg /query SCHEME_CURRENT $SubGroup $Setting 실패 (종료 코드 $LASTEXITCODE): $($output -join ' ')"
     }
     return ($output -join "`n")
 }
