@@ -215,7 +215,8 @@ def plan(issue_ref, run):
         try:
             subs = handoff.sub_issues(issue.parse(u), run)
         except issue.IssueError:
-            subs = []
+            checks.append(_check("read:#%d" % num, "fail", "하위 이슈를 읽지 못했다: #%d" % num))
+            continue
 
         if subs:
             sub_nums = {s["number"] for s in subs}
@@ -224,17 +225,18 @@ def plan(issue_ref, run):
                 s_num = s["number"]
                 rc_sbb, out_sbb = run(["gh", "api", "--paginate", "repos/%s/%s/issues/%d/dependencies/blocked_by" % (owner, repo, s_num)])
                 rc_sbl, out_sbl = run(["gh", "api", "--paginate", "repos/%s/%s/issues/%d/dependencies/blocking" % (owner, repo, s_num)])
-                sub_nbr_items = []
-                if rc_sbb == 0 and out_sbb.strip():
-                    try:
-                        sub_nbr_items.extend(json.loads(out_sbb))
-                    except ValueError:
-                        pass
-                if rc_sbl == 0 and out_sbl.strip():
-                    try:
-                        sub_nbr_items.extend(json.loads(out_sbl))
-                    except ValueError:
-                        pass
+                if rc_sbb != 0 or rc_sbl != 0:
+                    checks.append(_check("read:#%d" % s_num, "fail", "이슈 #%d 의 의존 API 를 읽지 못했다" % s_num))
+                    continue
+
+                try:
+                    items_sbb = json.loads(out_sbb) if out_sbb.strip() else []
+                    items_sbl = json.loads(out_sbl) if out_sbl.strip() else []
+                except ValueError:
+                    checks.append(_check("read:#%d" % s_num, "fail", "이슈 #%d 의 의존 API 출력이 JSON 이 아니다" % s_num))
+                    continue
+
+                sub_nbr_items = items_sbb + items_sbl
 
                 for nbr in sub_nbr_items:
                     nbr_url = nbr.get("html_url", "")

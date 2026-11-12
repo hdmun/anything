@@ -304,6 +304,51 @@ class EdgeCases(unittest.TestCase):
         with self.assertRaises(issue.IssueError):
             batch.plan(".scratch/ante/issues/03-hand-posts-ante.md", lambda argv: (0, ""))
 
+    def test_sub_issue_dependency_failure_is_read_fail(self):
+        # 하위 태스크 #13 의 의존성 API 실패 시 read:#13 FAIL
+        run = make_tracker(
+            issues={12: {}, 13: {"parent": 12}},
+            subs={12: [13]},
+            fail_dep={13},
+        )
+        res = batch.plan(url(12), run)
+        self.assertEqual(batch.exit_code(res["checks"]), 1)
+        fails = [c for c in res["checks"] if c["name"] == "read:#13" and c["status"] == "fail"]
+        self.assertTrue(fails)
+        self.assertIn("의존 API", fails[0]["detail"])
+
+    def test_sub_issue_dependency_invalid_json_is_read_fail(self):
+        base_run = make_tracker(
+            issues={12: {}, 13: {"parent": 12}},
+            subs={12: [13]},
+        )
+
+        def run(argv):
+            path = next((a for a in argv if a.startswith("repos/")), "")
+            if "issues/13/dependencies/" in path:
+                return 0, "NOT_JSON"
+            return base_run(argv)
+
+        res = batch.plan(url(12), run)
+        self.assertEqual(batch.exit_code(res["checks"]), 1)
+        fails = [c for c in res["checks"] if c["name"] == "read:#13" and c["status"] == "fail"]
+        self.assertTrue(fails)
+        self.assertIn("JSON", fails[0]["detail"])
+
+    def test_sub_issues_api_failure_is_read_fail(self):
+        base_run = make_tracker(issues={12: {}})
+
+        def run(argv):
+            path = next((a for a in argv if a.startswith("repos/")), "")
+            if "issues/12/sub_issues" in path:
+                return 1, ""
+            return base_run(argv)
+
+        res = batch.plan(url(12), run)
+        self.assertEqual(batch.exit_code(res["checks"]), 1)
+        fails = [c for c in res["checks"] if c["name"] == "read:#12" and c["status"] == "fail"]
+        self.assertTrue(fails)
+
 
 class CliIntegration(unittest.TestCase):
     def test_cli_exit_code_0_on_success(self):
