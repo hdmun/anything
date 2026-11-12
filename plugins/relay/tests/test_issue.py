@@ -83,5 +83,50 @@ class Snapshot(unittest.TestCase):
         self.assertIn("# Hand 가 Ante 를 받는다\n\n## 배경\n본문\n", text)
 
 
+class Fetch(unittest.TestCase):
+    def test_github_fetches_state_and_parent(self):
+        ref = issue.parse(URL)
+
+        def run_open(argv):
+            return 0, json.dumps({
+                "html_url": URL,
+                "title": "Title",
+                "body": "Body",
+                "updated_at": "2026-11-04T01:02:03Z",
+                "author_association": "OWNER",
+                "state": "open",
+                "parent_issue_url": None,
+            })
+
+        got = issue.fetch(ref, run_open)
+        self.assertEqual(got["state"], "open")
+        self.assertIsNone(got["parent"])
+
+        def run_closed_with_parent(argv):
+            return 0, json.dumps({
+                "html_url": URL,
+                "title": "Title",
+                "body": "Body",
+                "updated_at": "2026-11-04T01:02:03Z",
+                "author_association": "OWNER",
+                "state": "closed",
+                "parent_issue_url": "https://api.github.com/repos/hdmun/poker-server/issues/42",
+            })
+
+        got2 = issue.fetch(ref, run_closed_with_parent)
+        self.assertEqual(got2["state"], "closed")
+        self.assertEqual(got2["parent"], 42)
+
+    def test_local_markdown_returns_open_and_no_parent(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = pathlib.Path(d) / ".scratch" / "ante" / "issues" / "03-hand-posts-ante.md"
+            src.parent.mkdir(parents=True)
+            src.write_text("# Hand 가 Ante 를 받는다\n\n## 배경\n본문\n", encoding="utf-8")
+            ref = issue.parse(str(src))
+            got = issue.fetch(ref, lambda argv: (1, ""))
+            self.assertEqual(got["state"], "open")
+            self.assertIsNone(got["parent"])
+
+
 if __name__ == "__main__":
     unittest.main()
