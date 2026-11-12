@@ -10,6 +10,9 @@
   python relay_cli.py review-branch --task I-<n> --worktree <dir> --base <sha> [--reviews <dir>]   (결정기)
   python relay_cli.py snapshot --issue <URL|path> --worktree <dir> --slug <slug>   (spec 스냅숏을 쓰고 JSON 한 줄)
   python relay_cli.py handoff-check --issue <URL|path> [--json]        (검사기 — 기동 전 검사: 태스크 수·필수 절·작성자)
+  python relay_cli.py batch-plan --issue <URL> [--json]                 (검사기 — 일괄 진행 시작 검사)
+  python relay_cli.py merge-check --issue <URL> --worktree <dir> [--base origin/main] [--json]   (검사기 — 머지 조건)
+  python relay_cli.py batch-report --issue <URL> --list "<필드 값>" --out <파일>   (결정기 — 일괄 진행 완료 보고)
   python relay_cli.py resume --worktree <dir> --tasks I-<a>,I-<b> [--base-branch main]   (결정기 — 재개: 다음 태스크)
   python relay_cli.py judgment validate <판정.json> [--reason spec_violation|repeated_finding|question]   (검사기)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
@@ -35,7 +38,7 @@ import pathlib
 import subprocess
 import sys
 
-from relaylib import doctor, handoff, issue, judgment, leak, models, orca, resume, review, roles, smoke, trust
+from relaylib import batch, doctor, handoff, issue, judgment, leak, merge, models, orca, resume, review, roles, smoke, trust
 
 
 class InputError(Exception):
@@ -390,6 +393,40 @@ def cmd_handoff_check(a):
     return handoff.exit_code(result["checks"])
 
 
+def cmd_batch_plan(a):
+    res = batch.plan(a.issue, _run)
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False))
+    else:
+        order = res.get("order", [])
+        if order:
+            print("진행 목록: %s" % " ".join("#%d" % x["number"] for x in order))
+        else:
+            print("진행 목록: 없음")
+        _print_checks(res.get("checks", []), False)
+        if order:
+            print("기동 줄 필드: / %s" % res.get("field", ""))
+    return batch.exit_code(res.get("checks", []))
+
+
+def cmd_merge_check(a):
+    res = merge.check(a.issue, a.worktree, _run, _git, base=a.base)
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False))
+    else:
+        _print_checks(res["checks"], False)
+    return merge.exit_code(res["checks"])
+
+
+def cmd_batch_report(a):
+    numbers = merge.parse_list(a.list)
+    res = merge.report(a.issue, numbers, _run)
+    out_path = pathlib.Path(a.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(res["body"], encoding="utf-8", newline="\n")
+    return _emit({"action": "report", "path": a.out, "issues": res["issues"]})
+
+
 def cmd_publish_push(a):
     dec = leak.push(a.worktree, base=a.base, force_with_lease=a.force_with_lease, run=_run, git=_git)
     return _emit(dec)
@@ -498,6 +535,24 @@ def build_parser():
     hc.add_argument("--issue", required=True, help="구현 이슈 URL 또는 .scratch/<feature>/issues/<NN>-<slug>.md")
     hc.add_argument("--json", action="store_true")
     hc.set_defaults(func=cmd_handoff_check)
+
+    bp = sub.add_parser("batch-plan", help="일괄 진행 시작 검사: 의존 그래프·기동 전 검사 (검사기)")
+    bp.add_argument("--issue", required=True, help="시작 구현 이슈 URL")
+    bp.add_argument("--json", action="store_true")
+    bp.set_defaults(func=cmd_batch_plan)
+
+    mc = sub.add_parser("merge-check", help="머지 조건 1~3 검사 (검사기)")
+    mc.add_argument("--issue", required=True, help="구현 이슈 URL")
+    mc.add_argument("--worktree", required=True)
+    mc.add_argument("--base", default="origin/main")
+    mc.add_argument("--json", action="store_true")
+    mc.set_defaults(func=cmd_merge_check)
+
+    br = sub.add_parser("batch-report", help="일괄 진행 완료 보고 본문 생성 (결정기)")
+    br.add_argument("--issue", required=True, help="마지막 구현 이슈 URL")
+    br.add_argument("--list", required=True, help="기동 줄 일괄 진행 필드의 값")
+    br.add_argument("--out", required=True, help="보고서 본문을 쓸 파일 경로")
+    br.set_defaults(func=cmd_batch_report)
 
     jg = sub.add_parser("judgment", help="판정 서브에이전트 출력 검증 (judgment-schema.json)")
     jg.add_argument("op", choices=("validate",))

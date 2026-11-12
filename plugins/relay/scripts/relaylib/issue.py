@@ -40,7 +40,7 @@ def task_id(ref):
 
 
 def fetch(ref, run):
-    """이슈 → {url, title, body, updated_at, author_association}. run(argv)->(rc, stdout)."""
+    """이슈 → {url, title, body, updated_at, author_association, state, parent}. run(argv)->(rc, stdout)."""
     if ref["kind"] == "github":
         rc, out = run(["gh", "api", "repos/%s/%s/issues/%d" % (ref["owner"], ref["repo"], ref["number"])])
         if rc != 0:
@@ -49,8 +49,16 @@ def fetch(ref, run):
             d = json.loads(out)
         except ValueError:
             raise IssueError("gh api 출력이 JSON 이 아니다: %s" % ref["url"])
+        p_url = d.get("parent_issue_url")
+        parent = None
+        if p_url:
+            try:
+                parent = int(str(p_url).rstrip("/").split("/")[-1])
+            except ValueError:
+                parent = None
         return {"url": d.get("html_url") or ref["url"], "title": d.get("title") or "", "body": d.get("body") or "",
-                "updated_at": d.get("updated_at"), "author_association": d.get("author_association")}
+                "updated_at": d.get("updated_at"), "author_association": d.get("author_association"),
+                "state": d.get("state") or "open", "parent": parent}
     p = pathlib.Path(ref["path"])
     if not p.is_file():
         raise IssueError("이슈 파일이 없다: %s" % p)
@@ -60,7 +68,8 @@ def fetch(ref, run):
     body = "\n".join(l for l in lines if not (l.startswith("# ") and l[2:].strip() == title)).strip("\n")
     mtime = datetime.datetime.fromtimestamp(p.stat().st_mtime, datetime.timezone.utc)
     return {"url": str(p), "title": title, "body": body,
-            "updated_at": mtime.strftime("%Y-%m-%dT%H:%M:%SZ"), "author_association": None}
+            "updated_at": mtime.strftime("%Y-%m-%dT%H:%M:%SZ"), "author_association": None,
+            "state": "open", "parent": None}
 
 
 def author_problem(ref, issue):
@@ -82,6 +91,46 @@ def render(issue):
             "# %s\n"
             "\n"
             "%s\n") % (issue["url"], issue["updated_at"], issue["title"], issue["body"].replace("\r\n", "\n").rstrip("\n"))
+
+
+def snapshot_body(text):
+    """spec 스냅숏 파일 내용 → 본문(render 의 역). 형식이 다르면 None."""
+    if not isinstance(text, str):
+        return None
+    text = text.replace("\r\n", "\n")
+    lines = text.split("\n")
+
+    title_idx = None
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            title_idx = i
+            break
+    if title_idx is None:
+        return None
+
+    header_lines = lines[:title_idx]
+    has_quote = False
+    for line in header_lines:
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith(">"):
+            has_quote = True
+        else:
+            return None
+    if not has_quote:
+        return None
+
+    if title_idx + 1 >= len(lines):
+        return None
+    if lines[title_idx + 1] != "":
+        return None
+
+    body_lines = lines[title_idx + 2:]
+    body = "\n".join(body_lines)
+    if body.endswith("\n"):
+        body = body[:-1]
+    return body
 
 
 def snapshot(issue_ref, worktree, slug, run):

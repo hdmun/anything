@@ -1,0 +1,14 @@
+{
+  "taskId": "I-77",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "MAJOR",
+      "file": "plugins/relay/scripts/relaylib/batch.py",
+      "line": 226,
+      "summary": "태스크 의존성 조회 실패가 일괄 진행 검사를 통과시킨다",
+      "repro": "이슈 #12 에 하위 태스크 #13 이 있고 #13 이 외부 이슈 #40 과 blocking 으로 연결되어 있을 때 #13 의 blocked_by 또는 blocking API 가 실패하거나 JSON 파싱에 실패함 → 해당 방향을 조용히 건너뛰어 `task-edge:#12` FAIL 이 없고 다른 검사도 통과하면 `batch-plan` 종료코드 0",
+      "specRef": "동작 명세 7: 각 이슈 하위 이슈의 blocked_by·blocking 이웃이 모두 같은 부모의 하위 이슈인지 검사한다; 에러 처리: 시작 이슈가 아닌 이슈의 의존 API 실패는 read:#n FAIL 로 모은다"
+    }
+  ]
+}

@@ -26,6 +26,14 @@ SPEC = "\n".join(
     p.read_text(encoding="utf-8")
     for p in [SPEC_DIR / "SKILL.md", *sorted((SPEC_DIR / "references").glob("*.md"))]
 )
+BATCH_DIR = PLUGIN_ROOT / "skills/batch"
+BATCH_MD = (BATCH_DIR / "SKILL.md").read_text(encoding="utf-8")
+BATCH = "\n".join(
+    p.read_text(encoding="utf-8")
+    for p in [BATCH_DIR / "SKILL.md", *sorted((BATCH_DIR / "references").glob("*.md"))]
+) if (BATCH_DIR / "references").exists() else BATCH_MD
+LAUNCH_MD = (HANDOFF_DIR / "references" / "launch.md").read_text(encoding="utf-8")
+MERGE_MD = (SKILL_DIR / "references" / "merge.md").read_text(encoding="utf-8")
 
 
 def _subcommands():
@@ -38,7 +46,7 @@ def _subcommands():
 
 class SkillCallsExistingCommands(unittest.TestCase):
     def test_every_relay_cli_call_is_a_real_subcommand(self):
-        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL + HANDOFF + SPEC))
+        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL + HANDOFF + SPEC + BATCH))
         self.assertTrue(called, "SKILL.md 에 relay_cli 호출이 하나도 없다")
         self.assertLessEqual(called - {"--help"}, _subcommands())
 
@@ -82,16 +90,17 @@ class OrcaGuideIsTheSource(unittest.TestCase):
     """명령 문법은 Orca 가이드가 정본이다 — relay 문서는 Orca 스킬로 불러 따르고 스냅숏을 두지 않는다 (ADR 0003)."""
 
     def test_no_orca_command_snapshots(self):
-        hits = [line.strip() for line in (SKILL + HANDOFF + SPEC).splitlines() if ORCA_COMMAND.search(line)]
+        hits = [line.strip() for line in (SKILL + HANDOFF + SPEC + BATCH).splitlines() if ORCA_COMMAND.search(line)]
         self.assertEqual(hits, [])
 
     def test_sessions_load_guides_through_orca_skills(self):
         start = (SKILL_DIR / "references" / "start.md").read_text(encoding="utf-8")
-        for text in (start, HANDOFF_MD):
+        for text in (start, HANDOFF_MD, BATCH_MD):
             self.assertIn("Skill 도구", text)
             self.assertIn("`orca-cli`", text)
         self.assertIn("`orchestration`", start)       # 진행자 세션은 Run 을 소유한다
         self.assertNotIn("`orchestration`", HANDOFF_MD)  # handoff 는 워크트리와 진행자만 띄운다 — Run 은 진행자 것
+        self.assertNotIn("`orchestration`", BATCH_MD)
 
     def test_deviations_from_orca_defaults_sit_after_invariants(self):
         # 컴팩션 뒤에도 남게 SKILL.md 앞부분, 불변식 바로 다음에 둔다
@@ -117,14 +126,18 @@ class SessionStructure(unittest.TestCase):
 
     def test_handoff_launch_line_tells_the_session_to_load_relay(self):
         # 회귀: 기동 줄만으로는 description 이 3회 중 1회 발동하지 않았다 (2026-11-03 eval)
-        line = next(l for l in HANDOFF_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
+        line = next(l for l in LAUNCH_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
         self.assertIn("Skill 도구로 relay 스킬을 먼저 부르고", line)
         self.assertIn("relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그>", SKILL_MD)
+
+    def test_batch_launch_line_in_launch_md(self):
+        line = next(l for l in LAUNCH_MD.splitlines() if "/ 일괄 진행:" in l)
+        self.assertTrue(line.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
 
     def test_handoff_runs_both_checks_and_creates_the_issue_worktree(self):
         for phrase in ("relay_cli.py\" doctor", "relay_cli.py\" handoff-check", "--no-parent", "--base-branch main",
                        "--agent claude", "agent launch"):
-            self.assertIn(phrase, HANDOFF_MD)
+            self.assertIn(phrase, HANDOFF)
         self.assertTrue((SPEC_DIR / "references" / "spec-template.md").exists())
         self.assertFalse((HANDOFF_DIR / "references" / "spec-template.md").exists())
         self.assertFalse((SKILL_DIR / "references" / "spec-template.md").exists())
@@ -179,7 +192,7 @@ FORBIDDEN = [
 
 class SupervisionStaysInOrca(unittest.TestCase):
     def test_no_forbidden_tokens_in_either_skill(self):
-        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, HANDOFF_DIR, SPEC_DIR) for p in d.rglob("*.md")}
+        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, HANDOFF_DIR, SPEC_DIR, BATCH_DIR) for p in d.rglob("*.md")}
         hits = ["%s: %s" % (p.relative_to(PLUGIN_ROOT), pat) for p, text in docs.items() for pat in FORBIDDEN
                 if re.search(pat, text)]
         self.assertEqual(hits, [])
@@ -204,7 +217,7 @@ class Evals(unittest.TestCase):
         self.assertEqual({p.name for p in EVALS.iterdir() if p.is_dir() and p.name != "results"}, EVAL_CASES)
 
     def test_coordinator_prompts_copy_the_handoff_launch_line(self):
-        line = next(l.strip() for l in HANDOFF_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
+        line = next(l.strip() for l in LAUNCH_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
         pattern = re.escape(line).replace(re.escape("<이슈 URL>"), r"\S+").replace(re.escape("<슬러그>"), r"[a-z0-9-]+")
         for case in sorted(EVAL_CASES - {"handoff-fires", "handoff-not-relay"}):
             prompt = (EVALS / case / "prompt.md").read_text(encoding="utf-8")
@@ -226,7 +239,7 @@ class Frontmatter(unittest.TestCase):
     """
 
     def test_descriptions_are_safe_yaml_scalars(self):
-        for md in (SKILL_MD, HANDOFF_MD, SPEC_MD):
+        for md in (SKILL_MD, HANDOFF_MD, SPEC_MD, BATCH_MD):
             head = md.split("---")[1]
             for line in head.strip().splitlines():
                 key, _, value = line.partition(": ")
@@ -243,6 +256,22 @@ class Frontmatter(unittest.TestCase):
         self.assertIn("\nname: relay\n", SKILL_MD[:40])
         self.assertIn("\nname: handoff\n", HANDOFF_MD[:40])
         self.assertIn("\nname: spec\n", SPEC_MD[:40])
+        self.assertIn("\nname: batch\n", BATCH_MD[:40])
+
+    def test_batch_skill_disables_model_invocation(self):
+        head = BATCH_MD.split("---")[1]
+        self.assertIn("disable-model-invocation: true", head)
+
+
+class MergeProcedure(unittest.TestCase):
+    def test_merge_md_commands_and_invariants(self):
+        for phrase in ("--match-head-commit", "--force-with-lease", "--worktree current --delete-branch",
+                       "merge-check", "batch-report"):
+            self.assertIn(phrase, MERGE_MD)
+        for line in MERGE_MD.splitlines():
+            if "gh pr merge" in line:
+                for gone in ("--delete-branch", "--squash", "--rebase", "--auto"):
+                    self.assertNotIn(gone, line)
 
 
 class SkillSkeleton(unittest.TestCase):
@@ -255,6 +284,9 @@ class SkillSkeleton(unittest.TestCase):
         # 컴팩션 뒤에는 SKILL.md 앞부분만 다시 붙는다 — 불변식은 references 에만 있으면 안 된다
         for phrase in ("worker-start --agent", "자동 머지 금지", "자동 응답 금지", "<base>"):
             self.assertIn(phrase, SKILL_MD)
+        inv = SKILL_MD.split("## 불변식")[1].split("## ")[0]
+        self.assertIn("일괄 진행:", inv)
+        self.assertIn("머지는 사람이 한다", inv)
 
     def test_every_step_reference_exists_and_is_read_first(self):
         refs = set(re.findall(r"references/([a-z-]+\.md)", SKILL_MD))

@@ -34,19 +34,7 @@ python "$RELAY/scripts/relay_cli.py" handoff-check --issue <이슈 URL>  # 기�
 
 ## 3. 진행자 세션을 띄운다
 
-1. 기동 인자를 결정기에 묻는다 — `python "$RELAY/scripts/relay_cli.py" model coordinator`. `launch` 의 `model`·`effort` 를 쓴다(설정이 없으면 `opus`/`low`).
-2. **같은 이름의 이슈 워크트리가 이미 있는지** Orca 가이드대로 워크트리 목록에서 확인한다. 이름은 `I-<n>-<슬러그>` 다(`<슬러그>` 는 영문 소문자·숫자·하이픈, 부모 이슈 제목에서 짓는다).
-   - **없으면** `worktree create` 로 이슈 워크트리와 진행자를 한 번에 띄운다. relay 값: `--name I-<n>-<슬러그> --no-parent --base-branch main --agent claude --model <model> --effort <effort> --prompt "<기동 줄>"`.
-   - **있으면 재개다.** 그 워크트리에 `agent launch` 로 진행자를 띄운다. relay 값: `--agent claude --model <model> --effort <effort> --prompt "<기동 줄>"`. 워크트리를 새로 만들지 않는다 — 끝난 태스크의 커밋이 그 브랜치에 있다.
-3. 기동 줄은 이 한 줄이다:
-
-   ```
-   relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그> — Skill 도구로 relay 스킬을 먼저 부르고 그 절차로 진행한다.
-   ```
-
-   - **스킬 호출 지시를 빼지 않는다.** 지시문은 description 보다 확실히 따른다(2026-11-03 eval).
-   - spec 전문을 기동 줄에 넣지 않는다. 정본은 이슈이고, 진행자가 태스크마다 스냅숏을 뜬다.
-4. 영수증(Orca 가이드대로 읽는다)에서 워크트리와 진행자 터미널을 확인하고 사용자에게 한 줄로 보고한다: 이슈, 워크트리 이름, 진행자 model/effort, 검사의 `WARN`. 그리고 **끝난다.**
+`references/launch.md` 를 Read 하고 그 절차대로 한다. 기동 줄은 일반 줄(일괄 진행 필드 없음)이다.
 
 ## Orca 기본과 다른 점
 

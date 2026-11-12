@@ -1,0 +1,14 @@
+{
+  "taskId": "I-78",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "SPEC_VIOLATION",
+      "file": "plugins/relay/scripts/relaylib/issue.py",
+      "line": 117,
+      "summary": "스냅숏 머리말의 실제 필드를 검증하지 않아 임의 인용문을 유효한 스냅숏으로 받아들인다.",
+      "repro": "`> unrelated header\n\n# title\n\nbody` 를 `snapshot_body` 에 전달 → 형식 오류로 `None` 대신 `body` 반환",
+      "specRef": "동작 명세 > snapshot_body: 형식이 다르면 None; 스냅숏 파일 형식은 인용 머리말에 안내문·이슈 URL·updatedAt을 포함한다."
+    }
+  ]
+}

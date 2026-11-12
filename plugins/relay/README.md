@@ -38,7 +38,7 @@ claude plugin marketplace add C:\Users\hdmun\scripts
 claude plugin install relay@hdmun-scripts
 ```
 
-설정 디렉터리를 여러 개 쓰면(`~/.claude`, 서브 계정 폴더) 각각에서 설치한다. 스킬은 둘이다: `relay`(진행자 세션), `relay:handoff`(설계 세션).
+설정 디렉터리를 여러 개 쓰면(`~/.claude`, 서브 계정 폴더) 각각에서 설치한다. 스킬은 넷이다: `relay`(진행자 세션), `relay:handoff`(설계 세션), `relay:spec`(구현 이슈 쓰기), `relay:batch`(일괄 진행).
 
 ## 사용
 
@@ -62,7 +62,7 @@ relay를 쓸 저장소에서 한 번 실행한다. 워커가 읽는 역할 파�
 
 ### 2. 설계 세션 — 구현 이슈를 쓰고 `relay:handoff`
 
-구현 이슈를 트래커에 쓴다. 형식은 `skills/handoff/references/spec-template.md` 다.
+구현 이슈를 트래커에 쓴다. 형식은 `skills/spec/references/spec-template.md` 다.
 
 - 하위 이슈가 있으면 하위 이슈 하나가 태스크 하나(5개 이하), 트래커의 blocking 이 의존이다. 없으면 이슈 자체가 태스크다([ADR 0007](docs/adr/0007-implementation-issue-is-one-branch-one-pr.md)).
 - 이슈는 쓰기 권한자(`OWNER`·`MEMBER`·`COLLABORATOR`)가 쓴다. 이슈가 spec 의 정본이고, 진행자는 태스크를 시작할 때 본문을 스냅숏으로 뜬다([ADR 0006](docs/adr/0006-implementation-issue-is-spec-canonical.md)).
@@ -96,7 +96,7 @@ doctor → handoff-check(태스크 목록) → 기준선 게이트 → run-creat
 | 상황 | 처리 |
 |---|---|
 | `SPEC_VIOLATION`, 같은 지적 반복, 구현자의 spec 해석 질문 | 판정 서브에이전트(`model judge`)가 spec 안에서 판정 → `.ai/judgments/I-<n>.jN.json` 커밋. spec 이 틀렸으면 `stop` |
-| 총 라운드 5 도달, 기동 실패 circuit-break, `outcome_unknown`, doctor FAIL 등 | 멈춤 보고 |
+| 기동 실패 circuit-break, `outcome_unknown`, doctor FAIL 등 | 멈춤 보고 |
 | 워커가 확인창에 멈춤(`agent_prompt_blocked`) | 사람이 그 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 기다린다 |
 
 **멈춤 보고**는 구현 이슈 코멘트로 남고 진행자 세션은 끝난다. 워커는 `worker-keep-open` 으로 남는다(증거). **재개**는 사람이 이슈를 고친 뒤 같은 이슈로 다시 `relay:handoff` 하는 것이다 — 같은 이슈 워크트리에서 `Relay-Done` 이 붙은 태스크를 건너뛰고, 멈춘 태스크는 스냅숏을 다시 떠 라운드를 처음부터 센다([ADR 0010](docs/adr/0010-one-issue-worktree-workers-close-themselves.md)).
@@ -107,9 +107,12 @@ doctor → handoff-check(태스크 목록) → 기준선 게이트 → run-creat
 plugins/relay/
   .claude-plugin/plugin.json      버전
   skills/relay/SKILL.md           진행자 세션: 진입, 불변식, Orca 기본과 다른 점, 단계 목록 (절차의 정본)
-  skills/relay/references/        단계별 절차(start·implementer·reviewer·gate·review·stop·finish …), 리뷰·판정 JSON 스키마
-  skills/handoff/SKILL.md         설계 세션: 구현 이슈 쓰기, 두 검사, 진행자 기동
-  skills/handoff/references/      spec 템플릿 (구현 이슈 본문 형식)
+  skills/relay/references/        단계별 절차(start·implementer·reviewer·gate·review·stop·finish·merge …), 리뷰·판정 JSON 스키마
+  skills/handoff/SKILL.md         설계 세션: 두 검사, 진행자 기동 (relay:handoff)
+  skills/handoff/references/      진행자 세션 기동 공유 절차 (launch)
+  skills/spec/SKILL.md            구현 이슈 작성 (relay:spec)
+  skills/spec/references/         spec 템플릿 (구현 이슈 본문 형식)
+  skills/batch/SKILL.md           일괄 진행 (relay:batch)
   docs/field-notes.md             실측 사례 서사 (사람용, 스킬이 가리키지 않음)
   commands/init.md                /relay:init
   scripts/relay_cli.py            단일 진입점 (relay_cli.py <sub>)
@@ -122,6 +125,26 @@ plugins/relay/
   docs/adr/                       구조 결정 기록
   docs/plan.md                    진행 중인 작업 계획
 ```
+
+### `relay_cli` 명령 목록
+
+`python scripts/relay_cli.py <명령>` 으로 실행하는 서브커맨드:
+
+- `doctor`: 머신 점검
+- `handoff-check`: 기동 전 검사 (태스크 수·필수 절·작성자)
+- `batch-plan`: 일괄 진행 시작 검사 (진행 목록·순서·모든 이슈 검사)
+- `merge-check`: 머지 조건 검사
+- `batch-report`: 일괄 진행 완료 보고 본문 생성
+- `publish`: 유출 검사 후 원격에 내보내기 (`push`·`pr`·`comment`)
+- `snapshot`: spec 스냅숏 커밋
+- `resume`: 재개할 태스크 결정
+- `judgment`: 판정 결과 스키마 검증
+- `diff-guard` / `commit-guard`: 변경 및 커밋 규칙 검사
+- `review-branch` / `validate-review`: 리뷰 리포트 검증 및 분기
+- `model` / `models` / `models-init`: 모델·effort 설정
+- `roles`: 역할 파일 렌더링 및 드리프트 검증
+- `trust`: trustedWorkspaces 관리
+- `smoke` / `warmup`: 워커 리허설 및 예열
 
 ## 플러그인 고치기
 

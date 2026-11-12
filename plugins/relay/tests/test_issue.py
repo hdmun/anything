@@ -83,5 +83,104 @@ class Snapshot(unittest.TestCase):
         self.assertIn("# Hand 가 Ante 를 받는다\n\n## 배경\n본문\n", text)
 
 
+class Fetch(unittest.TestCase):
+    def test_github_fetches_state_and_parent(self):
+        ref = issue.parse(URL)
+
+        def run_open(argv):
+            return 0, json.dumps({
+                "html_url": URL,
+                "title": "Title",
+                "body": "Body",
+                "updated_at": "2026-11-04T01:02:03Z",
+                "author_association": "OWNER",
+                "state": "open",
+                "parent_issue_url": None,
+            })
+
+        got = issue.fetch(ref, run_open)
+        self.assertEqual(got["state"], "open")
+        self.assertIsNone(got["parent"])
+
+        def run_closed_with_parent(argv):
+            return 0, json.dumps({
+                "html_url": URL,
+                "title": "Title",
+                "body": "Body",
+                "updated_at": "2026-11-04T01:02:03Z",
+                "author_association": "OWNER",
+                "state": "closed",
+                "parent_issue_url": "https://api.github.com/repos/hdmun/poker-server/issues/42",
+            })
+
+        got2 = issue.fetch(ref, run_closed_with_parent)
+        self.assertEqual(got2["state"], "closed")
+        self.assertEqual(got2["parent"], 42)
+
+    def test_local_markdown_returns_open_and_no_parent(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = pathlib.Path(d) / ".scratch" / "ante" / "issues" / "03-hand-posts-ante.md"
+            src.parent.mkdir(parents=True)
+            src.write_text("# Hand 가 Ante 를 받는다\n\n## 배경\n본문\n", encoding="utf-8")
+            ref = issue.parse(str(src))
+            got = issue.fetch(ref, lambda argv: (1, ""))
+            self.assertEqual(got["state"], "open")
+            self.assertIsNone(got["parent"])
+
+
+class SnapshotBody(unittest.TestCase):
+    def test_roundtrip_render_returns_original_body(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "## 배경\n\n본문 내용\n- 항목 1\n- 항목 2",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        text = issue.render(x)
+        self.assertEqual(issue.snapshot_body(text), x["body"])
+
+    def test_empty_body_render_returns_empty_string(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        text = issue.render(x)
+        self.assertEqual(issue.snapshot_body(text), "")
+
+    def test_body_with_hash_heading_preserves_hashes_in_body(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "## 배경\n\n# 하위 섹션 1\n\n내용\n# 하위 섹션 2",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        text = issue.render(x)
+        self.assertEqual(issue.snapshot_body(text), x["body"])
+
+    def test_missing_header_returns_none(self):
+        text = "# 제목\n\n## 배경\n\n본문"
+        self.assertIsNone(issue.snapshot_body(text))
+
+    def test_crlf_returns_same_as_lf(self):
+        x = {
+            "url": URL,
+            "title": "제목",
+            "body": "## 배경\n\n본문",
+            "updated_at": "2026-11-04T01:02:03Z",
+        }
+        lf_text = issue.render(x)
+        crlf_text = lf_text.replace("\n", "\r\n")
+        self.assertEqual(issue.snapshot_body(crlf_text), issue.snapshot_body(lf_text))
+
+    def test_invalid_formats_return_none(self):
+        self.assertIsNone(issue.snapshot_body(None))
+        self.assertIsNone(issue.snapshot_body(""))
+        self.assertIsNone(issue.snapshot_body("> 머리말만 있음\n> 이슈: ...\n"))
+        self.assertIsNone(issue.snapshot_body("일반 텍스트\n# 제목\n\n본문"))
+        self.assertIsNone(issue.snapshot_body("> 머리말\n\n# 제목\n빈줄없이본문"))
+
+
 if __name__ == "__main__":
     unittest.main()
