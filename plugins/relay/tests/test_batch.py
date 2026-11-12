@@ -349,6 +349,78 @@ class EdgeCases(unittest.TestCase):
         fails = [c for c in res["checks"] if c["name"] == "read:#12" and c["status"] == "fail"]
         self.assertTrue(fails)
 
+    def test_parse_paginated_helper(self):
+        self.assertEqual(batch._parse_paginated(""), [])
+        self.assertEqual(batch._parse_paginated("   "), [])
+        self.assertEqual(batch._parse_paginated('[{"a": 1}]'), [{"a": 1}])
+        self.assertEqual(
+            batch._parse_paginated('[{"a": 1}][{"b": 2}]'),
+            [{"a": 1}, {"b": 2}],
+        )
+        self.assertEqual(
+            batch._parse_paginated('[{"a": 1}]\n\n[{"b": 2}]\n'),
+            [{"a": 1}, {"b": 2}],
+        )
+        with self.assertRaises(ValueError):
+            batch._parse_paginated("[{invalid")
+
+    def test_paginated_dependencies_are_parsed_and_followed(self):
+        # 12 의 blocking 이 여러 페이지로 분할 출력되어도 모든 이웃(14, 15)을 찾는다
+        base_run = make_tracker(issues={12: {}, 14: {}, 15: {}}, edges=[(12, 14), (12, 15)])
+
+        def run(argv):
+            path = next((a for a in argv if a.startswith("repos/")), "")
+            if "issues/12/dependencies/blocking" in path:
+                page1 = json.dumps([{
+                    "number": 14,
+                    "state": "open",
+                    "html_url": url(14),
+                    "repository_url": "https://api.github.com/repos/hdmun/poker-server",
+                }])
+                page2 = json.dumps([{
+                    "number": 15,
+                    "state": "open",
+                    "html_url": url(15),
+                    "repository_url": "https://api.github.com/repos/hdmun/poker-server",
+                }])
+                return 0, page1 + "\n" + page2
+            return base_run(argv)
+
+        res = batch.plan(url(12), run)
+        self.assertEqual(batch.exit_code(res["checks"]), 0)
+        self.assertEqual([x["number"] for x in res["order"]], [12, 14, 15])
+
+    def test_sub_issue_paginated_dependencies_detect_task_edge(self):
+        # 하위 이슈 #13 의 blocking 이 여러 페이지일 때 뒤 페이지의 외부 이슈 #40 도 탐지한다
+        base_run = make_tracker(
+            issues={12: {}, 13: {"parent": 12}, 14: {"parent": 12}, 40: {}},
+            subs={12: [13, 14]},
+        )
+
+        def run(argv):
+            path = next((a for a in argv if a.startswith("repos/")), "")
+            if "issues/13/dependencies/blocking" in path:
+                page1 = json.dumps([{
+                    "number": 14,
+                    "state": "open",
+                    "html_url": url(14),
+                    "repository_url": "https://api.github.com/repos/hdmun/poker-server",
+                }])
+                page2 = json.dumps([{
+                    "number": 40,
+                    "state": "open",
+                    "html_url": url(40),
+                    "repository_url": "https://api.github.com/repos/hdmun/poker-server",
+                }])
+                return 0, page1 + page2
+            return base_run(argv)
+
+        res = batch.plan(url(12), run)
+        self.assertEqual(batch.exit_code(res["checks"]), 1)
+        fails = [c for c in res["checks"] if c["name"] == "task-edge:#12" and c["status"] == "fail"]
+        self.assertTrue(fails)
+        self.assertIn("#40", fails[0]["detail"])
+
 
 class CliIntegration(unittest.TestCase):
     def test_cli_exit_code_0_on_success(self):

@@ -16,6 +16,28 @@ def exit_code(checks):
     return 1 if any(c.get("status") == "fail" for c in checks) else 0
 
 
+def _parse_paginated(out):
+    """gh api --paginate 출력(페이지별 JSON 배열이 이어짐) 파싱."""
+    text = (out or "").strip()
+    if not text:
+        return []
+    decoder = json.JSONDecoder()
+    pos = 0
+    items = []
+    while pos < len(text):
+        while pos < len(text) and text[pos].isspace():
+            pos += 1
+        if pos >= len(text):
+            break
+        obj, end_pos = decoder.raw_decode(text, idx=pos)
+        if isinstance(obj, list):
+            items.extend(obj)
+        elif isinstance(obj, dict):
+            items.append(obj)
+        pos = end_pos
+    return items
+
+
 def plan(issue_ref, run):
     """구현 이슈 → {"order": [{"number": n, "url": u, "title": t}], "checks": [...], "field": "일괄 진행: #a #b"}.
     시작 이슈를 읽지 못하거나 local-markdown 참조면 issue.IssueError."""
@@ -61,8 +83,8 @@ def plan(issue_ref, run):
             continue
 
         try:
-            items_bb = json.loads(out_bb) if out_bb.strip() else []
-            items_bl = json.loads(out_bl) if out_bl.strip() else []
+            items_bb = _parse_paginated(out_bb)
+            items_bl = _parse_paginated(out_bl)
         except ValueError:
             if curr == start_num:
                 raise issue.IssueError("gh api 출력이 JSON 이 아니다: %s" % ref["url"])
@@ -230,8 +252,8 @@ def plan(issue_ref, run):
                     continue
 
                 try:
-                    items_sbb = json.loads(out_sbb) if out_sbb.strip() else []
-                    items_sbl = json.loads(out_sbl) if out_sbl.strip() else []
+                    items_sbb = _parse_paginated(out_sbb)
+                    items_sbl = _parse_paginated(out_sbl)
                 except ValueError:
                     checks.append(_check("read:#%d" % s_num, "fail", "이슈 #%d 의 의존 API 출력이 JSON 이 아니다" % s_num))
                     continue
