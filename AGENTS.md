@@ -26,6 +26,7 @@ Single-context: root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
 - 브랜치에 커밋이 2개 이상이면 `main` 기준으로 rebase한 뒤 non-ff 머지(`git merge --no-ff`)한다. 커밋이 1개면 `git merge --ff-only`로 머지한다.
 - 한 커밋에는 한 가지 논리적 변경만 담는다.
 - force push, `reset --hard` 등 되돌리기 어려운 명령은 사전 확인 후 실행한다.
+- relay 일괄 진행의 진행자 세션은 예외다. 사람의 일괄 진행 시작 명령이 그 진행 목록의 이슈 브랜치 푸시(rebase 뒤 `--force-with-lease` 포함)·원격 이슈 브랜치 삭제·PR 머지 요청이다. main 에 직접 푸시하거나 force push 하지 않는다.
 
 ## relay
 
