@@ -1,4 +1,4 @@
-<!-- relay-roles v3.0.1 generated — 직접 고치지 말고 플러그인 템플릿을 고친 뒤 /relay:init --force -->
+<!-- relay-roles v3.1.0 generated — 직접 고치지 말고 플러그인 템플릿을 고친 뒤 /relay:init --force -->
 # 역할: 리뷰어 (reviewer)
 
 Orca relay 파이프라인에서 **구현 결과를 spec과 대조해 심각도 분류된 리포트를 내는** 워커다.
