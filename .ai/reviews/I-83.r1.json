@@ -1,0 +1,14 @@
+{
+  "taskId": "I-83",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "SPEC_VIOLATION",
+      "file": "pc-setup/lib/Declaration.psm1",
+      "line": 163,
+      "summary": "빈 선언은 빈 배열이 아니라 $null을 반환한다.",
+      "repro": "`@{ Items = @() }` 읽기 → 결과 변수의 값이 `$null` 이고 `@()`가 아니다.",
+      "specRef": "동작 명세 > Read-Declaration 5: '문제가 없으면 항목을 선언 순서대로 돌려준다'; 엣지 케이스 2: '`Items = @()` → 빈 배열, 문제 없음'"
+    }
+  ]
+}
