@@ -323,6 +323,34 @@ Describe 'Invoke-Guest 엣지 케이스 표 1~12' {
 }
 
 Describe '보조 함수 단위 테스트 (실제 외부 호출 없음)' {
+    It 'Enable-TestUac: New-ItemProperty 로 EnableLUA=1, ConsentPromptBehaviorAdmin=0 (DWord) 을 쓴다' {
+        $script:regWrites = [System.Collections.Generic.List[object]]::new()
+        Mock New-ItemProperty {
+            param([string]$LiteralPath, [string]$Name, $Value, [string]$PropertyType, [switch]$Force)
+            $script:regWrites.Add([pscustomobject]@{
+                LiteralPath  = $LiteralPath
+                Name         = $Name
+                Value        = $Value
+                PropertyType = $PropertyType
+                Force        = [bool]$Force
+            })
+        }
+
+        Enable-TestUac
+
+        $script:regWrites.Count | Should -Be 2
+        $script:regWrites[0].LiteralPath | Should -Be 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+        $script:regWrites[0].Name | Should -Be 'EnableLUA'
+        $script:regWrites[0].Value | Should -Be 1
+        $script:regWrites[0].PropertyType | Should -Be 'DWord'
+        $script:regWrites[0].Force | Should -BeTrue
+        $script:regWrites[1].LiteralPath | Should -Be 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+        $script:regWrites[1].Name | Should -Be 'ConsentPromptBehaviorAdmin'
+        $script:regWrites[1].Value | Should -Be 0
+        $script:regWrites[1].PropertyType | Should -Be 'DWord'
+        $script:regWrites[1].Force | Should -BeTrue
+    }
+
     It 'Read-JsonOrNull: 없음·빈 파일·깨진 JSON 은 null, 정상 JSON 은 객체 반환' {
         $dir = Join-Path $TestDrive ([System.Guid]::NewGuid().ToString())
         New-Item -Path $dir -ItemType Directory -Force | Out-Null

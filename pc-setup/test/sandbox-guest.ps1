@@ -13,8 +13,8 @@ function Test-AdminWindow {
 
 function Enable-TestUac {
     $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
-    Set-ItemProperty -LiteralPath $regPath -Name 'EnableLUA' -Value 1 -Type DWord -Force -ErrorAction Stop
-    Set-ItemProperty -LiteralPath $regPath -Name 'ConsentPromptBehaviorAdmin' -Value 0 -Type DWord -Force -ErrorAction Stop
+    New-ItemProperty -LiteralPath $regPath -Name 'EnableLUA' -Value 1 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
+    New-ItemProperty -LiteralPath $regPath -Name 'ConsentPromptBehaviorAdmin' -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
 }
 
 function Restart-Guest {
