@@ -1,6 +1,6 @@
 > spec 스냅숏 — 정본은 구현 이슈다. 이 파일을 고치지 않는다.
 > 이슈: https://github.com/hdmun/anything/issues/89
-> updatedAt: 2026-11-11T11:47:12Z
+> updatedAt: 2026-11-14T00:59:08Z
 
 # 부트스트랩(bootstrap.ps1)으로 winget·Git·pwsh 를 갖추고 저장소를 받아 셋업으로 넘긴다
 
@@ -35,7 +35,7 @@ Pester 6.2.0 이 이 PC 에 설치돼 있다(pwsh 7 쪽 모듈 경로). Pester �
 
 ## 변경 대상 파일
 
-- `pc-setup/bootstrap.ps1` — 신규 (UTF-8 **BOM 있음**)
+- `pc-setup/bootstrap.ps1` — 신규 (**ASCII 전용**, BOM 없음)
 - `pc-setup/tests/Bootstrap.Tests.ps1` — 신규
 
 **이 목록 밖의 파일은 생성/수정 금지.**
@@ -116,7 +116,7 @@ raw URL 의 브랜치는 내려받을 스크립트만 정한다. clone 할 브�
 
 **`Invoke-ElevatedInstall`**: 결과 파일 `$env:TEMP\pc-setup-bootstrap-<GUID>.json` 을 정한다. Id 마다 `winget install --id <Id> -e --scope machine --no-upgrade --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity` 를 차례로 실행하고 종료 코드를 모아 결과 파일에 쓰는 스크립트 문자열을 만든다. 그 문자열을 `-EncodedCommand`(UTF-16LE Base64)로 `Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',<b64>` 에 넘긴다. 부트스트랩이 `iex` 로 돌 때는 파일 경로가 없으므로 자기 파일을 승격해 다시 부르는 방식은 쓰지 않는다. UAC 거절(`Start-Process` 예외) → `Error = '승격 거부됨'`. 결과 파일이 없거나 JSON 이 아니면 `Error = '승격 단계 결과 없음'`. 읽은 뒤 결과 파일을 지운다.
 
-**파일 인코딩**: `bootstrap.ps1` 은 UTF-8 BOM 으로 저장한다. 5.1 이 `-File` 로 읽을 때 한국어가 깨지지 않게 하려는 것이다. `irm | iex` 와 `[scriptblock]::Create((irm ...))` 경로에서 문자열 맨 앞의 BOM 문자(U+FEFF)가 실행을 막지 않는지 구현자가 확인한다. 막는다면 본문 첫 줄에서 처리하지 말고 `ask` 로 묻는다.
+**파일 인코딩**: `bootstrap.ps1` 은 BOM 없이 ASCII 바이트(0x00~0x7F)만으로 쓴다. 근거(2026-11-14 구현자 확인): 5.1 의 `irm` 은 BOM(U+FEFF)을 문자열 맨 앞에 남기고, 그러면 `irm | iex`·`[scriptblock]::Create((irm ...))` 모두 맨 위 `[CmdletBinding()] param(...)` 에서 ParserError 로 실패한다. ASCII 만 쓰면 5.1 이 `-File` 로 ANSI 로 읽어도 결과가 같아 BOM 이 필요 없다. 한국어 출력 문자열(예: `승격 거부됨`)은 값을 바꾸지 않고 `[char]` 코드(예: `-join ([char[]](0xC2B9,0xACA9))`)로 만든다. 문자열을 만드는 작은 도우미 함수 하나를 두어도 된다. 호출 모양(`irm ... | iex`)과 시그니처는 바꾸지 않는다.
 
 ### 엣지 케이스
 
@@ -152,7 +152,8 @@ raw URL 의 브랜치는 내려받을 스크립트만 정한다. clone 할 브�
 5.1 호환 테스트:
 
 - `powershell.exe -NoProfile -Command` 로 `[System.Management.Automation.Language.Parser]::ParseFile('<bootstrap.ps1>', [ref]$null, [ref]$errors)` 를 돌려 오류가 0개다.
-- 파일 첫 3바이트가 `EF BB BF`(UTF-8 BOM)다.
+- 파일이 `EF BB BF`(UTF-8 BOM)로 시작하지 않고, 모든 바이트가 0x7F 이하다.
+- 한국어 출력 문자열(결과 JSON 의 오류 문구 등)이 `[char]` 로 만든 뒤에도 spec 의 문구와 같다.
 - 파일에 pwsh 7 전용 연산자(`??`, `?.`, 삼항 `? :`)가 없다는 것은 5.1 파서 검사가 잡는다.
 
 ### 에러 처리
