@@ -366,3 +366,34 @@ Describe 'Invoke-Setup 표 1~16' {
         ($script:lines | Where-Object { $_ -like '요약:*' }).Count | Should -Be 1
     }
 }
+
+Describe 'Get-SetupItems' {
+    It '가짜 단계 둘(정상 하나 + DeclarationException 하나) -> 예외 하나에 문제가 모임' {
+        InModuleScope Setup {
+            $origProviders = $script:DefaultStageProviders
+            $script:DefaultStageProviders = @(
+                { param($r) @(@{ Stage = 'S'; Id = 'ok1'; Elevated = $false }) },
+                { param($r) throw [DeclarationException]::new(@('문제 1', '문제 2')) }
+            )
+            try {
+                try {
+                    Get-SetupItems -Root 'dummy'
+                    throw '예외가 발생해야 합니다'
+                } catch [DeclarationException] {
+                    $_.Exception.Problems.Count | Should -Be 2
+                    $_.Exception.Problems[0] | Should -Be '문제 1'
+                    $_.Exception.Problems[1] | Should -Be '문제 2'
+                }
+            } finally {
+                $script:DefaultStageProviders = $origProviders
+            }
+        }
+    }
+
+    It '이 PC 의 실제 pc-setup 폴더로 부르면 Windows 설정 11개가 나온다' {
+        $pcSetupRoot = Join-Path $PSScriptRoot '..'
+        $items = Get-SetupItems -Root $pcSetupRoot
+        $items.Count | Should -Be 11
+        @($items | Where-Object { $_.Stage -eq 'Windows 설정' }).Count | Should -Be 11
+    }
+}

@@ -1,4 +1,6 @@
-﻿Import-Module (Join-Path $PSScriptRoot 'Report.psm1') -Force
+﻿using module ./Declaration.psm1
+
+Import-Module (Join-Path $PSScriptRoot 'Report.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Elevation.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Declaration.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'WindowsSettings.psm1') -Force
@@ -15,26 +17,13 @@ function Set-AnythingRepo {
     $env:ANYTHING_REPO = $Path
 }
 
-function Invoke-Setup {
-    # → 종료 코드 [int]. 결과 줄과 요약은 Write-Host 로 출력한다.
+function Resolve-StageItems {
+    # 단계 목록($StageProviders)을 불러 항목과 DeclarationException 문제를 모은다.
     param(
-        [Parameter(Mandatory)][string]$Root,                 # pc-setup 폴더
-        [switch]$Check,
-        [string[]]$Skip = @(),
-        [string]$Phase = '',                                 # '' 또는 'Elevated'
-        [string]$ResultPath = '',
-        [scriptblock[]]$StageProviders = $script:DefaultStageProviders   # 각각 param($Root) → 항목 목록
+        [Parameter(Mandatory)][string]$Root,
+        [AllowNull()][scriptblock[]]$StageProviders
     )
 
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
-    # 1. 관리자 창 검사
-    if ((Test-AdminWindow) -and (-not $Check) -and ($Phase -ne 'Elevated')) {
-        Write-Host '셋업은 일반 권한 창에서 실행한다 (관리자 창이면 일부 앱 설치가 실패한다)'
-        return 2
-    }
-
-    # 2. 선언 검사
     $allItems = [System.Collections.Generic.List[object]]::new()
     $allProblems = [System.Collections.Generic.List[string]]::new()
 
@@ -66,6 +55,49 @@ function Invoke-Setup {
             }
         }
     }
+
+    return @{
+        Items    = $allItems
+        Problems = $allProblems
+    }
+}
+
+function Get-SetupItems {
+    # 기본 단계 목록($script:DefaultStageProviders)의 모든 항목을 단계 순서대로 돌려준다. 아무것도 실행하지 않는다.
+    # 선언 문제가 있으면 모든 단계의 문제를 모아 DeclarationException 하나로 던진다.
+    param([Parameter(Mandatory)][string]$Root)
+
+    $resolved = Resolve-StageItems -Root $Root -StageProviders $script:DefaultStageProviders
+    if ($resolved.Problems.Count -gt 0) {
+        throw [DeclarationException]::new([string[]]$resolved.Problems.ToArray())
+    }
+
+    return ,([object[]]$resolved.Items.ToArray())
+}
+
+function Invoke-Setup {
+    # → 종료 코드 [int]. 결과 줄과 요약은 Write-Host 로 출력한다.
+    param(
+        [Parameter(Mandatory)][string]$Root,                 # pc-setup 폴더
+        [switch]$Check,
+        [string[]]$Skip = @(),
+        [string]$Phase = '',                                 # '' 또는 'Elevated'
+        [string]$ResultPath = '',
+        [scriptblock[]]$StageProviders = $script:DefaultStageProviders   # 각각 param($Root) → 항목 목록
+    )
+
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    # 1. 관리자 창 검사
+    if ((Test-AdminWindow) -and (-not $Check) -and ($Phase -ne 'Elevated')) {
+        Write-Host '셋업은 일반 권한 창에서 실행한다 (관리자 창이면 일부 앱 설치가 실패한다)'
+        return 2
+    }
+
+    # 2. 선언 검사
+    $resolved = Resolve-StageItems -Root $Root -StageProviders $StageProviders
+    $allItems = $resolved.Items
+    $allProblems = $resolved.Problems
 
     if ($allProblems.Count -gt 0) {
         Write-Host '선언 오류:'
@@ -302,4 +334,4 @@ function Invoke-Setup {
     return (Get-SetupExitCode -Results ([object[]]$allResults.ToArray()))
 }
 
-Export-ModuleMember -Function Invoke-Setup, Set-AnythingRepo
+Export-ModuleMember -Function Invoke-Setup, Set-AnythingRepo, Get-SetupItems
