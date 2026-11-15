@@ -1,0 +1,6 @@
+{
+  "reason": "spec_violation",
+  "decision": "fix_impl",
+  "rationale": "리뷰 지적(pc-setup/test/SandboxHost.psm1:298, '초기 wsb list --raw 오류가 종료 코드 2로 변환되지 않음')이 맞다. spec「에러 처리」에는 '2 단계까지의 오류는 종료 코드 2'라고 적혀 있다. 그런데 Invoke-SandboxHarness 의 1단계 Get-RunningSandboxIds(:298)는 try 밖에서 불린다. 그래서 Invoke-Wsb 가 던진 예외가 함수 밖으로 빠져나가고, sandbox.ps1 은 exit $exitCode 에 닿지 못한 채 종료 코드 1 로 끝난다. 2단계도 같다. Get-SetupItems·Read-SandboxExpected 의 예외 가운데 DeclarationException 이 아닌 것은 :322·:350 에서 다시 throw 되어 2 가 되지 않는다. spec 이 이미 정한 규칙이라 구현만 고치면 된다. MAJOR 지적(:424)은 spec_violation 이 아니므로 이 판정에 넣지 않는다.",
+  "instruction": "pc-setup/test/SandboxHost.psm1 의 Invoke-SandboxHarness 를 고친다. 1단계(Get-RunningSandboxIds 호출과 실행 중 검사)와 2단계(Get-SetupItems·Read-SandboxExpected·Test-SandboxExpectedIds·사람 -Skip 검사)에서 생기는 예외는 모두 잡는다. 잡은 예외는 메시지를 출력하고(예: `실패: <예외 메시지>`) 2 를 돌려준다. DeclarationException 일 때 문제를 모두 출력하고 2 를 돌려주는 지금 동작은 그대로 둔다. 그 밖의 예외를 다시 throw 하는 :322·:350 은 같은 방식으로 2 를 돌려주게 바꾼다. 3단계 이후의 동작과 종료 코드는 바꾸지 않는다. pc-setup/tests/SandboxHost.Tests.ps1 에는 테스트를 하나 더한다. Get-RunningSandboxIds 를 Mock -ModuleName SandboxHost 로 바꿔 예외를 던지게 하고, 다음 세 가지를 단언한다. Invoke-SandboxHarness 가 예외를 던지지 않고 2 를 돌려준다. Start-TestSandbox 가 0번 불린다. 실제 wsb 는 불리지 않는다. 기존 테스트의 단언은 약하게 바꾸지 않는다. 변경 대상 파일 3개 밖은 건드리지 않는다. 게이트 명령은 그대로 통과해야 한다."
+}
