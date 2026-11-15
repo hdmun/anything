@@ -1,0 +1,6 @@
+{
+  "reason": "spec_violation",
+  "decision": "dismiss",
+  "rationale": "지적: pc-setup/bootstrap.ps1:308-313 은 1시간이 넘으면 h:mm:ss 로 출력한다. spec 「기존 코드 참조」는 `pc-setup/lib/Report.psm1` 의 \"`mm:ss` 시간 형식을 맞춘다\"고 한다. 그런데 Report.psm1:141-146 Format-SetupSummary 도 같은 분기를 쓴다(1시간 미만 mm:ss, 이상 h:mm:ss). 1번 구현 이슈의 테스트 pc-setup/tests/Report.Tests.ps1:237 은 '걸린 시간: 1:02:03' 을 단언한다. 따라서 spec 이 말하는 `mm:ss` 는 Report.psm1 의 시간 형식을 가리키는 이름이다. 구현은 그 형식을 그대로 따랐다. 리뷰어가 기대한 '60:03' 으로 바꾸면 오히려 셋업 요약과 형식이 달라져 spec 의 '맞춘다'를 어기게 된다.",
+  "instruction": "기각 근거: spec 「기존 코드 참조」는 부트스트랩 요약 시간을 `pc-setup/lib/Report.psm1` 의 `mm:ss` 형식에 맞추라고 한다. Report.psm1 Format-SetupSummary(141-146행)도 1시간 이상이면 h:mm:ss 로 출력한다. Report.Tests.ps1:237 이 '걸린 시간: 1:02:03' 을 단언한다. bootstrap.ps1 은 이 분기를 그대로 옮겼으므로 spec 대로다. 1시간 미만이면 mm:ss 로 출력되고, Bootstrap.Tests.ps1:95 가 이를 확인한다."
+}
