@@ -152,11 +152,14 @@ function New-WsbConfig {
 "@
 }
 
+$script:LastStartSucceeded = $false
+
 function Start-TestSandbox {
     # → 새 Sandbox id
     param([string]$Config)
 
     $raw = Invoke-Wsb -Arguments @('start', '--config', $Config, '--raw')
+    $script:LastStartSucceeded = $true
     if (-not [string]::IsNullOrWhiteSpace($raw)) {
         try {
             $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
@@ -295,6 +298,7 @@ function Invoke-SandboxHarness {
     )
 
     # 1~2단계: 실행 중 Sandbox · 선언 · 예상 결과 · -Skip 검사 (오류 시 모두 종료 코드 2)
+    $initialIds = @()
     try {
         # 1. 실행 중인 Sandbox 확인
         $runningRaw = Get-RunningSandboxIds
@@ -303,6 +307,7 @@ function Invoke-SandboxHarness {
             Write-Host '실패: Sandbox 사용 중'
             return 2
         }
+        $initialIds = $runningIds
 
         $resolvedRepo = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($RepoRoot)
         $resolvedBaseDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BaseDir)
@@ -428,6 +433,7 @@ function Invoke-SandboxHarness {
 
     # 6. Sandbox 시작
     $sandboxId = ''
+    $script:LastStartSucceeded = $false
     try {
         $sandboxId = Start-TestSandbox -Config $wsbConfig
         Write-Host "Sandbox 시작: $sandboxId"
@@ -479,6 +485,27 @@ function Invoke-SandboxHarness {
                 $null = Stop-TestSandbox -Id $sandboxId
             } catch {
                 Write-Warning "Sandbox 종료 실패 ($sandboxId): $($_.Exception.Message)"
+            }
+        } elseif ($script:LastStartSucceeded) {
+            try {
+                $currentRaw = Get-RunningSandboxIds
+                [string[]]$newIds = @()
+                if ($null -ne $currentRaw) {
+                    $newIds = [string[]]@($currentRaw | Where-Object {
+                        -not [string]::IsNullOrWhiteSpace([string]$_) -and ($initialIds -notcontains [string]$_)
+                    })
+                }
+                if ($newIds.Count -eq 1) {
+                    try {
+                        $null = Stop-TestSandbox -Id $newIds[0]
+                    } catch {
+                        Write-Warning "Sandbox 종료 실패 ($($newIds[0])): $($_.Exception.Message)"
+                    }
+                } elseif ($newIds.Count -gt 1) {
+                    Write-Warning "Sandbox 정리 불가: 새로 생긴 Sandbox 가 $($newIds.Count)개여서 특정할 수 없다"
+                }
+            } catch {
+                Write-Warning "Sandbox 정리 불가: 목록 조회 실패 ($($_.Exception.Message))"
             }
         }
     }

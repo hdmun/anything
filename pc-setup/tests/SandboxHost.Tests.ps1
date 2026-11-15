@@ -536,3 +536,102 @@ Describe 'Invoke-SandboxHarness 엣지 케이스 표 1~11' {
         Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 0 -Exactly
     }
 }
+
+Describe 'Invoke-SandboxHarness 시작·정리 경계' {
+    BeforeEach {
+        $script:hostLines = [System.Collections.Generic.List[string]]::new()
+        $script:warnLines = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName SandboxHost Write-Host { $script:hostLines.Add([string]$Object) }
+        Mock -ModuleName SandboxHost Write-Warning { $script:warnLines.Add([string]$Message) }
+        Mock -ModuleName SandboxHost Stop-TestSandbox {}
+
+        $script:baseDir = Join-Path $TestDrive ([System.Guid]::NewGuid().ToString())
+        New-Item -Path $script:baseDir -ItemType Directory -Force | Out-Null
+    }
+
+    It 'ID 정상 -> Stop-TestSandbox 가 해당 Id 로 1번 불린다' {
+        $repo = New-TestGitRepo
+        Mock -ModuleName SandboxHost Get-RunningSandboxIds { @() }
+        Mock -ModuleName SandboxHost Invoke-Wsb {
+            param([string[]]$Arguments)
+            if ($Arguments[0] -eq 'start') {
+                return '{ "Id": "sb-real-id" }'
+            }
+            throw "unexpected wsb call: $($Arguments -join ' ')"
+        }
+        Mock -ModuleName SandboxHost Wait-SandboxResult {
+            param([string]$OutDir)
+            [System.IO.File]::WriteAllText((Join-Path $OutDir 'result.json'), (New-PassResultJson), [System.Text.Encoding]::UTF8)
+            return $true
+        }
+
+        $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
+        $ret | Should -Be 0
+        Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 1 -Exactly -ParameterFilter { $Id -eq 'sb-real-id' }
+    }
+
+    It 'ID 조회 실패 + 새 Id 1개 -> 1, 새로 생긴 Id 로 Stop-TestSandbox 1번 불린다' {
+        $repo = New-TestGitRepo
+        $script:listCalls = 0
+        Mock -ModuleName SandboxHost Get-RunningSandboxIds {
+            $script:listCalls++
+            if ($script:listCalls -eq 1) { return @() }
+            if ($script:listCalls -eq 2) { throw 'fallback list 실패' }
+            return @('new-sb-id')
+        }
+        Mock -ModuleName SandboxHost Invoke-Wsb {
+            param([string[]]$Arguments)
+            if ($Arguments[0] -eq 'start') {
+                return '{}'
+            }
+            throw "unexpected wsb call: $($Arguments -join ' ')"
+        }
+
+        $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
+        $ret | Should -Be 1
+        Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 1 -Exactly -ParameterFilter { $Id -eq 'new-sb-id' }
+    }
+
+    It 'ID 조회 실패 + 정리용 목록 조회도 실패 -> 1, Stop-TestSandbox 0번, 정리 불가 경고' {
+        $repo = New-TestGitRepo
+        $script:listCalls = 0
+        Mock -ModuleName SandboxHost Get-RunningSandboxIds {
+            $script:listCalls++
+            if ($script:listCalls -eq 1) { return @() }
+            throw 'list 실패'
+        }
+        Mock -ModuleName SandboxHost Invoke-Wsb {
+            param([string[]]$Arguments)
+            if ($Arguments[0] -eq 'start') {
+                return '{}'
+            }
+            throw "unexpected wsb call: $($Arguments -join ' ')"
+        }
+
+        $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
+        $ret | Should -Be 1
+        Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 0 -Exactly
+        ($script:warnLines -join "`n") | Should -Match 'Sandbox 정리 불가'
+    }
+
+    It '다른 세션 Id 만 있음 (wsb start 실패) -> 1, Stop-TestSandbox 0번' {
+        $repo = New-TestGitRepo
+        $script:listCalls = 0
+        Mock -ModuleName SandboxHost Get-RunningSandboxIds {
+            $script:listCalls++
+            if ($script:listCalls -eq 1) { return @() }
+            return @('other-session-sb-id')
+        }
+        Mock -ModuleName SandboxHost Invoke-Wsb {
+            param([string[]]$Arguments)
+            if ($Arguments[0] -eq 'start') {
+                throw 'wsb start 실패'
+            }
+            throw "unexpected wsb call: $($Arguments -join ' ')"
+        }
+
+        $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
+        $ret | Should -Be 1
+        Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 0 -Exactly
+    }
+}
