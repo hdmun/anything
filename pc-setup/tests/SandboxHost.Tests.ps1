@@ -498,4 +498,41 @@ Describe 'Invoke-SandboxHarness 엣지 케이스 표 1~11' {
         $script:warnLines.Count | Should -Be 1
         $script:warnLines[0] | Should -Match 'wsb stop failed'
     }
+
+    It '1단계 Get-RunningSandboxIds 예외 -> 예외 없이 2, Start-TestSandbox·wsb 안 불림' {
+        $repo = New-TestGitRepo
+        Mock -ModuleName SandboxHost wsb { throw 'real wsb must not be called' }
+        Mock -ModuleName SandboxHost Get-RunningSandboxIds { throw 'wsb list 실패' }
+
+        $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
+        $ret | Should -Be 2
+        $script:hostLines | Should -Contain '실패: wsb list 실패'
+        Should -Invoke -ModuleName SandboxHost Start-TestSandbox -Times 0 -Exactly
+        Should -Invoke -ModuleName SandboxHost wsb -Times 0 -Exactly
+    }
+
+    It '2단계 일반 예외(DeclarationException 아님) -> 예외 없이 2, Start-TestSandbox 안 불림' {
+        $repo = New-TestGitRepo
+        Mock -ModuleName SandboxHost Get-SetupItems { throw 'unexpected I/O error' }
+
+        $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
+        $ret | Should -Be 2
+        $script:hostLines | Should -Contain '실패: unexpected I/O error'
+        Should -Invoke -ModuleName SandboxHost Start-TestSandbox -Times 0 -Exactly
+    }
+
+    It 'Start-TestSandbox 중 ID 조회 실패 시 finally 에서 남은 Sandbox 를 정리한다' {
+        $repo = New-TestGitRepo
+        $script:listCalls = 0
+        Mock -ModuleName SandboxHost Get-RunningSandboxIds {
+            $script:listCalls++
+            if ($script:listCalls -eq 1) { return @() }
+            return @('leaked-sb-id')
+        }
+        Mock -ModuleName SandboxHost Start-TestSandbox { throw 'ID 조회 실패' }
+
+        $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
+        $ret | Should -Be 1
+        Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 1 -Exactly -ParameterFilter { $Id -eq 'leaked-sb-id' }
+    }
 }

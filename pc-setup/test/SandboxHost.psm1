@@ -294,81 +294,87 @@ function Invoke-SandboxHarness {
         [string]$BaseDir = (Join-Path $env:TEMP 'pc-setup-sandbox')
     )
 
-    # 1. 실행 중인 Sandbox 확인
-    $runningRaw = Get-RunningSandboxIds
-    $runningIds = if ($null -eq $runningRaw) { @() } else { @($runningRaw | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) }
-    if ($runningIds.Count -gt 0) {
-        Write-Host '실패: Sandbox 사용 중'
-        return 2
-    }
-
-    $resolvedRepo = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($RepoRoot)
-    $resolvedBaseDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BaseDir)
-    $pcSetupRoot = Join-Path $resolvedRepo 'pc-setup'
-
-    # 2. 선언·예상 결과·-Skip 검사
+    # 1~2단계: 실행 중 Sandbox · 선언 · 예상 결과 · -Skip 검사 (오류 시 모두 종료 코드 2)
     try {
-        $setupItemsRaw = Get-SetupItems -Root $pcSetupRoot
-        $setupItems = if ($null -eq $setupItemsRaw) { @() } else { @($setupItemsRaw) }
-    } catch {
-        $problems = Get-DeclarationProblemsFromException -Exception $_.Exception
-        if ($null -ne $problems) {
-            Write-Host '선언 오류:'
-            foreach ($p in $problems) {
-                Write-Host "  $p"
-            }
+        # 1. 실행 중인 Sandbox 확인
+        $runningRaw = Get-RunningSandboxIds
+        $runningIds = if ($null -eq $runningRaw) { @() } else { @($runningRaw | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) }
+        if ($runningIds.Count -gt 0) {
+            Write-Host '실패: Sandbox 사용 중'
             return 2
         }
-        throw
-    }
 
-    $declaredIds = [string[]]@(
-        foreach ($item in $setupItems) {
-            $idVal = if ($item -is [System.Collections.IDictionary]) { $item['Id'] } else { $item.Id }
-            if (-not [string]::IsNullOrEmpty($idVal)) {
-                [string]$idVal
+        $resolvedRepo = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($RepoRoot)
+        $resolvedBaseDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BaseDir)
+        $pcSetupRoot = Join-Path $resolvedRepo 'pc-setup'
+
+        # 2. 선언·예상 결과·-Skip 검사
+        try {
+            $setupItemsRaw = Get-SetupItems -Root $pcSetupRoot
+            $setupItems = if ($null -eq $setupItemsRaw) { @() } else { @($setupItemsRaw) }
+        } catch {
+            $problems = Get-DeclarationProblemsFromException -Exception $_.Exception
+            if ($null -ne $problems) {
+                Write-Host '선언 오류:'
+                foreach ($p in $problems) {
+                    Write-Host "  $p"
+                }
+                return 2
             }
+            throw
         }
-    )
 
-    $expectedPath = Join-Path $pcSetupRoot 'test' 'sandbox-expected.psd1'
-    try {
-        $expectedItemsRaw = Read-SandboxExpected -Path $expectedPath
-        if ($null -eq $expectedItemsRaw) {
-            $expectedItems = [object[]]@()
-        } else {
-            $expectedItems = [object[]]@($expectedItemsRaw)
+        $declaredIds = [string[]]@(
+            foreach ($item in $setupItems) {
+                $idVal = if ($item -is [System.Collections.IDictionary]) { $item['Id'] } else { $item.Id }
+                if (-not [string]::IsNullOrEmpty($idVal)) {
+                    [string]$idVal
+                }
+            }
+        )
+
+        $expectedPath = Join-Path $pcSetupRoot 'test' 'sandbox-expected.psd1'
+        try {
+            $expectedItemsRaw = Read-SandboxExpected -Path $expectedPath
+            if ($null -eq $expectedItemsRaw) {
+                $expectedItems = [object[]]@()
+            } else {
+                $expectedItems = [object[]]@($expectedItemsRaw)
+            }
+        } catch {
+            $problems = Get-DeclarationProblemsFromException -Exception $_.Exception
+            if ($null -ne $problems) {
+                foreach ($p in $problems) {
+                    Write-Host $p
+                }
+                return 2
+            }
+            throw
         }
-    } catch {
-        $problems = Get-DeclarationProblemsFromException -Exception $_.Exception
-        if ($null -ne $problems) {
-            foreach ($p in $problems) {
+
+        $expectedProblemsRaw = Test-SandboxExpectedIds -Expected $expectedItems -DeclaredIds $declaredIds
+        $expectedProblems = if ($null -eq $expectedProblemsRaw) { @() } else { @($expectedProblemsRaw) }
+        if ($expectedProblems.Count -gt 0) {
+            foreach ($p in $expectedProblems) {
                 Write-Host $p
             }
             return 2
         }
-        throw
-    }
 
-    $expectedProblemsRaw = Test-SandboxExpectedIds -Expected $expectedItems -DeclaredIds $declaredIds
-    $expectedProblems = if ($null -eq $expectedProblemsRaw) { @() } else { @($expectedProblemsRaw) }
-    if ($expectedProblems.Count -gt 0) {
-        foreach ($p in $expectedProblems) {
-            Write-Host $p
+        $userSkip = ConvertTo-NormalizedSkipList -Skip $Skip
+        $knownIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($id in $declaredIds) {
+            $null = $knownIds.Add($id)
         }
+        foreach ($skipId in $userSkip) {
+            if (-not $knownIds.Contains($skipId)) {
+                Write-Host "모르는 -Skip Id: $skipId"
+                return 2
+            }
+        }
+    } catch {
+        Write-Host "실패: $($_.Exception.Message)"
         return 2
-    }
-
-    $userSkip = ConvertTo-NormalizedSkipList -Skip $Skip
-    $knownIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($id in $declaredIds) {
-        $null = $knownIds.Add($id)
-    }
-    foreach ($skipId in $userSkip) {
-        if (-not $knownIds.Contains($skipId)) {
-            Write-Host "모르는 -Skip Id: $skipId"
-            return 2
-        }
     }
 
     # 3. 커밋하지 않은 변경 경고
@@ -421,11 +427,12 @@ function Invoke-SandboxHarness {
     [System.IO.File]::WriteAllText((Join-Path $runDir 'sandbox.wsb'), $wsbConfig, $utf8NoBom)
 
     # 6. Sandbox 시작
-    $sandboxId = Start-TestSandbox -Config $wsbConfig
-    Write-Host "Sandbox 시작: $sandboxId"
-    Write-Host "로그: $runDir"
-
+    $sandboxId = ''
     try {
+        $sandboxId = Start-TestSandbox -Config $wsbConfig
+        Write-Host "Sandbox 시작: $sandboxId"
+        Write-Host "로그: $runDir"
+
         # 7. 결과 대기
         $gotResult = Wait-SandboxResult -OutDir $outDir -Timeout ([TimeSpan]::FromMinutes($TimeoutMinutes))
         if (-not $gotResult) {
@@ -472,6 +479,20 @@ function Invoke-SandboxHarness {
                 $null = Stop-TestSandbox -Id $sandboxId
             } catch {
                 Write-Warning "Sandbox 종료 실패 ($sandboxId): $($_.Exception.Message)"
+            }
+        } else {
+            try {
+                $leftoverRaw = Get-RunningSandboxIds
+                $leftoverIds = if ($null -eq $leftoverRaw) { @() } else { @($leftoverRaw | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) }
+                foreach ($leftoverId in $leftoverIds) {
+                    try {
+                        $null = Stop-TestSandbox -Id $leftoverId
+                    } catch {
+                        Write-Warning "Sandbox 종료 실패 ($leftoverId): $($_.Exception.Message)"
+                    }
+                }
+            } catch {
+                Write-Warning "Sandbox 정리 조회 실패: $($_.Exception.Message)"
             }
         }
     }
