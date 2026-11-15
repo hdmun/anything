@@ -521,18 +521,18 @@ Describe 'Invoke-SandboxHarness 엣지 케이스 표 1~11' {
         Should -Invoke -ModuleName SandboxHost Start-TestSandbox -Times 0 -Exactly
     }
 
-    It 'Start-TestSandbox 중 ID 조회 실패 시 finally 에서 남은 Sandbox 를 정리한다' {
+    It 'Start-TestSandbox 실패 시 다른 세션의 Sandbox Id 가 목록에 있어도 Stop-TestSandbox 를 부르지 않는다' {
         $repo = New-TestGitRepo
         $script:listCalls = 0
         Mock -ModuleName SandboxHost Get-RunningSandboxIds {
             $script:listCalls++
             if ($script:listCalls -eq 1) { return @() }
-            return @('leaked-sb-id')
+            return @('other-session-sb-id')
         }
         Mock -ModuleName SandboxHost Start-TestSandbox { throw 'ID 조회 실패' }
 
         $ret = Invoke-SandboxHarness -RepoRoot $repo -BaseDir $script:baseDir
         $ret | Should -Be 1
-        Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 1 -Exactly -ParameterFilter { $Id -eq 'leaked-sb-id' }
+        Should -Invoke -ModuleName SandboxHost Stop-TestSandbox -Times 0 -Exactly
     }
 }

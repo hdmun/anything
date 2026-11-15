@@ -473,26 +473,12 @@ function Invoke-SandboxHarness {
         Write-Host "실패: $($_.Exception.Message)"
         return 1
     } finally {
-        # 9. 어떤 경로로 끝나든 Stop-TestSandbox 1번 호출, 실패 시 경고만 출력
+        # 9. 6 에서 이 하네스가 띄운 Sandbox 에만 Stop-TestSandbox 1번 호출, 실패 시 경고만 출력
         if (-not [string]::IsNullOrWhiteSpace($sandboxId)) {
             try {
                 $null = Stop-TestSandbox -Id $sandboxId
             } catch {
                 Write-Warning "Sandbox 종료 실패 ($sandboxId): $($_.Exception.Message)"
-            }
-        } else {
-            try {
-                $leftoverRaw = Get-RunningSandboxIds
-                $leftoverIds = if ($null -eq $leftoverRaw) { @() } else { @($leftoverRaw | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) }
-                foreach ($leftoverId in $leftoverIds) {
-                    try {
-                        $null = Stop-TestSandbox -Id $leftoverId
-                    } catch {
-                        Write-Warning "Sandbox 종료 실패 ($leftoverId): $($_.Exception.Message)"
-                    }
-                }
-            } catch {
-                Write-Warning "Sandbox 정리 조회 실패: $($_.Exception.Message)"
             }
         }
     }
