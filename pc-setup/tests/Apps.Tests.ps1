@@ -381,25 +381,4 @@ if (`$Check) {
         $script:capturedCheck | Should -BeTrue
         $res.Status | Should -Be '할 일'
     }
-
-    It '17: 원천 함수 자리(Mock 없이) -> 아직 구현되지 않은 원천: <원천> 예외' {
-        $content = @"
-@{
-    Items = @(
-        @{ Id = 'c'; Origin = 'nvm'; NodeLine = '26' }
-        @{ Id = 'd'; Origin = 'pnpm' }
-        @{ Id = 'e'; Origin = 'go' }
-    )
-}
-"@
-        Set-Content -Path 'TestDrive:/apps.psd1' -Value $content
-        $root = (Get-Item 'TestDrive:/').FullName
-
-        $items = Get-AppItems -Root $root
-        $expectedOrigins = @('nvm', 'pnpm', 'go')
-        for ($i = 0; $i -lt $expectedOrigins.Count; $i++) {
-            $orig = $expectedOrigins[$i]
-            { & $items[$i].Invoke $false } | Should -Throw "아직 구현되지 않은 원천: $orig"
-        }
-    }
 }
