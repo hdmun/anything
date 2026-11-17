@@ -1,6 +1,6 @@
 > spec 스냅숏 — 정본은 구현 이슈다. 이 파일을 고치지 않는다.
 > 이슈: https://github.com/hdmun/anything/issues/94
-> updatedAt: 2026-11-15T08:58:25Z
+> updatedAt: 2026-11-16T10:20:19Z
 
 # 앱 선언 스키마와 앱 항목 만들기, 공식 배포 처리, PATH 다시 읽기를 만든다
 
@@ -87,23 +87,23 @@ Export-ModuleMember -Function Update-SessionPath, Add-UserPath, Get-UserPathEntr
 
 **스키마** (`Read-Declaration` 에 넘긴다)
 
-- `Key = 'Id'`, `Required = @('Id')`, `Allowed = @('Id','Origin','Scope','WingetSource','Bucket','Elevated','Line')`.
+- `Key = 'Id'`, `Required = @('Id')`, `Allowed = @('Id','Origin','Scope','WingetSource','Bucket','Elevated','NodeLine')`.
 - `Enums = @{ Origin = @('winget','scoop','nvm','pnpm','go','official'); Scope = @('machine','user'); WingetSource = @('msstore'); Bucket = @('main','extras') }`. `Origin` 이 없으면 `winget` 이다.
 - `Validate`(항목 하나, 문제 문구는 그대로 쓴다). 원천마다 쓸 수 있는 키:
 
 | 원천 | 필수 | 선택 | 그 밖의 키 |
 |---|---|---|---|
 | winget (msstore 아님) | `Scope` | `Elevated` | 문제 |
-| winget msstore (`WingetSource = 'msstore'`) | | | `Scope`·`Elevated`·`Bucket`·`Line` 은 문제 |
+| winget msstore (`WingetSource = 'msstore'`) | | | `Scope`·`Elevated`·`Bucket`·`NodeLine` 은 문제 |
 | scoop | `Bucket` | | 문제 |
-| nvm | `Line` | | 문제 |
+| nvm | `NodeLine` | | 문제 |
 | pnpm, go | | | 문제 |
 | official | | `Elevated` | 문제 |
 
   - 빠진 필수 키: `<원천> 항목에는 '<키>' 가 있어야 한다`
   - 쓸 수 없는 키: `<원천> 항목에는 '<키>' 를 쓰지 않는다` (msstore 는 원천 자리에 `winget msstore`)
   - `Elevated` 가 `$true`/`$false` 가 아님: `'Elevated' 는 $true 또는 $false 다`
-  - `Line` 이 문자열이 아니거나 빈 값: `'Line' 은 버전 줄 문자열이다 (예: '26')`
+  - `NodeLine` 이 문자열이 아니거나 빈 값: `'NodeLine' 은 버전 줄 문자열이다 (예: '26')`
 - `Get-AppItems` 는 `Read-Declaration` 뒤에 `official` 항목마다 `<Root>\apps\<Id>.ps1` 이 있는지 본다. 없으면 `apps.psd1:<줄>: 스크립트가 없다: apps/<Id>.ps1` 문제를 더한다(다른 문제와 함께 모아 `DeclarationException`).
 
 **항목** (선언 순서대로)
@@ -120,7 +120,7 @@ Export-ModuleMember -Function Update-SessionPath, Add-UserPath, Get-UserPathEntr
 
 ### 엣지 케이스
 
-경우를 아래로 한정한다. 각 경우를 테스트로 둔다(`TestDrive:` 에 가짜 `Root` 와 `apps.psd1`, 원천별 함수는 `Mock -ModuleName Apps`). **열거하지 않은 경우는 범위 밖이다**(예: 같은 앱이 다른 원천으로 두 줄, `Line` 의 형식 검사).
+경우를 아래로 한정한다. 각 경우를 테스트로 둔다(`TestDrive:` 에 가짜 `Root` 와 `apps.psd1`, 원천별 함수는 `Mock -ModuleName Apps`). **열거하지 않은 경우는 범위 밖이다**(예: 같은 앱이 다른 원천으로 두 줄, `NodeLine` 의 형식 검사).
 
 | # | 선언 | 기대 |
 |---|---|---|
@@ -132,8 +132,8 @@ Export-ModuleMember -Function Update-SessionPath, Add-UserPath, Get-UserPathEntr
 | 6 | msstore + `Scope='user'` | 「winget msstore 항목에는 'Scope' 를 쓰지 않는다」 |
 | 7 | scoop `Bucket='extras'` | `Elevated $false`, `Invoke-ScoopApp` |
 | 8 | scoop `Bucket` 없음 / `Bucket='versions'` | 필수 키 문제 / 허용 값 문제 |
-| 9 | nvm `Line='26'` | `Invoke-NvmApp` |
-| 10 | nvm `Line` 없음 | 필수 키 문제 |
+| 9 | nvm `NodeLine='26'` | `Invoke-NvmApp` |
+| 10 | nvm `NodeLine` 없음 | 필수 키 문제 |
 | 11 | pnpm / go | 각각 `Invoke-PnpmApp` / `Invoke-GoApp`, `Elevated $false` |
 | 12 | pnpm + `Scope` | 「pnpm 항목에는 'Scope' 를 쓰지 않는다」 |
 | 13 | official + `apps/<Id>.ps1` 있음, `Elevated=$true` | `Elevated $true`, `Invoke` 가 스크립트 결과를 돌려줌 |
