@@ -126,9 +126,11 @@ function Invoke-NvmApp {
     }
 
     $defaultResult = Invoke-Nvm -Arguments @('default')
-    $defaultVersions = @(if ($null -ne $defaultResult.ExitCode -and $defaultResult.ExitCode -eq 0) {
-        Get-SemverStrings -Lines $defaultResult.Output
-    })
+    if ($null -eq $defaultResult.ExitCode -or $defaultResult.ExitCode -ne 0) {
+        $defaultCode = if ($null -eq $defaultResult.ExitCode) { 'null' } else { $defaultResult.ExitCode }
+        return @{ Status = '실패'; Detail = "nvm default 종료 코드 $defaultCode" }
+    }
+    $defaultVersions = @(Get-SemverStrings -Lines $defaultResult.Output)
 
     if ($defaultVersions.Count -eq 0) {
         $useResult = Invoke-Nvm -Arguments @('use', $nodeLine)

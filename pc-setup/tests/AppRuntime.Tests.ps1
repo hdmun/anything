@@ -129,6 +129,28 @@ Describe 'Invoke-NvmApp' {
         $res.Status | Should -Be '다름'
         $res.Detail | Should -Be 'Node 26 줄 없음'
     }
+
+    It 'nvm default 가 비정상 종료 코드를 반환하면 실패하고 nvm use 를 부르지 않는다' {
+        $script:calls = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName AppRuntime Update-SessionPath {}
+        Mock -ModuleName AppRuntime Invoke-Nvm {
+            $script:calls.Add(($Arguments -join ' '))
+            switch ($Arguments[0]) {
+                'version' { return @{ ExitCode = 0; Output = @('2.0.1') } }
+                'list'    { return @{ ExitCode = 0; Output = @('* 23.3.0    (default)') } }
+                'install' { return @{ ExitCode = 0; Output = @('Installed Node.js v26.1.0') } }
+                'default' { return @{ ExitCode = 1; Output = @('error reading default') } }
+                default   { throw "예상치 못한 호출: $($Arguments -join ' ')" }
+            }
+        }
+
+        $entry = [pscustomobject]@{ Id = 'node'; Origin = 'nvm'; NodeLine = '26' }
+        $res = Invoke-NvmApp -Entry $entry -Check $false
+
+        $res.Status | Should -Be '실패'
+        $res.Detail | Should -Be 'nvm default 종료 코드 1'
+        $script:calls | Should -Not -Contain 'use 26'
+    }
 }
 
 Describe 'Invoke-PnpmApp' {
