@@ -386,7 +386,6 @@ if (`$Check) {
         $content = @"
 @{
     Items = @(
-        @{ Id = 'b'; Origin = 'scoop'; Bucket = 'main' }
         @{ Id = 'c'; Origin = 'nvm'; NodeLine = '26' }
         @{ Id = 'd'; Origin = 'pnpm' }
         @{ Id = 'e'; Origin = 'go' }
@@ -397,7 +396,7 @@ if (`$Check) {
         $root = (Get-Item 'TestDrive:/').FullName
 
         $items = Get-AppItems -Root $root
-        $expectedOrigins = @('scoop', 'nvm', 'pnpm', 'go')
+        $expectedOrigins = @('nvm', 'pnpm', 'go')
         for ($i = 0; $i -lt $expectedOrigins.Count; $i++) {
             $orig = $expectedOrigins[$i]
             { & $items[$i].Invoke $false } | Should -Throw "아직 구현되지 않은 원천: $orig"
