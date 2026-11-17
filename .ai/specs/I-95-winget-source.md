@@ -1,6 +1,6 @@
 > spec 스냅숏 — 정본은 구현 이슈다. 이 파일을 고치지 않는다.
 > 이슈: https://github.com/hdmun/anything/issues/95
-> updatedAt: 2026-11-15T08:58:26Z
+> updatedAt: 2026-11-17T11:51:13Z
 
 # winget 원천으로 앱을 확인하고 설치한다 (msstore·재부팅 코드 포함)
 
@@ -31,6 +31,7 @@
 
 - `pc-setup/lib/AppWinget.psm1` — 수정 (자리 → 구현)
 - `pc-setup/tests/AppWinget.Tests.ps1` — 신규
+- `pc-setup/tests/Apps.Tests.ps1` — 수정 (테스트 17 '아직 구현되지 않은 원천 예외' 에서 winget 항목만 뺀다. 나머지 원천 항목과 단언은 그대로 둔다)
 
 **이 목록 밖의 파일은 생성/수정 금지.**
 
