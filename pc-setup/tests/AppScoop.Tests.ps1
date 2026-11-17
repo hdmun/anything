@@ -302,4 +302,13 @@ Describe 'Install-Scoop' {
 
         $res | Should -BeFalse
     }
+
+    It '설치 스크립트가 비종료 오류(Write-Error)를 내면 $false 를 돌려준다' {
+        Mock -ModuleName AppScoop Test-AdminWindow { return $false }
+        Mock -ModuleName AppScoop Invoke-RestMethod { return "Write-Error 'install failed'" }
+
+        $res = Install-Scoop
+
+        $res | Should -BeFalse
+    }
 }

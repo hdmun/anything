@@ -58,6 +58,8 @@ function Install-Scoop {
         return $false
     }
 
+    $prevErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Stop'
     try {
         $script = Invoke-RestMethod -Uri 'https://get.scoop.sh'
         if ([string]::IsNullOrWhiteSpace($script)) {
@@ -67,6 +69,8 @@ function Install-Scoop {
         return $true
     } catch {
         return $false
+    } finally {
+        $ErrorActionPreference = $prevErrorAction
     }
 }
 
