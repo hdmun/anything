@@ -2,9 +2,11 @@
 Import-Module (Join-Path $PSScriptRoot 'Elevation.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Declaration.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'WindowsSettings.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Apps.psm1') -Force
 
 $script:DefaultStageProviders = @(
     { param($Root) Get-WindowsSettingItems -Root $Root }
+    { param($Root) Get-AppItems -Root $Root }
 )
 
 function Set-AnythingRepo {
