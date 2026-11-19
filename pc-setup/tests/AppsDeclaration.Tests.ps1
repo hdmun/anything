@@ -47,12 +47,14 @@ Describe '실제 앱 선언 (pc-setup/apps.psd1)' {
             'nvm',
             'node',
             'pnpm.pnpm',
-            '@openai/codex'
+            '@openai/codex',
+            'wsl',
+            'ubuntu-24.04'
         )
     }
 
-    It '저장소 pc-setup/apps.psd1 로 Get-AppItems 가 예외 없이 38개를 돌려준다' {
-        $script:items.Count | Should -Be 38
+    It '저장소 pc-setup/apps.psd1 로 Get-AppItems 가 예외 없이 40개를 돌려준다' {
+        $script:items.Count | Should -Be 40
         foreach ($item in $script:items) {
             $item.Stage | Should -Be '앱'
         }
@@ -63,7 +65,7 @@ Describe '실제 앱 선언 (pc-setup/apps.psd1)' {
         $actualIds | Should -Be $script:expectedIds
     }
 
-    It 'Elevated 인 항목이 정확히 Scope = machine 인 16개와 Python.Python.3.13 이다' {
+    It 'Elevated 인 항목이 정확히 기대 목록 18개다' {
         $expectedElevatedIds = @(
             'Git.Git',
             'Microsoft.PowerShell',
@@ -81,10 +83,11 @@ Describe '실제 앱 선언 (pc-setup/apps.psd1)' {
             'Google.AndroidStudio',
             'WinMerge.WinMerge',
             'Python.Python.3.13',
-            'GoLang.Go'
+            'GoLang.Go',
+            'wsl'
         )
         $actualElevatedIds = @($script:items | Where-Object { $_.Elevated } | ForEach-Object { $_.Id })
-        $actualElevatedIds.Count | Should -Be 17
+        $actualElevatedIds.Count | Should -Be 18
         $actualElevatedIds | Should -Be $expectedElevatedIds
     }
 

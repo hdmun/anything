@@ -51,5 +51,9 @@
         @{ Id = 'node'; Origin = 'nvm'; NodeLine = '26' }
         @{ Id = 'pnpm.pnpm'; Scope = 'user' }
         @{ Id = '@openai/codex'; Origin = 'pnpm' }
+
+        # 공식 배포
+        @{ Id = 'wsl'; Origin = 'official'; Elevated = $true }
+        @{ Id = 'ubuntu-24.04'; Origin = 'official' }
     )
 }
