@@ -1,6 +1,6 @@
 > spec 스냅숏 — 정본은 구현 이슈다. 이 파일을 고치지 않는다.
 > 이슈: https://github.com/hdmun/anything/issues/103
-> updatedAt: 2026-11-19T10:55:58Z
+> updatedAt: 2026-11-19T21:40:54Z
 
 # 공식 배포 agy·Claude Code 스크립트를 더한다
 
@@ -24,7 +24,7 @@
 
 ## 범위 밖 (건드리지 말 것)
 
-- `pc-setup/lib/*.psm1` 의 동작. `Add-UserPath -Prepend` 가 이미 PATH 에 있는 항목을 맨 앞으로 옮기지 않는다면 고치지 말고 `ask` 로 묻는다.
+- `pc-setup/lib/*.psm1` 의 동작. 단 `EnvPath.psm1` 의 `Add-UserPath` 하나는 아래 「`Add-UserPath` 바꾸기」대로 고친다. 그 모듈의 다른 함수와 다른 모듈은 건드리지 않는다.
 - **에이전트 폴더**(`~/.claude`·`~/.gemini`·agy 설정 폴더 등)와 로그인([에이전트 설정 디렉터리 경계 정하기](https://github.com/hdmun/anything/issues/64)).
 - npm 전역의 옛 claude-code·codex 를 지우는 것.
 - 다른 공식 배포 항목(다른 태스크).
@@ -34,7 +34,9 @@
 - `pc-setup/apps/agy.ps1` — 신규
 - `pc-setup/apps/claude-code.ps1` — 신규
 - `pc-setup/apps.psd1` — 수정 (끝에 2줄 추가)
+- `pc-setup/lib/EnvPath.psm1` — 수정 (`Add-UserPath` 만)
 - `pc-setup/tests/AppsDeclaration.Tests.ps1` — 수정 (실제 선언 기대값만 이 태스크가 더한 줄에 맞춘다. 단언을 약하게 바꾸지 않는다: 앱 수 42→44, `expectedIds` 끝에 `'agy'`·`'claude-code'`. Elevated 기대 목록과 수(19)는 그대로다. `It` 제목의 개수도 맞춘다: `...예외 없이 44개를 돌려준다`)
+- `pc-setup/tests/EnvPath.Tests.ps1` — 수정 (엣지 케이스 표의 `Add-UserPath` 행을 더한다. 기존 테스트는 고치지 않고 그대로 통과해야 한다)
 - `pc-setup/tests/OfficialAgentCli.Tests.ps1` — 신규
 
 **이 목록 밖의 파일은 생성/수정 금지.**
@@ -54,6 +56,19 @@ param([switch]$Check)
 ```powershell
 @{ Id = 'agy'; Origin = 'official' }
 @{ Id = 'claude-code'; Origin = 'official' }
+```
+
+`Add-UserPath` 는 시그니처를 그대로 두고 동작만 바꾼다:
+
+```powershell
+# pc-setup/lib/EnvPath.psm1
+function Add-UserPath {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [switch]$Prepend
+    )
+    # 사용자 PATH 를 바꿨으면 $true, 바꾸지 않았으면 $false
+}
 ```
 
 ## 동작 명세
@@ -77,6 +92,16 @@ param([switch]$Check)
 - 자식의 종료 코드가 0 이 아니면 `실패: 설치 스크립트 종료 코드 <n>`.
 - 설치 뒤 `Update-SessionPath` 를 불러 같은 셋업 실행의 다음 항목이 새 PATH 를 보게 한다. PATH 를 바꾼 뒤에도 부른다.
 
+**`Add-UserPath` 바꾸기** (`pc-setup/lib/EnvPath.psm1`)
+
+지금은 경로가 이미 있으면 `-Prepend` 여도 순서를 바꾸지 않고 `$false` 를 돌려준다. 그래서 손으로 설치해 `~/.local/bin` 이 PATH 중간에 있는 PC 에서는 순서가 바뀌지 않고 `-Check` 가 계속 `다름` 을 낸다. 아래처럼 바꾼다.
+
+- 비교: 각 항목과 `$Path` 의 환경 변수를 펼치고(`[Environment]::ExpandEnvironmentVariables`), 끝의 `\` 를 떼고, 대소문자를 무시한다.
+- `-Prepend` 없음: 같은 항목이 있으면 아무것도 쓰지 않고 `$false`. 없으면 맨 뒤에 `$Path` 를 넣고 `$true`. 비교에 환경 변수 펼치기가 더해진 것 말고는 지금과 같다.
+- `-Prepend`: 첫 항목이 같으면 아무것도 쓰지 않고 `$false`. 같은 항목이 다른 자리에 있으면 그 항목을 모두 빼고, 처음 찾은 항목을 **원래 꼴 그대로**(예: `%USERPROFILE%\.local\bin`) 맨 앞에 넣고 `$true`. 없으면 `$Path` 를 맨 앞에 넣고 `$true`. 나머지 항목의 순서는 그대로 둔다.
+- 바꿨을 때만 `Set-UserPathEntries` 와 `Update-SessionPath` 를 부른다.
+- pnpm 처리(`pc-setup/lib/AppRuntime.psm1:182`)는 `-Prepend` 없이 부른다. 그 호출은 위 규칙대로 펼친 꼴의 중복도 찾게 되는 것 말고는 바뀌지 않는다. `AppRuntime.psm1` 은 고치지 않는다.
+
 **시험할 수 있는 구조** (1번 구현 이슈의 `windows/*.ps1` 과 같은 방식)
 
 - 읽기(실행 파일 존재, 사용자 PATH 읽기), 쓰기(설치 명령 실행, `Add-UserPath`, `Update-SessionPath`)를 스크립트 안의 작은 함수로 나눈다.
@@ -98,6 +123,11 @@ param([switch]$Check)
 | claude-code | 실행 파일 있음 + PATH 셋째 항목(손으로 설치한 경우) | 설치 안 불림, `Add-UserPath -Prepend` 1번, 바꿈 |
 | claude-code | 실행 파일 없음 → 설치 → 생김 + PATH 없음 | 설치 1번, `-Prepend` 1번, 바꿈 |
 | claude-code | 설치 자식 종료 코드 1 | `실패: 설치 스크립트 종료 코드 1` |
+| `Add-UserPath` | `-Prepend`, 같은 경로가 셋째 항목 | 그 항목이 맨 앞으로 옮겨지고 나머지 순서는 그대로, 중복 없음, `$true` |
+| `Add-UserPath` | `-Prepend`, 이미 첫 항목(대소문자·끝 `\` 다름) | `$false`, `Set-UserPathEntries`·`Update-SessionPath` 안 불림 |
+| `Add-UserPath` | `-Prepend`, 둘째 항목이 `%USERPROFILE%\.local\bin`(펼치지 않은 꼴)이고 `$Path` 는 펼친 값 | `%USERPROFILE%\.local\bin` 꼴 그대로 맨 앞, `$true` |
+| `Add-UserPath` | `-Prepend`, 같은 경로가 둘째·넷째에 두 번 | 둘 다 빠지고 하나만 맨 앞, `$true` |
+| `Add-UserPath` | `-Prepend` 없음, `%LOCALAPPDATA%\pnpm` 꼴로 이미 있고 `$Path` 는 펼친 값 | `$false`, `Set-UserPathEntries` 안 불림 |
 
 실제 선언: 저장소 `apps.psd1` 에 `agy`·`claude-code` 가 `Origin='official'`, `Elevated` 없이 있고 앱 선언 검사를 통과한다.
 
@@ -107,13 +137,16 @@ param([switch]$Check)
 
 ## 기존 코드 참조
 
-- `pc-setup/lib/EnvPath.psm1` — `Update-SessionPath`·`Add-UserPath`. 3번 구현 이슈의 nvm·pnpm·go 처리가 쓰는 방식을 따른다.
+- `pc-setup/lib/EnvPath.psm1` — `Update-SessionPath`·`Add-UserPath`(이 태스크가 고친다)·`Get-UserPathEntries`·`Set-UserPathEntries`. 3번 구현 이슈의 nvm·pnpm·go 처리가 쓰는 방식을 따른다.
+- `pc-setup/tests/EnvPath.Tests.ps1` — 기존 `Add-UserPath` 테스트 모양(`Get-UserPathEntries`·`Set-UserPathEntries` 를 `Mock -ModuleName EnvPath`).
+- `pc-setup/lib/AppRuntime.psm1:182` — `-Prepend` 없이 부르는 pnpm 처리.
 - `pc-setup/windows/Power.ps1`·`pc-setup/tests/WindowsScripts.Tests.ps1` — 항목 스크립트를 함수로 나누고 dot-source 로 시험하는 방식.
 
 ## 인수 조건
 
 - [ ] 엣지 케이스 표의 모든 행이 테스트로 있다.
 - [ ] 테스트가 네트워크에 나가지 않고, 실제 사용자 PATH 를 바꾸지 않는다.
+- [ ] 기존 `EnvPath.Tests.ps1`·`AppRuntime.Tests.ps1` 의 테스트를 고치지 않고 그대로 통과한다.
 - [ ] `pwsh -NoProfile -File pc-setup/setup.ps1 -Check` 가 이 PC 에서 `[앱] agy: 그대로` 와 `[앱] claude-code: 다름 (...)` 를 출력하고 `실패` 0개로 끝난다.
 - [ ] 게이트 명령: `pwsh -NoProfile -Command "Invoke-Pester -Path pc-setup/tests -CI" && pwsh -NoProfile -File pc-setup/setup.ps1 -Check` — 저장소 루트(Git Bash)에서 돌리고 종료코드로 판정한다
 
