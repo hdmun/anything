@@ -83,25 +83,43 @@ public static class Win32SettingChange {
 }
 
 function Add-UserPath {
-    # 사용자 PATH 에 $Path 가 없을 때만 넣는다(-Prepend 면 맨 앞, 아니면 맨 뒤). 바꿨으면 $true, 이미 있으면 $false.
-    # 넣은 뒤 Update-SessionPath 를 부른다.
+    # 사용자 PATH 에 $Path 를 넣는다(-Prepend 면 맨 앞, 아니면 맨 뒤). 바꿨으면 $true, 이미 제자리에 있으면 $false.
+    # 바꿨을 때만 Set-UserPathEntries 와 Update-SessionPath 를 부른다.
     param(
         [Parameter(Mandatory)][string]$Path,
         [switch]$Prepend
     )
 
-    $normalizedTarget = $Path.TrimEnd('\')
+    $normalizedTarget = [System.Environment]::ExpandEnvironmentVariables($Path).TrimEnd('\')
     $entries = @(Get-UserPathEntries)
-    foreach ($entry in $entries) {
-        if ($entry.TrimEnd('\') -ieq $normalizedTarget) {
+
+    if (-not $Prepend) {
+        foreach ($entry in $entries) {
+            if ([System.Environment]::ExpandEnvironmentVariables($entry).TrimEnd('\') -ieq $normalizedTarget) {
+                return $false
+            }
+        }
+
+        $newEntries = $entries + @($Path)
+    } else {
+        if ($entries.Count -gt 0 -and [System.Environment]::ExpandEnvironmentVariables($entries[0]).TrimEnd('\') -ieq $normalizedTarget) {
             return $false
         }
-    }
 
-    $newEntries = if ($Prepend) {
-        @($Path) + $entries
-    } else {
-        $entries + @($Path)
+        $firstMatch = $null
+        $remaining = [System.Collections.Generic.List[string]]::new()
+        foreach ($entry in $entries) {
+            if ([System.Environment]::ExpandEnvironmentVariables($entry).TrimEnd('\') -ieq $normalizedTarget) {
+                if ($null -eq $firstMatch) {
+                    $firstMatch = $entry
+                }
+            } else {
+                $remaining.Add($entry)
+            }
+        }
+
+        $head = if ($null -ne $firstMatch) { $firstMatch } else { $Path }
+        $newEntries = @($head) + @($remaining)
     }
 
     Set-UserPathEntries -Entries $newEntries

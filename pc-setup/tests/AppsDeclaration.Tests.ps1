@@ -51,12 +51,14 @@ Describe '실제 앱 선언 (pc-setup/apps.psd1)' {
             'wsl',
             'ubuntu-24.04',
             'raidrive',
-            'd2coding'
+            'd2coding',
+            'agy',
+            'claude-code'
         )
     }
 
-    It '저장소 pc-setup/apps.psd1 로 Get-AppItems 가 예외 없이 42개를 돌려준다' {
-        $script:items.Count | Should -Be 42
+    It '저장소 pc-setup/apps.psd1 로 Get-AppItems 가 예외 없이 44개를 돌려준다' {
+        $script:items.Count | Should -Be 44
         foreach ($item in $script:items) {
             $item.Stage | Should -Be '앱'
         }

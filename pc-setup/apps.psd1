@@ -57,5 +57,7 @@
         @{ Id = 'ubuntu-24.04'; Origin = 'official' }
         @{ Id = 'raidrive'; Origin = 'official'; Elevated = $true }
         @{ Id = 'd2coding'; Origin = 'official' }
+        @{ Id = 'agy'; Origin = 'official' }
+        @{ Id = 'claude-code'; Origin = 'official' }
     )
 }
