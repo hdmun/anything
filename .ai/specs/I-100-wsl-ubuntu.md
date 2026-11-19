@@ -1,6 +1,6 @@
 > spec 스냅숏 — 정본은 구현 이슈다. 이 파일을 고치지 않는다.
 > 이슈: https://github.com/hdmun/anything/issues/100
-> updatedAt: 2026-11-15T08:58:31Z
+> updatedAt: 2026-11-19T10:55:55Z
 
 # 공식 배포 WSL·Ubuntu 24.04 스크립트를 더한다
 
@@ -34,6 +34,7 @@
 - `pc-setup/apps/wsl.ps1` — 신규
 - `pc-setup/apps/ubuntu-24.04.ps1` — 신규
 - `pc-setup/apps.psd1` — 수정 (끝에 2줄 추가)
+- `pc-setup/tests/AppsDeclaration.Tests.ps1` — 수정 (실제 선언 기대값만 이 태스크가 더한 줄에 맞춘다. 단언을 약하게 바꾸지 않는다: 앱 수 38→40, `expectedIds` 끝에 `'wsl'`·`'ubuntu-24.04'`, Elevated 기대 목록 끝(`'GoLang.Go'` 다음)에 `'wsl'`, Elevated 수 17→18. `It` 제목의 개수도 맞춘다: `...예외 없이 40개를 돌려준다`, `Elevated 인 항목이 정확히 기대 목록 18개다`)
 - `pc-setup/tests/OfficialWsl.Tests.ps1` — 신규
 
 **이 목록 밖의 파일은 생성/수정 금지.**
