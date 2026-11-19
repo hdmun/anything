@@ -32,7 +32,14 @@ function Invoke-FileDownload {
 
 function Invoke-MsiExec {
     param([Parameter(Mandatory)][string[]]$Arguments)
-    $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList $Arguments -NoNewWindow -Wait -PassThru
+    $quotedArgs = @(foreach ($arg in $Arguments) {
+        if ($arg -match '\s' -and -not ($arg.StartsWith('"') -and $arg.EndsWith('"'))) {
+            "`"$arg`""
+        } else {
+            $arg
+        }
+    })
+    $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList $quotedArgs -NoNewWindow -Wait -PassThru
     return $proc.ExitCode
 }
 

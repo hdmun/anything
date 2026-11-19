@@ -95,6 +95,18 @@
             Should -Invoke Invoke-FileDownload -Times 0
             Should -Invoke Invoke-MsiExec -Times 0
         }
+
+        It 'Invoke-MsiExec 는 공백이 있는 인자를 큰따옴표로 감싸 Start-Process 에 넘긴다' {
+            Mock Start-Process { [pscustomobject]@{ ExitCode = 0 } }
+
+            $exitCode = Invoke-MsiExec -Arguments @('/i', 'C:\Users\Jane Doe\AppData\Local\Temp\RaiDrive.msi', '/qn', '/norestart')
+            $exitCode | Should -Be 0
+
+            Should -Invoke Start-Process -Times 1 -ParameterFilter {
+                ($FilePath -eq 'msiexec.exe') -and
+                ($ArgumentList -contains '"C:\Users\Jane Doe\AppData\Local\Temp\RaiDrive.msi"')
+            }
+        }
     }
 
     Describe 'd2coding' {
