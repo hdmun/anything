@@ -55,5 +55,7 @@
         # 공식 배포
         @{ Id = 'wsl'; Origin = 'official'; Elevated = $true }
         @{ Id = 'ubuntu-24.04'; Origin = 'official' }
+        @{ Id = 'raidrive'; Origin = 'official'; Elevated = $true }
+        @{ Id = 'd2coding'; Origin = 'official' }
     )
 }
