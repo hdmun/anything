@@ -53,8 +53,8 @@ function Test-GitAvailable {
 
 function Invoke-GitClone {
     param([Parameter(Mandatory)][string[]]$Arguments)
-    $proc = Start-Process -FilePath 'git' -ArgumentList $Arguments -NoNewWindow -Wait -PassThru
-    return $proc.ExitCode
+    & git @Arguments | Out-Host
+    return $LASTEXITCODE
 }
 
 function Add-UserPathEntry {

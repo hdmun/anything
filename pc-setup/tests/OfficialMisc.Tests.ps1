@@ -110,6 +110,30 @@
                 (-not $Prepend) -and ($Path -eq $flutterBinDir)
             }
         }
+
+        It 'USERPROFILE 경로에 공백이 있어도 목적지 경로를 하나의 인자로 전달한다' {
+            $origProfile = $env:USERPROFILE
+            try {
+                $env:USERPROFILE = 'C:\Users\Jane Doe'
+                Mock Test-FlutterBatExists { return $false }
+                Mock Test-FlutterDirExists { return $false }
+                Mock Test-GitAvailable { return $true }
+                Mock Ensure-Directory {}
+                Mock Invoke-GitClone { return 0 }
+                Mock Get-UserPathEntries { return @('C:\Users\Jane Doe\develop\flutter\bin') }
+                Mock Add-UserPath { return $true }
+                Mock Update-SessionPath {}
+
+                $res = Invoke-Main -Check:$false
+                $res | Should -Be '바꿈'
+
+                Should -Invoke Invoke-GitClone -Times 1 -ParameterFilter {
+                    $Arguments.Count -eq 5 -and $Arguments[4] -eq 'C:\Users\Jane Doe\develop\flutter'
+                }
+            } finally {
+                $env:USERPROFILE = $origProfile
+            }
+        }
     }
 
     Describe 'nvidia-driver' {
