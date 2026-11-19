@@ -23,7 +23,11 @@ function Invoke-WslListRaw {
     $env:WSL_UTF8 = '1'
     try {
         $output = & wsl.exe -l -q 2>&1
-        return ($output -join "`n")
+        $exitCode = $LASTEXITCODE
+        return [pscustomobject]@{
+            ExitCode = $exitCode
+            Output   = ($output -join "`n")
+        }
     } finally {
         if ($null -eq $prev) {
             Remove-Item Env:WSL_UTF8 -ErrorAction SilentlyContinue
@@ -34,7 +38,11 @@ function Invoke-WslListRaw {
 }
 
 function Get-WslDistros {
-    $raw = Invoke-WslListRaw
+    $result = Invoke-WslListRaw
+    if ($null -eq $result -or $result.ExitCode -ne 0) {
+        return @()
+    }
+    $raw = $result.Output
     if ([string]::IsNullOrEmpty($raw)) {
         return @()
     }

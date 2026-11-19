@@ -135,6 +135,33 @@
             }
         }
 
+        It '가짜 목록 읽기가 종료 코드 1 과 오류 문구를 돌려줌(배포판 0개인 새 PC) -> 빈 목록으로 본다' {
+            Mock Get-WslPackage { [pscustomobject]@{ Name = 'MicrosoftCorporationII.WindowsSubsystemForLinux' } }
+            Mock Get-FeatureState { return 1 }
+            Mock Test-WslCommand { return $true }
+            Mock Invoke-WslListRaw {
+                [pscustomobject]@{
+                    ExitCode = 1
+                    Output   = "There are no installed distributions.`nError code: Wsl/WSL_E_DEFAULT_DISTRO_NOT_FOUND"
+                }
+            }
+            Mock Invoke-Wsl { return 0 }
+
+            @(Get-WslDistros).Count | Should -Be 0
+
+            $resCheck = Invoke-Main -Check:$true
+            $resCheck | Should -Be '다름 (배포판 없음)'
+            Should -Invoke Invoke-Wsl -Times 0
+
+            $resFix = Invoke-Main -Check:$false
+            Should -Invoke Invoke-Wsl -Times 1 -ParameterFilter {
+                ($Arguments -contains '--install') -and
+                ($Arguments -contains '-d') -and
+                ($Arguments -contains 'Ubuntu-24.04') -and
+                ($Arguments -contains '--no-launch')
+            }
+        }
+
         It 'WSL 쓸 수 없음 -> 설치 안 불림, 할 일: 재부팅 후 셋업 다시 실행' {
             Mock Get-WslPackage { return $null }
             Mock Get-FeatureState { return 2 }
@@ -170,7 +197,12 @@
 
         It '목록 출력에 NUL 이 섞인 UTF-16 문자열이 와도 Get-WslDistros 가 NUL 을 지우고 같은 결과' {
             $utf16Like = "U`0b`0u`0n`0t`0u`0-`02`04`0.`00`04`0`r`n`0d`0o`0c`0k`0e`0r`0-`0d`0e`0s`0k`0t`0o`0p`0"
-            Mock Invoke-WslListRaw { return $utf16Like }
+            Mock Invoke-WslListRaw {
+                [pscustomobject]@{
+                    ExitCode = 0
+                    Output   = $utf16Like
+                }
+            }
 
             $distros = Get-WslDistros
             $distros | Should -Be @('Ubuntu-24.04', 'docker-desktop')
