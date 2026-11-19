@@ -59,5 +59,8 @@
         @{ Id = 'd2coding'; Origin = 'official' }
         @{ Id = 'agy'; Origin = 'official' }
         @{ Id = 'claude-code'; Origin = 'official' }
+        @{ Id = 'flutter'; Origin = 'official' }
+        @{ Id = 'nvidia-driver'; Origin = 'official' }
+        @{ Id = 'pester'; Origin = 'official' }
     )
 }

@@ -53,12 +53,15 @@ Describe '실제 앱 선언 (pc-setup/apps.psd1)' {
             'raidrive',
             'd2coding',
             'agy',
-            'claude-code'
+            'claude-code',
+            'flutter',
+            'nvidia-driver',
+            'pester'
         )
     }
 
-    It '저장소 pc-setup/apps.psd1 로 Get-AppItems 가 예외 없이 44개를 돌려준다' {
-        $script:items.Count | Should -Be 44
+    It '저장소 pc-setup/apps.psd1 로 Get-AppItems 가 예외 없이 47개를 돌려준다' {
+        $script:items.Count | Should -Be 47
         foreach ($item in $script:items) {
             $item.Stage | Should -Be '앱'
         }
