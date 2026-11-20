@@ -11,7 +11,11 @@ function Get-RdpNotifyTask {
 }
 
 function Get-ExpectedArguments {
-    $xmlText = & "$PSScriptRoot\register.ps1" -PrintXml
+    $psExe = (Get-Process -Id $PID).Path
+    $xmlText = & $psExe -NoProfile -File "$PSScriptRoot\register.ps1" -PrintXml
+    if ($LASTEXITCODE -ne 0) {
+        throw "register.ps1 -PrintXml 종료 코드 $LASTEXITCODE"
+    }
     if ($xmlText -is [array]) {
         $xmlText = $xmlText -join "`n"
     }
@@ -20,8 +24,8 @@ function Get-ExpectedArguments {
 }
 
 function Invoke-Register {
-    $global:LASTEXITCODE = 0
-    & "$PSScriptRoot\register.ps1"
+    $psExe = (Get-Process -Id $PID).Path
+    & $psExe -NoProfile -File "$PSScriptRoot\register.ps1" | Out-Host
     return $LASTEXITCODE
 }
 
