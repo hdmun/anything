@@ -51,5 +51,16 @@
         @{ Id = 'node'; Origin = 'nvm'; NodeLine = '26' }
         @{ Id = 'pnpm.pnpm'; Scope = 'user' }
         @{ Id = '@openai/codex'; Origin = 'pnpm' }
+
+        # 공식 배포
+        @{ Id = 'wsl'; Origin = 'official'; Elevated = $true }
+        @{ Id = 'ubuntu-24.04'; Origin = 'official' }
+        @{ Id = 'raidrive'; Origin = 'official'; Elevated = $true }
+        @{ Id = 'd2coding'; Origin = 'official' }
+        @{ Id = 'agy'; Origin = 'official' }
+        @{ Id = 'claude-code'; Origin = 'official' }
+        @{ Id = 'flutter'; Origin = 'official' }
+        @{ Id = 'nvidia-driver'; Origin = 'official' }
+        @{ Id = 'pester'; Origin = 'official' }
     )
 }
