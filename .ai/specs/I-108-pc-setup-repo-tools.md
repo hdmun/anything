@@ -1,6 +1,6 @@
 > spec 스냅숏 — 정본은 구현 이슈다. 이 파일을 고치지 않는다.
 > 이슈: https://github.com/hdmun/anything/issues/108
-> updatedAt: 2026-11-20T06:24:03Z
+> updatedAt: 2026-11-20T08:18:25Z
 
 # 저장소 도구 단계와 rdp-notify 의 install.ps1 을 만든다
 
@@ -42,6 +42,7 @@
 - `rdp-notify/install.ps1` — 신규 (UTF-8 BOM 포함)
 - `pc-setup/lib/Setup.psm1` — 수정 (`$script:DefaultStageProviders` 맨 끝에 저장소 도구 단계 추가)
 - `pc-setup/tests/AppsDeclaration.Tests.ps1` — 수정 ('Setup 기본 단계 등록' 테스트만: 기본 단계 수 단언을 `3` → `4` 로, 넷째 단계가 `저장소 도구` 임을 확인. `Get-RepoToolItems` 모킹(Stage `저장소 도구`, Id `FakeRepoTool`)을 더하고 `Results.Count` 를 `4` 로, `Results[3]` 의 Stage·Id 를 단언한다. 다른 테스트는 건드리지 않는다)
+- `pc-setup/tests/ConfigFiles.Tests.ps1` — 수정 ('Setup.psm1 의 기본 단계 목록으로 만든 항목의 Stage 순서가 Windows 설정 -> 앱 -> 설정 파일 이다' 테스트 하나만 지운다. 4단계 순서 단언은 `RepoTools.Tests.ps1` 의 새 테스트와 겹친다. 다른 테스트는 건드리지 않는다)
 - `pc-setup/tests/RepoTools.Tests.ps1` — 신규
 - `pc-setup/tests/RdpNotifyInstall.Tests.ps1` — 신규
 
