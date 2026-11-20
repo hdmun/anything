@@ -452,3 +452,77 @@ Describe 'Invoke-GitIncludeFile' {
         $raw | Should -Be "[include]`r`n`tpath = `"$($script:desiredForward)`"`r`n$existingCrlf"
     }
 }
+
+Describe '실제 설정 파일 선언과 저장소 파일 (pc-setup/config-files.psd1)' {
+    BeforeAll {
+        $script:pcSetupRoot = Join-Path $PSScriptRoot '..'
+        $script:configDir = Join-Path $script:pcSetupRoot 'config'
+        $script:realItems = Get-ConfigFileItems -Root $script:pcSetupRoot
+    }
+
+    It '저장소 config-files.psd1 이 Get-ConfigFileItems 검사를 통과하고, 항목 3개의 Id 순서와 Elevated=$false 가 맞다' {
+        $script:realItems.Count | Should -Be 3
+        $expectedIds = @(
+            '~/.gitconfig'
+            '$env:LOCALAPPDATA/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json'
+            '~/.nanorc'
+        )
+        @($script:realItems | ForEach-Object { $_.Id }) | Should -Be $expectedIds
+        foreach ($item in $script:realItems) {
+            $item.Stage | Should -Be '설정 파일'
+            $item.Elevated | Should -BeFalse
+        }
+    }
+
+    It '세 Source 파일이 pc-setup/config/ 에 있다' {
+        (Test-Path -LiteralPath (Join-Path $script:configDir 'gitconfig') -PathType Leaf) | Should -BeTrue
+        (Test-Path -LiteralPath (Join-Path $script:configDir 'windows-terminal.json') -PathType Leaf) | Should -BeTrue
+        (Test-Path -LiteralPath (Join-Path $script:configDir 'nanorc') -PathType Leaf) | Should -BeTrue
+    }
+
+    It 'config/nanorc 의 주석·빈 줄이 아닌 줄이 정확히 include "~/scoop/apps/nano/current/syntax/*.nanorc" 하나다' {
+        $lines = Get-Content -LiteralPath (Join-Path $script:configDir 'nanorc') -Encoding UTF8
+        $activeLines = @($lines | Where-Object { $_ -notmatch '^\s*(#|$)' })
+        $activeLines.Count | Should -Be 1
+        $activeLines[0] | Should -Be 'include "~/scoop/apps/nano/current/syntax/*.nanorc"'
+    }
+
+    It 'config/windows-terminal.json 이 ConvertFrom-Json 으로 읽힌다' {
+        $raw = Get-Content -LiteralPath (Join-Path $script:configDir 'windows-terminal.json') -Raw -Encoding UTF8
+        { $raw | ConvertFrom-Json } | Should -Not -Throw
+        $parsed = $raw | ConvertFrom-Json
+        $parsed | Should -Not -BeNullOrEmpty
+    }
+
+    It '유출 검사: pc-setup/config/ 의 모든 파일에 사용자 폴더 절대 경로·IPv4 가 없고, gitconfig email 이 @users.noreply.github.com 으로 끝난다' {
+        $configFiles = Get-ChildItem -LiteralPath $script:configDir -File
+        $configFiles.Count | Should -BeGreaterOrEqual 3
+        foreach ($f in $configFiles) {
+            $content = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8
+            $content | Should -Not -Match '[A-Za-z]:[\\/]Users[\\/]'
+            $content | Should -Not -Match '\b\d{1,3}(\.\d{1,3}){3}\b'
+        }
+
+        $gitconfigLines = Get-Content -LiteralPath (Join-Path $script:configDir 'gitconfig') -Encoding UTF8
+        $emailLine = @($gitconfigLines | Where-Object { $_ -match '^\s*email\s*=\s*(.+)$' })
+        $emailLine.Count | Should -Be 1
+        $emailValue = ($emailLine[0] -replace '^\s*email\s*=\s*', '').Trim()
+        $emailValue | Should -Match '@users\.noreply\.github\.com$'
+    }
+
+    It 'Setup.psm1 의 기본 단계 목록으로 만든 항목의 Stage 순서가 Windows 설정 -> 앱 -> 설정 파일 이다' {
+        Import-Module (Join-Path $script:pcSetupRoot 'lib' 'Setup.psm1') -Force
+        $providers = InModuleScope Setup { $script:DefaultStageProviders }
+        $observedStages = [System.Collections.Generic.List[string]]::new()
+        foreach ($provider in $providers) {
+            $items = & $provider $script:pcSetupRoot
+            foreach ($it in $items) {
+                $stage = if ($it -is [System.Collections.IDictionary]) { $it['Stage'] } else { $it.Stage }
+                if ($observedStages.Count -eq 0 -or $observedStages[$observedStages.Count - 1] -ne $stage) {
+                    $observedStages.Add($stage)
+                }
+            }
+        }
+        $observedStages.ToArray() | Should -Be @('Windows 설정', '앱', '설정 파일')
+    }
+}

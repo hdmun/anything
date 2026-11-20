@@ -116,9 +116,9 @@ Describe '실제 앱 선언 (pc-setup/apps.psd1)' {
 }
 
 Describe 'Setup 기본 단계 등록' {
-    It 'Setup.psm1 의 기본 단계가 둘이고, 두 번째가 앱 단계다 (Windows 설정 -> 앱)' {
+    It 'Setup.psm1 의 기본 단계가 셋이고, 셋째가 설정 파일 단계다 (Windows 설정 -> 앱 -> 설정 파일)' {
         $providersCount = InModuleScope Setup { $script:DefaultStageProviders.Count }
-        $providersCount | Should -Be 2
+        $providersCount | Should -Be 3
 
         Mock -ModuleName Setup Get-WindowsSettingItems {
             @(@{
@@ -136,6 +136,14 @@ Describe 'Setup 기본 단계 등록' {
                 Invoke   = { param($c) @{ Status = '그대로'; Detail = '' } }
             })
         }
+        Mock -ModuleName Setup Get-ConfigFileItems {
+            @(@{
+                Id       = 'FakeConfigFile'
+                Stage    = '설정 파일'
+                Elevated = $false
+                Invoke   = { param($c) @{ Status = '그대로'; Detail = '' } }
+            })
+        }
 
         $testRoot = (Get-Item 'TestDrive:/').FullName
         $resultFile = Join-Path $testRoot 'setup-stage-order.json'
@@ -143,10 +151,12 @@ Describe 'Setup 기본 단계 등록' {
         $exitCode | Should -Be 0
 
         $json = Get-Content -LiteralPath $resultFile -Raw | ConvertFrom-Json
-        $json.Results.Count | Should -Be 2
+        $json.Results.Count | Should -Be 3
         $json.Results[0].Stage | Should -Be 'Windows 설정'
         $json.Results[0].Id | Should -Be 'FakeWinSetting'
         $json.Results[1].Stage | Should -Be '앱'
         $json.Results[1].Id | Should -Be 'FakeApp'
+        $json.Results[2].Stage | Should -Be '설정 파일'
+        $json.Results[2].Id | Should -Be 'FakeConfigFile'
     }
 }

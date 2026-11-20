@@ -1,0 +1,10 @@
+[user]
+	name = hdmun
+	email = 48820928+hdmun@users.noreply.github.com
+[filter "lfs"]
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+[core]
+	longpaths = true
