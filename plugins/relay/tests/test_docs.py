@@ -102,6 +102,19 @@ class OrcaGuideIsTheSource(unittest.TestCase):
         self.assertNotIn("`orchestration`", HANDOFF_MD)  # handoff 는 워크트리와 진행자만 띄운다 — Run 은 진행자 것
         self.assertNotIn("`orchestration`", BATCH_MD)
 
+    def test_every_referenced_file_exists(self):
+        # `skills/…`·`$RELAY/skills/…` 는 플러그인 루트 기준, 맨 `references/…` 는 그 문서가 속한 스킬 기준이다
+        # (references/*.md 안에서도 같다). 회귀: batch SKILL.md 가 relay 의 merge.md 를 자기 references/ 로 적었다
+        ref = re.compile(r"((?:skills/[a-z]+/)?references/[A-Za-z0-9_.-]+\.(?:md|json))")
+        missing = []
+        for skill in (SKILL_DIR, HANDOFF_DIR, SPEC_DIR, BATCH_DIR):
+            for doc in skill.rglob("*.md"):
+                for target in ref.findall(doc.read_text(encoding="utf-8")):
+                    path = PLUGIN_ROOT / target if target.startswith("skills/") else skill / target
+                    if not path.exists():
+                        missing.append("%s → %s" % (doc.relative_to(PLUGIN_ROOT).as_posix(), target))
+        self.assertEqual(missing, [])
+
     def test_deviations_from_orca_defaults_sit_after_invariants(self):
         # 컴팩션 뒤에도 남게 SKILL.md 앞부분, 불변식 바로 다음에 둔다
         i, j, k = (SKILL_MD.index(h) for h in ("## 불변식", "## Orca 기본과 다른 점", "## 단계 목록"))
