@@ -14,11 +14,13 @@ PC: <PC 이름>
 
 ## 설치 (약 5분)
 
+`<저장소>` 는 이 저장소를 받은 폴더다(새 PC 는 `$HOME\anything`). 셋업을 돌린 PC 에서는 환경 변수 `ANYTHING_REPO` 에 이 경로가 들어 있다.
+
 1. 디스코드 채널 설정 → 연동 → 웹후크 → 새 웹후크 → **웹후크 URL 복사**
 2. env 파일을 만든다. 열린 메모장에서 `DISCORD_WEBHOOK_URL=` 뒤의 견본 URL을 복사한 URL로 바꾸고 저장한다:
 
    ```powershell
-   cd "$env:USERPROFILE\scripts\rdp-notify"
+   cd "<저장소>\rdp-notify"
    Copy-Item rdp-notify.env.example rdp-notify.env
    notepad rdp-notify.env
    ```
@@ -27,7 +29,7 @@ PC: <PC 이름>
 4. 관리자 창에서 등록한다. 두 줄을 그대로 붙여 넣는다:
 
    ```powershell
-   cd "$env:USERPROFILE\scripts\rdp-notify"
+   cd "<저장소>\rdp-notify"
    .\register.ps1
    ```
 
@@ -57,7 +59,7 @@ Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-TerminalServices-L
     Select-Object TimeCreated, Id, RecordId
 
 # 그중 하나로 미리 보기 (-DryRun 을 빼면 실제로 보낸다)
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\scripts\rdp-notify\rdp-notify.ps1" -RecordId <RecordId> -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "<저장소>\rdp-notify\rdp-notify.ps1" -RecordId <RecordId> -DryRun
 ```
 
 작업 스케줄러에서 `RdpNotify`를 직접 "실행"하면 `$(RecordId)` 값이 채워지지 않아 실패한다. 수동으로 확인할 때는 위처럼 스크립트를 바로 실행한다.
@@ -67,7 +69,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\script
 실행할 때마다 `logs/rdp-notify-YYYYMM.log`에 한 줄을 남긴다. 최근 5줄 보기:
 
 ```powershell
-Get-Content "$env:USERPROFILE\scripts\rdp-notify\logs\rdp-notify-$(Get-Date -Format yyyyMM).log" -Tail 5
+Get-Content "<저장소>\rdp-notify\logs\rdp-notify-$(Get-Date -Format yyyyMM).log" -Tail 5
 ```
 
 - 결과 값: `sent`(보냄), `skipped`(RDP 접속 아님), `dryrun`(미리 보기), `error`(이벤트나 웹훅 URL 없음), `failed`(3번 시도 후 전송 실패)
@@ -79,7 +81,7 @@ Get-Content "$env:USERPROFILE\scripts\rdp-notify\logs\rdp-notify-$(Get-Date -For
 | 증상 | 원인과 해결 |
 |---|---|
 | `관리자 권한이 필요하다...` | 관리자 창이 아니다. [설치](#설치-약-5분) 3번으로 창을 다시 연다 |
-| `식 또는 문에서 예기치 않은 '\scripts\...' 토큰입니다` | `$env:USERPROFILE\...` 경로를 `&`와 따옴표 없이 입력했다. 설치 4번의 `cd` 두 줄을 쓴다 |
+| `식 또는 문에서 예기치 않은 '<저장소>\...' 토큰입니다` | `<저장소>\...` 경로를 `&`와 따옴표 없이 입력했다. 설치 4번의 `cd` 두 줄을 쓴다 |
 | `Get-ScheduledTask`에서 `'RdpNotify'와(과) 같은 MSFT_ScheduledTask 개체를 찾을 수 없습니다` | 일반 창에서는 SYSTEM 작업이 보이지 않는다. 관리자 창에서 실행한다 |
 | `Get-ScheduledTaskInfo`에서 `액세스가 거부되었습니다` | 일반 창이다. 로그로 확인하거나 관리자 창에서 실행한다 |
 | 알림이 안 오고 로그 마지막 줄이 `error ... reason=no-webhook-url` | `rdp-notify.env`가 없거나 URL 줄이 틀렸다. 설치 2번을 다시 한다 |
@@ -97,7 +99,7 @@ Get-Content "$env:USERPROFILE\scripts\rdp-notify\logs\rdp-notify-$(Get-Date -For
 관리자 창에서:
 
 ```powershell
-cd "$env:USERPROFILE\scripts\rdp-notify"
+cd "<저장소>\rdp-notify"
 .\register.ps1 -Unregister
 ```
 

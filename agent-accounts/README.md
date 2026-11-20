@@ -8,10 +8,12 @@
 
 ## 설치 (1분)
 
+`<저장소>` 는 이 저장소를 받은 폴더다(새 PC 는 `$HOME\anything`). 셋업을 돌린 PC 에서는 환경 변수 `ANYTHING_REPO` 에 이 경로가 들어 있다.
+
 1. 프로필에 한 줄 넣는다:
 
    ```powershell
-   Add-Content $PROFILE '. "$env:USERPROFILE\scripts\agent-accounts\AgentAccounts.ps1"'
+   Add-Content $PROFILE '. "<저장소>\agent-accounts\AgentAccounts.ps1"'
    ```
 
 2. 새 PowerShell 창을 연다. 처음 불러올 때 `accounts.example.psd1` 이 `accounts.psd1` 로 복사된다 (git 에 안 올라감).
