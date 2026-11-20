@@ -155,7 +155,7 @@ plugins/relay/
    python -m unittest discover -s plugins/relay/tests
    ```
 
-2. `SKILL.md`나 `templates/`를 바꿨으면 버전을 올리기 전에 평가를 돌린다. 케이스당 3회 × 플러그인 있음/없음 = 30회 실행이라 비용이 든다.
+2. `SKILL.md`나 `templates/`를 바꿨으면 버전을 올리기 전에 평가를 돌린다. 케이스 12개 × 3회 × 플러그인 있음/없음 = 72회 실행이라 비용이 든다.
 
    ```bash
    cd plugins/relay

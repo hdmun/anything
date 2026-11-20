@@ -219,28 +219,40 @@ class SupervisionStaysInOrca(unittest.TestCase):
 
 
 EVALS = PLUGIN_ROOT / "evals"
-EVAL_CASES = {"outcome-unknown", "prompt-blocked", "handoff-fires", "spec-violation-judge", "stop-reason-reinstruct",
-              "resume-skips-done", "mutation-dirty", "tsc-silent", "handoff-not-relay"}
+TRIGGER_CASES = {"handoff-fires", "handoff-not-relay", "spec-fires"}
+BATCH_CASES = {"merge-check-fail", "batch-last-issue"}
+EVAL_CASES = {"outcome-unknown", "prompt-blocked", "spec-violation-judge", "stop-reason-reinstruct",
+              "resume-skips-done", "mutation-dirty", "tsc-silent"} | TRIGGER_CASES | BATCH_CASES
+
+
+def _launch_line_pattern(line):
+    pattern = re.escape(line).replace(re.escape("<이슈 URL>"), r"\S+").replace(re.escape("<슬러그>"), r"[a-z0-9-]+")
+    for field in ("#<a>", "#<b>", "#<c>"):
+        pattern = pattern.replace(re.escape(field), r"#\d+")
+    return pattern
 
 
 class Evals(unittest.TestCase):
-    """eval 9케이스 (#24). handoff 기동 줄을 바꾸면 eval 프롬프트도 같이 바꾼다."""
+    """eval 12케이스 (#24, 3.1.1 에서 spec 발동·일괄 진행 머지 3개 추가). 기동 줄을 바꾸면 eval 프롬프트도 같이 바꾼다."""
 
-    def test_the_nine_cases(self):
+    def test_the_cases(self):
         self.assertEqual({p.name for p in EVALS.iterdir() if p.is_dir() and p.name != "results"}, EVAL_CASES)
 
     def test_coordinator_prompts_copy_the_handoff_launch_line(self):
-        line = next(l.strip() for l in LAUNCH_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
-        pattern = re.escape(line).replace(re.escape("<이슈 URL>"), r"\S+").replace(re.escape("<슬러그>"), r"[a-z0-9-]+")
-        for case in sorted(EVAL_CASES - {"handoff-fires", "handoff-not-relay"}):
+        lines = [l.strip() for l in LAUNCH_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>")]
+        plain = _launch_line_pattern(next(l for l in lines if "/ 일괄 진행:" not in l))
+        batch = _launch_line_pattern(next(l for l in lines if "/ 일괄 진행:" in l))
+        for case in sorted(EVAL_CASES - TRIGGER_CASES):
             prompt = (EVALS / case / "prompt.md").read_text(encoding="utf-8")
-            self.assertRegex(prompt, pattern, case)
+            self.assertRegex(prompt, batch if case in BATCH_CASES else plain, case)
             self.assertNotIn("relay 진행자:", prompt, case)
             self.assertNotIn("You are a dispatched worker", prompt, case)
 
     def test_handoff_cases_check_which_skill_fired(self):
         for case, name in (("handoff-fires", "relay-not-fired.md"), ("handoff-fires", "skill-fired.md"),
-                           ("handoff-not-relay", "handoff-not-fired.md"), ("handoff-not-relay", "relay-not-fired.md")):
+                           ("handoff-not-relay", "handoff-not-fired.md"), ("handoff-not-relay", "relay-not-fired.md"),
+                           ("spec-fires", "skill-fired.md"), ("spec-fires", "handoff-not-fired.md"),
+                           ("spec-fires", "relay-not-fired.md")):
             self.assertTrue((EVALS / case / "graders" / name).exists(), (case, name))
 
 
