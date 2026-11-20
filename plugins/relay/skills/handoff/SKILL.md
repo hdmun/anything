@@ -42,4 +42,4 @@ python "$RELAY/scripts/relay_cli.py" handoff-check --issue <이슈 URL>  # 기�
 |---|---|---|
 | `--base-branch main` 을 늘 준다 | 생략하면 저장소의 기본 base 를 쓴다 | `defaultBaseRef` 가 `null` 인 저장소에서는 엉뚱한 지점에서 분기된다(ADR 0010) |
 | `--no-parent` 를 준다 | 부르는 쪽 워크트리를 부모로 기록한다 | 이슈 워크트리는 설계 세션의 하위 작업이 아니라 독립된 Run 이다 |
-| 진행자에 `--model`·`--effort` 를 늘 준다 (`model coordinator`) | 사용자가 고르지 않았으면 생략한다 | 잦고 긴 진행 루프는 effort 를 낮춰 둔다. 기본값은 2026-11-02 사용자 결정, 바꾸려면 모델 설정 파일 |
+| 진행자에 `--model`·`--effort` 를 늘 준다 (`model coordinator`) | 사용자가 고르지 않았으면 생략한다 | 잦고 긴 진행 루프는 effort 를 낮춰 둔다. 기본값은 사용자가 정했고, 바꾸려면 모델 설정 파일 |

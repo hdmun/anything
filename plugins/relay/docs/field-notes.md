@@ -11,6 +11,7 @@
 
 ## 시작
 
+- **기동 줄만으로는 발동이 불안정 (2026-11-03 eval).** 진행자 기동 줄에 스킬 호출 지시가 없으면 relay 스킬이 3회 중 1회 발동하지 않았다. 그래서 기동 줄 끝에 「Skill 도구로 relay 스킬을 먼저 부르고」를 붙인다.
 - **낡은 SKILL.md 실행 (T-007).** 1.2.3 설치 뒤에도 1.2.0 절차의 단독 `agy`로 띄워 9회 연속 timeout이 났다. `doctor` 의 `plugin` 검사가 이것을 잡는다(교훈은 지금도 유효하다).
 
 ## 구현 워커 기동
@@ -20,12 +21,13 @@
 - **(역사) 단독 `agy` 기동 (2026-10-10, Orca 1.4.222).** 단독 `agy` — 1.3.3 11/11 실패, 1.2.17 간헐 실패. `'$null=1; agy'` — 1.2.17·1.3.3 7/7 통과(2~3초), `worker-start --terminal` 연결과 `worker_done`까지 정상.
 - **(역사) 입력 유실 (poker-server T-004).** `worker-start --agent antigravity`가 `stage: input_accepted`를 돌려줬지만 agy 로그에 `HandleUserInput`이 0건이었고, 워커는 환영 화면에서 영원히 대기했다. 2회 연속.
 - **(역사) 전달 확인이 없을 때의 비용 (T-004).** 지금은 Orca 의 `turnStart` 가 이 확인을 한다. 빈 대기 3회(30분)를 다 쓰고 나서야 유실을 알게 됐다.
+- **agy trust 자동 등록 (2026-11-02 실측).** `worker-start --agent antigravity` 가 agy 를 띄우기 직전에 워크트리를 `~/.gemini/antigravity-cli/settings.json` 의 `trustedWorkspaces` 에 직접 추가했다. 지우지는 않았다.
 - **`ok: true`인 준비 실패.** 준비 감지에 실패해도 `ok: true`가 왔다(`failedStage: agent_readiness`, `dispatch: null`).
 - **`turn_start_unobserved`.** 입력창이 비어 있었다(전달 실패).
 
 ## 리뷰 워커 기동
 
-- **codex 준비 감지 (T-004).** codex 0.159는 배너에서 라벨을 빼고 제목을 폴더 이름으로 바꿔 `agent_readiness timeout`이 났다. `terminal_title` 키를 넣으면 6초 안에 감지됐다.
+- **codex 준비 감지 (T-004, Orca 1.4.216).** Orca 는 codex 준비를 배너의 `model:`/`directory:` 라벨이나 터미널 제목 속 `codex` 로만 판정했다. codex 0.159는 배너에서 라벨을 빼고 제목을 폴더 이름으로 바꿔 `agent_readiness timeout`이 났다. `terminal_title` 키를 넣으면 6초 안에 감지됐다.
 - **`Hooks need review` (poker-server T-006).** ponytail 플러그인 갱신으로 hook 신뢰 해시가 어긋나 확인창이 떴고, 그 한 번으로 리뷰 Task가 `failed`가 됐다.
 - **(역사) `--yolo` 누락.** 직접 띄우면 샌드박스 안에서 `worker_done` 전송이 응답 없이 멈췄다. 3분 뒤 codex가 스스로 끊고 "can't confirm delivery"를 냈고 Task는 `dispatched`에 남았다.
 - **(역사) 샌드박스를 켠 경우 (2026-10-11).** `[windows] sandbox = "elevated"`는 첫 명령에서 UAC 설치 도우미를 띄우고 멈췄다(`.sandbox` 로그 `sandbox setup required`). `-a never -s workspace-write -c windows.sandbox=unelevated`는 읽기·쓰기는 확인창 없이 되지만 Orca 연결이 `EPERM`이었다(`network_access=true`로도 같음). `~/.codex/rules`로 `orca orchestration`만 허용하면 최소 권한이 가능하지만 codex 전역 설정이라 쓰지 않기로 했다(사용자 결정).
@@ -61,6 +63,7 @@
 ## 종료
 
 - **`trustedWorkspaces` 누적.** 항목 16개 중 5개가 이미 삭제된 relay 워크트리였다.
+- **`gh pr merge --delete-branch` (gh 2.96).** 이슈 워크트리 안에서 부르면 main checkout 이 실패했고, 그 때문에 원격 브랜치도 지워지지 않았다. 그래서 머지와 원격 브랜치 삭제를 나눴다.
 
 ## 2.0.0 전환 측정 (2026-11-02, Orca 1.4.245·agy 1.4.12·codex 0.159.3)
 

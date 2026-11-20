@@ -302,7 +302,8 @@ class SkillSkeleton(unittest.TestCase):
         self.assertIn("머지는 사람이 한다", inv)
 
     def test_every_step_reference_exists_and_is_read_first(self):
-        refs = set(re.findall(r"references/([a-z-]+\.md)", SKILL_MD))
+        # 다른 스킬의 파일(`skills/<스킬>/references/…`)은 test_every_referenced_file_exists 가 본다
+        refs = set(re.findall(r"(?<!/)references/([a-z-]+\.md)", SKILL_MD))
         self.assertTrue(refs)
         for r in refs:
             self.assertTrue((SKILL_DIR / "references" / r).exists(), r)
