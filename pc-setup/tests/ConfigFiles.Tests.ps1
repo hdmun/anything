@@ -509,20 +509,4 @@ Describe '실제 설정 파일 선언과 저장소 파일 (pc-setup/config-files
         $emailValue = ($emailLine[0] -replace '^\s*email\s*=\s*', '').Trim()
         $emailValue | Should -Match '@users\.noreply\.github\.com$'
     }
-
-    It 'Setup.psm1 의 기본 단계 목록으로 만든 항목의 Stage 순서가 Windows 설정 -> 앱 -> 설정 파일 이다' {
-        Import-Module (Join-Path $script:pcSetupRoot 'lib' 'Setup.psm1') -Force
-        $providers = InModuleScope Setup { $script:DefaultStageProviders }
-        $observedStages = [System.Collections.Generic.List[string]]::new()
-        foreach ($provider in $providers) {
-            $items = & $provider $script:pcSetupRoot
-            foreach ($it in $items) {
-                $stage = if ($it -is [System.Collections.IDictionary]) { $it['Stage'] } else { $it.Stage }
-                if ($observedStages.Count -eq 0 -or $observedStages[$observedStages.Count - 1] -ne $stage) {
-                    $observedStages.Add($stage)
-                }
-            }
-        }
-        $observedStages.ToArray() | Should -Be @('Windows 설정', '앱', '설정 파일')
-    }
 }
