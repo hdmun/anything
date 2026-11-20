@@ -13,7 +13,7 @@ disable-model-invocation: true
 - orca 명령을 쓰기 전에 **Skill 도구로 Orca 스킬 `orca-cli` 를 불러** Orca 가이드를 읽는다. 이 스킬은 명령 문법을 적지 않는다 — 동사 이름과 relay 가 정한 값만 적는다. 충돌하면 Orca 가이드가 옳다.
 - **검사를 끝까지 돌려 실패를 한 번에 보고한다.** `FAIL` 이 하나라도 있으면 아무 이슈도 띄우지 않는다.
 - **순서를 보여 준 뒤 확인을 기다리지 않는다.**
-- **첫 이슈를 띄우면 끝난다. 감독하지 않는다.** 그 뒤는 진행자 세션들이 `references/merge.md` 대로 한다.
+- **첫 이슈를 띄우면 끝난다. 감독하지 않는다.** 그 뒤는 진행자 세션들이 `skills/relay/references/merge.md` 대로 한다.
 - `$RELAY` 는 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
 
 ## 순서

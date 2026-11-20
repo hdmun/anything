@@ -102,6 +102,19 @@ class OrcaGuideIsTheSource(unittest.TestCase):
         self.assertNotIn("`orchestration`", HANDOFF_MD)  # handoff 는 워크트리와 진행자만 띄운다 — Run 은 진행자 것
         self.assertNotIn("`orchestration`", BATCH_MD)
 
+    def test_every_referenced_file_exists(self):
+        # `skills/…`·`$RELAY/skills/…` 는 플러그인 루트 기준, 맨 `references/…` 는 그 문서가 속한 스킬 기준이다
+        # (references/*.md 안에서도 같다). 회귀: batch SKILL.md 가 relay 의 merge.md 를 자기 references/ 로 적었다
+        ref = re.compile(r"((?:skills/[a-z]+/)?references/[A-Za-z0-9_.-]+\.(?:md|json))")
+        missing = []
+        for skill in (SKILL_DIR, HANDOFF_DIR, SPEC_DIR, BATCH_DIR):
+            for doc in skill.rglob("*.md"):
+                for target in ref.findall(doc.read_text(encoding="utf-8")):
+                    path = PLUGIN_ROOT / target if target.startswith("skills/") else skill / target
+                    if not path.exists():
+                        missing.append("%s → %s" % (doc.relative_to(PLUGIN_ROOT).as_posix(), target))
+        self.assertEqual(missing, [])
+
     def test_deviations_from_orca_defaults_sit_after_invariants(self):
         # 컴팩션 뒤에도 남게 SKILL.md 앞부분, 불변식 바로 다음에 둔다
         i, j, k = (SKILL_MD.index(h) for h in ("## 불변식", "## Orca 기본과 다른 점", "## 단계 목록"))
@@ -206,28 +219,40 @@ class SupervisionStaysInOrca(unittest.TestCase):
 
 
 EVALS = PLUGIN_ROOT / "evals"
-EVAL_CASES = {"outcome-unknown", "prompt-blocked", "handoff-fires", "spec-violation-judge", "stop-reason-reinstruct",
-              "resume-skips-done", "mutation-dirty", "tsc-silent", "handoff-not-relay"}
+TRIGGER_CASES = {"handoff-fires", "handoff-not-relay", "spec-fires"}
+BATCH_CASES = {"merge-check-fail", "batch-last-issue"}
+EVAL_CASES = {"outcome-unknown", "prompt-blocked", "spec-violation-judge", "stop-reason-reinstruct",
+              "resume-skips-done", "mutation-dirty", "tsc-silent"} | TRIGGER_CASES | BATCH_CASES
+
+
+def _launch_line_pattern(line):
+    pattern = re.escape(line).replace(re.escape("<이슈 URL>"), r"\S+").replace(re.escape("<슬러그>"), r"[a-z0-9-]+")
+    for field in ("#<a>", "#<b>", "#<c>"):
+        pattern = pattern.replace(re.escape(field), r"#\d+")
+    return pattern
 
 
 class Evals(unittest.TestCase):
-    """eval 9케이스 (#24). handoff 기동 줄을 바꾸면 eval 프롬프트도 같이 바꾼다."""
+    """eval 12케이스 (#24, 3.1.1 에서 spec 발동·일괄 진행 머지 3개 추가). 기동 줄을 바꾸면 eval 프롬프트도 같이 바꾼다."""
 
-    def test_the_nine_cases(self):
+    def test_the_cases(self):
         self.assertEqual({p.name for p in EVALS.iterdir() if p.is_dir() and p.name != "results"}, EVAL_CASES)
 
     def test_coordinator_prompts_copy_the_handoff_launch_line(self):
-        line = next(l.strip() for l in LAUNCH_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
-        pattern = re.escape(line).replace(re.escape("<이슈 URL>"), r"\S+").replace(re.escape("<슬러그>"), r"[a-z0-9-]+")
-        for case in sorted(EVAL_CASES - {"handoff-fires", "handoff-not-relay"}):
+        lines = [l.strip() for l in LAUNCH_MD.splitlines() if l.strip().startswith("relay: 구현 이슈 <이슈 URL>")]
+        plain = _launch_line_pattern(next(l for l in lines if "/ 일괄 진행:" not in l))
+        batch = _launch_line_pattern(next(l for l in lines if "/ 일괄 진행:" in l))
+        for case in sorted(EVAL_CASES - TRIGGER_CASES):
             prompt = (EVALS / case / "prompt.md").read_text(encoding="utf-8")
-            self.assertRegex(prompt, pattern, case)
+            self.assertRegex(prompt, batch if case in BATCH_CASES else plain, case)
             self.assertNotIn("relay 진행자:", prompt, case)
             self.assertNotIn("You are a dispatched worker", prompt, case)
 
     def test_handoff_cases_check_which_skill_fired(self):
         for case, name in (("handoff-fires", "relay-not-fired.md"), ("handoff-fires", "skill-fired.md"),
-                           ("handoff-not-relay", "handoff-not-fired.md"), ("handoff-not-relay", "relay-not-fired.md")):
+                           ("handoff-not-relay", "handoff-not-fired.md"), ("handoff-not-relay", "relay-not-fired.md"),
+                           ("spec-fires", "skill-fired.md"), ("spec-fires", "handoff-not-fired.md"),
+                           ("spec-fires", "relay-not-fired.md")):
             self.assertTrue((EVALS / case / "graders" / name).exists(), (case, name))
 
 
@@ -289,7 +314,8 @@ class SkillSkeleton(unittest.TestCase):
         self.assertIn("머지는 사람이 한다", inv)
 
     def test_every_step_reference_exists_and_is_read_first(self):
-        refs = set(re.findall(r"references/([a-z-]+\.md)", SKILL_MD))
+        # 다른 스킬의 파일(`skills/<스킬>/references/…`)은 test_every_referenced_file_exists 가 본다
+        refs = set(re.findall(r"(?<!/)references/([a-z-]+\.md)", SKILL_MD))
         self.assertTrue(refs)
         for r in refs:
             self.assertTrue((SKILL_DIR / "references" / r).exists(), r)

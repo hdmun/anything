@@ -10,7 +10,7 @@
 
 워크트리는 이슈 워크트리 하나다 — handoff 가 만들었고, 기준선 게이트는 시작 때 돌렸다((c) 4). 워커는 그 안에서 `--worktree current` 로 뜬다(ADR 0010). `<base>` 는 이 태스크의 스냅숏 커밋 직후 HEAD다((c) 태스크마다 1).
 
-1. **agy trust는 Orca가 등록한다.** `worker-start --agent antigravity`는 agy를 띄우기 직전에 그 워크트리를 `~/.gemini/antigravity-cli/settings.json`의 `trustedWorkspaces`에 직접 추가한다(2026-11-02 실측). 그래서 `trust add`는 하지 않는다.
+1. **agy trust는 Orca가 등록한다.** `worker-start --agent antigravity`는 agy를 띄우기 직전에 그 워크트리를 `~/.gemini/antigravity-cli/settings.json`의 `trustedWorkspaces`에 직접 추가한다. 그래서 `trust add`는 하지 않는다.
    - Orca는 추가만 하고 지우지 않는다. PR 을 열 때 relay가 한 번 지운다 — (i). 지우지 않으면 목록이 계속 늘어난다.
 
 2. **예열 — 워커를 띄우기 전에 agy 업데이트를 Task 밖에서 끝낸다.** 구현 기동과 수정 라운드 모두 그렇다.

@@ -22,8 +22,7 @@ python "$RELAY/scripts/relay_cli.py" model reviewer
   terminal_title = ["app-name", "activity", "project-name"]   # 제목에 "codex"가 있어야 Orca가 준비를 감지한다
   ```
 
-  두 번째 키가 필요한 이유: Orca(1.4.216)는 codex가 준비됐는지를 **배너의 `model:`/`directory:` 라벨**이나 **터미널 제목 속 `codex`** 로만 판정한다.
-  codex 0.159는 배너에서 라벨을 빼고 제목을 폴더 이름으로 바꿔 둘 다 사라졌고, 그 결과 `agent_readiness timeout`이 난다. 이 키를 넣으면 6초 안에 준비가 감지된다.
+  두 번째 키가 필요한 이유: Orca 는 codex 가 준비됐는지를 **터미널 제목 속 `codex`** 로 감지한다. 이 키가 없으면 codex 가 제목에 폴더 이름만 띄워 `agent_readiness timeout` 이 난다.
 
 **기동 전에 리뷰할 diff가 실제로 있는지 확인한다.** 빈 범위를 넘기면 리뷰어는 아무것도 검증하지 않고 `pass`를 낸다 — 정상 통과와 구분되지 않는 가장 비싼 실패다.
 
