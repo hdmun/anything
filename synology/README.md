@@ -28,13 +28,15 @@ NAS: <NAS 이름>
 
 ## 설치 (약 15분)
 
+`<저장소>` 는 이 저장소를 받은 폴더다(새 PC 는 `$HOME\anything`). 셋업을 돌린 PC 에서는 환경 변수 `ANYTHING_REPO` 에 이 경로가 들어 있다.
+
 준비물: 이 PC 에서 `ssh <별칭>` 으로 NAS 에 들어갈 수 있어야 한다. `<별칭>` 은 `~/.ssh/config` 의 NAS 항목이다. NAS 계정의 sudo 비밀번호도 필요하다.
 
 1. 디스코드 채널 설정 → 연동 → 웹후크 → 새 웹후크 → **웹후크 URL 복사**
 2. env 파일을 만든다. 열린 메모장에서 `DISCORD_WEBHOOK_URL=` 뒤의 견본 URL 을 복사한 URL 로 바꾸고 저장한다:
 
    ```powershell
-   cd "$env:USERPROFILE\scripts\synology"
+   cd "<저장소>\synology"
    Copy-Item ssh-notify.env.example ssh-notify.env
    notepad ssh-notify.env
    ```
@@ -88,7 +90,7 @@ journal 줄로 보낼 메시지를 화면에만 찍는다. 보내지 않고 아�
 
 ```powershell
 # PC: 저장소의 견본 줄로 (PowerShell 에는 < 가 없어서 Get-Content 로 넘긴다)
-cd "$env:USERPROFILE\scripts\synology"
+cd "<저장소>\synology"
 Get-Content testdata\sshd-journal.jsonl | python ssh-notify.py --preview
 ```
 
@@ -156,7 +158,7 @@ ssh <별칭> "ps -ef | grep '[s]sh-notify.py --run'"
 2. PC 에서 아래 명령을 실행하고 sudo 비밀번호를 넣는다. `/volume1/@ssh-notify/` 가 로그·cursor 까지 통째로 지워진다. 로그가 필요하면 먼저 복사한다.
 
    ```powershell
-   cd "$env:USERPROFILE\scripts\synology"
+   cd "<저장소>\synology"
    .\deploy.ps1 -Host <별칭> -Remove
    ```
 

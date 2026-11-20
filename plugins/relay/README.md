@@ -31,10 +31,12 @@
 
 ## 설치
 
+`<저장소>` 는 이 저장소를 받은 폴더다(새 PC 는 `$HOME\anything`). 셋업을 돌린 PC 에서는 환경 변수 `ANYTHING_REPO` 에 이 경로가 들어 있다.
+
 마켓플레이스 소스는 이 저장소의 **로컬 폴더**다.
 
 ```bash
-claude plugin marketplace add C:\Users\hdmun\scripts
+claude plugin marketplace add <저장소>
 claude plugin install relay@hdmun-scripts
 ```
 
@@ -334,7 +336,7 @@ python "$P/scripts/relay_cli.py" models-init \
 5. **실제로 뜨는지 본다.** smoke 가 설정대로 `worker-start --agent codex --model … --effort …` 로 띄우고 `worker_done` 까지 확인한다(워커는 스스로 닫힌다).
 
    ```bash
-   python scripts/relay_cli.py smoke --dir C:/Users/hdmun/scripts --agent codex
+   python scripts/relay_cli.py smoke --dir <저장소> --agent codex
    ```
 
 6. **`config.toml` 에서 필요한 것은 사전 조건 키 두 개뿐**이다(위 「준비물」 3번). `model` 은 있어도 없어도 리뷰어에 영향이 없다.
@@ -374,7 +376,7 @@ python "$P/scripts/relay_cli.py" models-init \
 5. **실제로 뜨는지 확인한다.** Orca 에 등록된 워크트리가 필요하다(`plugins/relay` 같은 하위 폴더는 `selector_not_found`).
 
    ```bash
-   python scripts/relay_cli.py smoke --dir C:/Users/hdmun/scripts --agent antigravity
+   python scripts/relay_cli.py smoke --dir <저장소> --agent antigravity
    ```
 
    `"passed": true` 면 설정대로 기동되고 `worker_done` 까지 왔다는 뜻이다. 같은 저장소의 설정을 바꾸지 않고 다른 값을 시험하려면 `--user-config <임시 파일>` 을 준다.
@@ -386,10 +388,10 @@ python "$P/scripts/relay_cli.py" models-init \
 3.0.0 은 입력과 세션 구조를 바꿨다 — 입력은 T-NNN spec 파일이 아니라 **구현 이슈 URL** 이고, 설계 세션은 `relay:handoff` 로 진행자 세션을 띄운 뒤 끝난다(ADR 0005~0010). 하위 호환은 없다: 3.0.0 relay 는 T-NNN spec 경로나 `relay 진행자:` Task 를 받으면 멈춘다. **`templates/` 도 바뀌었으므로 저장소마다 역할 파일을 다시 렌더링한다.**
 
 1. **relay Run 이 하나도 떠 있지 않아야 한다.** `orca orchestration run-list`, 그리고 `I-*`·`T-*` 워크트리가 없는지 본다. 끝내지 못한 T-NNN spec 은 구현 이슈로 옮긴다. 옛 `.ai/specs/T-*`·`.ai/reviews/T-*` 는 그대로 둔다(새 패턴에 맞지 않아 무시된다).
-2. **설정 디렉터리마다 플러그인을 갱신한다.** 마켓플레이스 소스가 로컬 폴더(`C:\Users\hdmun\scripts`)라 **main 이 체크아웃된 상태**여야 한다.
+2. **설정 디렉터리마다 플러그인을 갱신한다.** 마켓플레이스 소스가 로컬 폴더(`<저장소>`)라 **main 이 체크아웃된 상태**여야 한다.
 
    ```bash
-   git -C C:/Users/hdmun/scripts branch --show-current          # main 이어야 한다
+   git -C <저장소> branch --show-current          # main 이어야 한다
    claude plugin marketplace update hdmun-scripts
    claude plugin update relay                                    # ~/.claude
    CLAUDE_CONFIG_DIR=<서브 계정 폴더> claude plugin update relay    # 서브 계정 폴더

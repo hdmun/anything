@@ -1,4 +1,4 @@
-# $PROFILE 에서 dot-source 한다:  . "$env:USERPROFILE\scripts\agent-accounts\AgentAccounts.ps1"
+# $PROFILE 에서 dot-source 한다:  . "<저장소>\agent-accounts\AgentAccounts.ps1"
 # accounts.psd1 의 계정마다 <cli>-<계정> 별칭(함수)을 만든다.
 
 $global:AgentAccountsConfigPath = Join-Path $PSScriptRoot 'accounts.psd1'
