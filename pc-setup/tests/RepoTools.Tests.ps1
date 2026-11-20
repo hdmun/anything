@@ -129,14 +129,18 @@ Write-Output '그대로'
 }
 
 Describe '실제 저장소 도구 선언 (pc-setup/repo-tools.psd1)' {
-    It 'pc-setup/repo-tools.psd1 이 검사를 통과하고 Id 가 rdp-notify 하나, Elevated 다' {
+    It 'pc-setup/repo-tools.psd1 이 검사를 통과하고 Id 가 rdp-notify, .githooks 순서며 Elevated 는 rdp-notify 만이다' {
         $pcSetupRoot = Join-Path $PSScriptRoot '..'
         $items = Get-RepoToolItems -Root $pcSetupRoot
 
-        $items.Count | Should -Be 1
+        $items.Count | Should -Be 2
         $items[0].Stage | Should -Be '저장소 도구'
         $items[0].Id | Should -Be 'rdp-notify'
         $items[0].Elevated | Should -BeTrue
+
+        $items[1].Stage | Should -Be '저장소 도구'
+        $items[1].Id | Should -Be '.githooks'
+        $items[1].Elevated | Should -BeFalse
     }
 
     It '기본 단계 목록으로 만든 항목의 Stage 순서가 Windows 설정 -> 앱 -> 설정 파일 -> 저장소 도구 다' {
