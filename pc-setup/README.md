@@ -2,6 +2,8 @@
 
 Windows 11 집 PC 를 **선언**대로(앱·설정 파일·Windows 설정·저장소 도구) 맞추는 **셋업** 도구다. 여러 번 돌려도 결과가 같고(멱등), 선언에 없는 것은 보지도 알리지도 지우지도 않는다. 용어는 [CONTEXT.md](CONTEXT.md) 를 따른다.
 
+새 셋업: [SETUP.md](SETUP.md)
+
 ## 새 PC
 
 새로 설치한 Windows 11 의 **일반 권한** Windows PowerShell 창에서 아래 한 줄을 실행한다.
