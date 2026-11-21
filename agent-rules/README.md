@@ -40,6 +40,5 @@ Claude Code·Codex 규칙의 원본이다. 루트의 `AGENTS.md`와 전역 규�
 - 전역은 두 파일 그대로다. 도구마다 넣는 내용이 다르고(아래 출력 규칙, graphify), 사용자 범위에서 Claude Code가 `AGENTS.md`를 읽는지는 확인하지 않았다.
 - Codex의 `AGENTS.md`는 다른 파일을 import하지 못한다. 그래서 원본을 합쳐서 만든다. 전역 `CLAUDE.md`도 `@import` 대신 같은 방식으로 만들어 결과가 git diff에 보이게 한다.
 - 원본을 `.claude/rules/`에 두지 않는다. Claude Code가 이 폴더를 자동으로 읽어서 규칙이 두 번 들어가고 `*.codex.md`도 Claude에 들어간다.
-- `.ai/`는 relay 플러그인이 쓰는 폴더라서 피한다.
 - Codex는 `AGENTS.md`를 기본 32 KiB(`project_doc_max_bytes`)까지만 읽는다. 넘으면 `build.sh`가 경고한다.
 - Claude Code의 ADHD 출력 규칙은 SessionStart 훅으로 들어온다. 그래서 `global/20-output-style.codex.md`는 Codex에만 넣는다.

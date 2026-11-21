@@ -15,11 +15,5 @@ plugins/*/evals/results/
 # agent-accounts 계정 목록 (개인)
 agent-accounts/accounts.psd1
 
-# >>> relay gate logs >>>
-# 게이트는 종료코드로 판정하므로 출력을 파일로 받는다. 그 산출물이 워크트리에
-# 남으면 리뷰에서 SPEC_VIOLATION 으로 잡힌다 (synapse T-004 실측).
-gate.log
-# <<< relay gate logs <<<
-
 # Pester -CI 가 저장소 루트에 남기는 결과 파일 (pc-setup 게이트)
 testResults.xml
