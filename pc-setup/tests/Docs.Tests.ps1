@@ -35,3 +35,70 @@
         $content | Should -Match '(?m)`after-setup`'
     }
 }
+
+Describe '검증 PC 체크리스트 문서' {
+    BeforeAll {
+        $script:repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
+        $script:verifyDocPath = Join-Path $script:repoRoot 'pc-setup' 'test' 'verify-pc-checklist.md'
+        $script:vmDocPath = Join-Path $script:repoRoot 'pc-setup' 'test' 'vm-checklist.md'
+        $script:expectedHeadings = @(
+            '이 문서를 읽는 Claude 세션에게'
+            '0. 사람: Claude Code 설치'
+            '1. 미리보기 보고'
+            '2. 사람: 보고 확인'
+            '3. 셋업 전 정리 (해당할 때만)'
+            '4. 부트스트랩'
+            '5. 재부팅과 셋업 다시 실행'
+            '6. 재실행 (멱등)'
+            '7. 결과 기록'
+        )
+    }
+
+    It 'pc-setup/test/verify-pc-checklist.md 가 있고 ## 제목이 시그니처 아홉 개, 그 순서다' {
+        Test-Path -LiteralPath $script:verifyDocPath -PathType Leaf | Should -BeTrue
+        $lines = Get-Content -LiteralPath $script:verifyDocPath -Encoding UTF8
+        $actualHeadings = @(
+            foreach ($line in $lines) {
+                if ($line -match '^##\s+(.+?)\s*$') {
+                    $Matches[1]
+                }
+            }
+        )
+        $actualHeadings.Count | Should -Be $script:expectedHeadings.Count
+        for ($i = 0; $i -lt $script:expectedHeadings.Count; $i++) {
+            $actualHeadings[$i] | Should -Be $script:expectedHeadings[$i]
+        }
+    }
+
+    It '3번 절에 세 조건(nvm-windows, pnpm, .gitconfig)과 npm 전역 패키지는 지우지 않는다 문장이 있다' {
+        $content = Get-Content -LiteralPath $script:verifyDocPath -Raw -Encoding UTF8
+        $sectionMatch = [regex]::Match($content, '(?ms)^## 3\. 셋업 전 정리 \(해당할 때만\)\r?\n(?<body>.*?)(?=^## |\z)')
+        $sectionMatch.Success | Should -BeTrue
+        $section3 = $sectionMatch.Groups['body'].Value
+
+        $section3 | Should -Match 'nvm-windows'
+        $section3 | Should -Match 'pnpm'
+        $section3 | Should -Match '\.gitconfig'
+        $section3 | Should -Match 'npm 전역 패키지는 지우지 않는다'
+    }
+
+    It 'vm-checklist.md 와 verify-pc-checklist.md 의 상대 링크가 가리키는 파일이 모두 있다' {
+        foreach ($docPath in @($script:vmDocPath, $script:verifyDocPath)) {
+            $docDir = Split-Path -Path $docPath -Parent
+            $content = Get-Content -LiteralPath $docPath -Raw -Encoding UTF8
+            $linkMatches = [regex]::Matches($content, '\]\(([^)]+)\)')
+            foreach ($m in $linkMatches) {
+                $target = $m.Groups[1].Value.Trim()
+                if ($target -match '^https?://') {
+                    continue
+                }
+                $pathOnly = ($target -replace '#.*$', '').Trim()
+                if ([string]::IsNullOrEmpty($pathOnly)) {
+                    continue
+                }
+                $resolved = Join-Path $docDir $pathOnly
+                Test-Path -LiteralPath $resolved | Should -BeTrue -Because "$docPath 의 상대 링크 '$target' ($resolved) 가 존재해야 한다"
+            }
+        }
+    }
+}
