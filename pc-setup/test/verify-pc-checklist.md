@@ -78,34 +78,35 @@
 
 ## 4. 부트스트랩
 
-- [ ] **일반 권한** Windows PowerShell 5.1 창에서 검증할 브랜치의 raw URL 로 부트스트랩을 실행하고, 출력 전체를 로그 파일로 남긴다(7번 결과 기록에 쓴다). 브랜치·`-Skip` 호출 모양은 [../bootstrap.ps1](../bootstrap.ps1) 이 정한 형식을 그대로 쓴다.
+- [ ] **일반 권한** Windows PowerShell 5.1 창에서 검증할 브랜치의 raw URL 로 부트스트랩을 실행하고, 정보 스트림(`Write-Host`)을 포함한 출력 전체(`*>&1`)를 로그 파일로 남긴다(7번 결과 기록에 쓴다). 브랜치·`-Skip` 호출 모양은 [../bootstrap.ps1](../bootstrap.ps1) 이 정한 형식을 그대로 쓴다.
   `main` 브랜치(옵션 없을 때):
   ```powershell
-  irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1 | iex 2>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-bootstrap.log"
+  & { irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1 | iex } *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-bootstrap.log"
   ```
   다른 브랜치(`<branch>` 자리에 브랜치 이름, `-Skip` 은 사람이 정한 것만):
   ```powershell
-  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/hdmun/anything/<branch>/pc-setup/bootstrap.ps1))) -Branch <branch> -Skip <Id1>,<Id2> 2>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-bootstrap.log"
+  & { & ([scriptblock]::Create((irm https://raw.githubusercontent.com/hdmun/anything/<branch>/pc-setup/bootstrap.ps1))) -Branch <branch> -Skip <Id1>,<Id2> } *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-bootstrap.log"
   ```
 - [ ] 사람: UAC 확인 창이 뜰 때마다 승인하고, 실제로 뜬 횟수를 세어 세션에게 알린다.
 
 ## 5. 재부팅과 셋업 다시 실행
 
-- [ ] 끝 요약에 `할 일: 재부팅 후 셋업 다시 실행` 이 있으면 사람에게 재부팅을 부탁한다.
+- [ ] 끝 요약에 `할 일: 재부팅 후 부트스트랩 다시 실행` 또는 `할 일: 재부팅 후 셋업 다시 실행` 이 있으면 사람에게 재부팅을 부탁한다.
 - [ ] 사람: PC 를 재부팅한 뒤 **일반 권한** 터미널에서 Claude 세션을 다시 열고, 이 체크리스트의 5번부터 이어 가라고 알린다.
-- [ ] 재부팅 뒤 `pwsh $HOME\anything\pc-setup\setup.ps1` 을 일반 권한으로 다시 실행한다(2번에서 정한 `-Skip` 이 있으면 같은 `-Skip` 을 넘긴다). `할 일` 이 없어질 때까지 되풀이하고 재부팅 횟수를 적는다.
+- [ ] 재부팅 뒤 `$HOME\anything\pc-setup\setup.ps1` 이 아직 없으면(부트스트랩이 저장소 clone 전에 재부팅으로 끝난 경우) 4번의 부트스트랩 명령을 일반 권한 Windows PowerShell 5.1 창에서 다시 실행한다.
+- [ ] `$HOME\anything\pc-setup\setup.ps1` 이 있으면 일반 권한으로 `pwsh $HOME\anything\pc-setup\setup.ps1` 을 다시 실행하고 출력 전체(`*>&1`)를 로그 파일로 남긴다(2번에서 정한 `-Skip` 이 있으면 같은 `-Skip` 을 넘긴다). `할 일` 이 없어질 때까지 되풀이하고 재부팅 횟수를 적는다.
   ```powershell
-  pwsh $HOME\anything\pc-setup\setup.ps1
+  pwsh $HOME\anything\pc-setup\setup.ps1 *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-rerun.log"
   # -Skip 이 있을 때:
-  pwsh $HOME\anything\pc-setup\setup.ps1 -Skip <Id1>,<Id2>
+  pwsh $HOME\anything\pc-setup\setup.ps1 -Skip <Id1>,<Id2> *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-rerun.log"
   ```
 - [ ] 사람: UAC 확인 창이 뜰 때마다 승인하고 실제 UAC 횟수를 센다.
 
 ## 6. 재실행 (멱등)
 
-- [ ] **일반 권한** 창에서 셋업을 한 번 더 실행한다(같은 `-Skip` 유지).
+- [ ] **일반 권한** 창에서 셋업을 한 번 더 실행하고 출력 전체(`*>&1`)를 로그 파일로 남긴다(같은 `-Skip` 유지).
   ```powershell
-  pwsh $HOME\anything\pc-setup\setup.ps1
+  pwsh $HOME\anything\pc-setup\setup.ps1 *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-idempotent.log"
   ```
 - [ ] 사람: UAC 확인 창을 승인하고 실제 횟수를 센다.
 - [ ] 끝 요약의 `바꿈`·`실패` 가 0개이고 UAC 가 1회인지 확인한다. 아니면 결과를 그대로 기록하고 사람에게 알린다.
