@@ -210,3 +210,53 @@
         }
     }
 }
+
+Describe 'rdp-notify/install.ps1 출력 인코딩' {
+    BeforeAll {
+        $script:installScript = (Resolve-Path (Join-Path $PSScriptRoot '..' '..' 'rdp-notify' 'install.ps1')).Path
+
+        function Invoke-ChildRaw {
+            # 자식 pwsh -File 을 띄워 표준 출력 바이트를 디코딩하지 않고 그대로 받는다 → @{ Bytes; ExitCode }
+            # 부모 콘솔 출력 인코딩을 잠깐 CP949 로 두어, 스크립트가 스스로 UTF-8 로 맞추는지 확인한다.
+            param([string[]]$Arguments)
+            $saved = [Console]::OutputEncoding
+            try {
+                [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(949)
+                $psi = [System.Diagnostics.ProcessStartInfo]::new('pwsh')
+                foreach ($a in @('-NoProfile', '-File', $script:installScript) + $Arguments) {
+                    $psi.ArgumentList.Add($a)
+                }
+                $psi.RedirectStandardOutput = $true
+                $psi.UseShellExecute = $false
+                $proc = [System.Diagnostics.Process]::Start($psi)
+                $ms = [System.IO.MemoryStream]::new()
+                $proc.StandardOutput.BaseStream.CopyTo($ms)
+                $proc.WaitForExit()
+                return @{ Bytes = $ms.ToArray(); ExitCode = $proc.ExitCode }
+            } finally {
+                [Console]::OutputEncoding = $saved
+            }
+        }
+    }
+
+    It '-Check 를 자식 pwsh -File 로 실행 -> 콘솔 코드 페이지와 상관없이 BOM 없는 UTF-8 한 줄이다' {
+        # -Check 는 읽기만 한다. 관리자 여부에 따라 줄이 달라지므로 결과 말의 형식만 본다.
+        $r = Invoke-ChildRaw -Arguments @('-Check')
+        $r.ExitCode | Should -Be 0
+        $r.Bytes.Length | Should -BeGreaterThan 3
+        ($r.Bytes[0] -eq 0xEF -and $r.Bytes[1] -eq 0xBB -and $r.Bytes[2] -eq 0xBF) | Should -BeFalse
+        $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($r.Bytes)
+        $text | Should -Match '\A(그대로|다름 \(.+\)|할 일: .+|확인 못 함: .+|실패: .+)\r\n\z'
+    }
+
+    It '같은 프로세스에서 실행한 뒤 [Console]::OutputEncoding 이 원래 값으로 돌아온다' {
+        $saved = [Console]::OutputEncoding
+        try {
+            [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(949)
+            & $script:installScript -Check | Out-Null
+            [Console]::OutputEncoding.CodePage | Should -Be 949
+        } finally {
+            [Console]::OutputEncoding = $saved
+        }
+    }
+}

@@ -103,5 +103,13 @@ function Invoke-Main {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
-    Invoke-Main -Check:$Check
+    # bash 등에서 pwsh -File 로 부를 때 콘솔 코드 페이지와 상관없이 한국어 한 줄이 깨지지 않게,
+    # 실행하는 동안만 출력 인코딩을 BOM 없는 UTF-8 로 두고 끝나면(실패 포함) 되돌린다.
+    $savedOutputEncoding = [Console]::OutputEncoding
+    try {
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        Invoke-Main -Check:$Check
+    } finally {
+        [Console]::OutputEncoding = $savedOutputEncoding
+    }
 }
