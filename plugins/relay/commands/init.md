@@ -1,6 +1,7 @@
 ---
 description: 현재 저장소에 relay 역할 파일(.ai/roles/)과 게이트 로그 gitignore 항목을 플러그인 템플릿에서 생성/검증한다
 argument-hint: "[--check | --force]"
+# 대상 모델: Sonnet 이상. 렌더링은 스크립트가 한다.
 ---
 
 현재 저장소에 relay 파이프라인의 역할 파일을 설치하거나 드리프트를 검증한다.
@@ -45,6 +46,8 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/relay_cli.py" roles --plugin-root "${CLAUD
 ```
 
 종료코드: 0 성공 / 1 드리프트(`--check`) / 2 거부 또는 입력 오류(변수 파일의 필수 키 누락, 템플릿의 미치환 자리표시자 — 사유가 stderr 에 나온다).
+
+종료코드가 2이고 사유가 필수 키 누락이면 `.ai/relay-roles.json` 을 고치고 3으로 돌아간다. 사유가 템플릿의 미치환 자리표시자면 플러그인 쪽 문제다 — 고치지 말고 사용자에게 알린다.
 
 ### 4. 결과 보고
 

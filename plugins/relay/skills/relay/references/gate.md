@@ -66,7 +66,14 @@ grep -cE "error TS[0-9]+" tsc.log
 머지로 `package.json`/lockfile이 갱신되어도 체크아웃의 `node_modules`는 그대로다.
 
 - 머지 후 검증 전에 의존성을 동기화한다.
-- 새 워크트리에서는 (d)의 기준선 확인이 같은 일을 한다.
+- 새 워크트리에서는 (c) 4의 기준선 게이트(`start.md`)가 같은 일을 한다.
+
+### 재검증이 실패하면
+
+커밋하지 않는다. 구현 dispatch 에 `send` 해 다시 고치게 한다. 방법은 (g) 「수정 라운드」와 같다(`review.md`). 본문: `I-<n> 게이트 재검증 실패. 명령: <게이트 명령> / 종료코드: <n> / 로그 끝 20줄: <로그> / 원본 명세: .ai/specs/I-<n>-<슬러그>.md / base: <base>`.
+
+- 게이트를 통과하지 못했으므로 구현 라운드로 세지 않는다(커밋이 없다).
+- 같은 태스크에서 재검증이 두 번째로 실패하면 멈춤 보고 — (h).
 
 ### 게이트 통과 즉시 커밋한다
 
@@ -75,7 +82,7 @@ grep -cE "error TS[0-9]+" tsc.log
 - **이유**: 리뷰가 `SPEC_VIOLATION`이나 `BLOCKER`를 올려도 이미 코드는 게이트를 통과한 유효한 산출물이다. 커밋을 리뷰 결과 뒤로 미루면 에스컬레이션이 걸릴 때마다 워크트리에 커밋 안 된 변경만 남고, 사람이 diff로 확인할 수 있는 이력이 없다.
 - 커밋 이후 리뷰나 사람이 수정을 요구하면 그 수정은 **새 커밋**으로 쌓는다. 기존 커밋을 amend하지 않는다 — 라운드마다 커밋이 남아야 몇 번째 라운드에서 무엇이 고쳐졌는지 `git log`로 보인다.
 - 커밋 메시지에 태스크 ID와 구현자 모델을 적는다. 제목은 `feat(I-<n>): ...`, 본문 끝에 **트레일러 형식으로** `Implemented-by: agy/<모델>`.
-  모델명은 추측하지 않는다. (d) 4의 영수증 `launch.effective.model`을 쓴다(예: `Implemented-by: agy/gemini-3.8-flash`).
+  모델명은 추측하지 않는다. (d) `implementer.md` 3의 영수증 `launch.effective.model`을 쓴다(예: `Implemented-by: agy/gemini-3.8-flash`).
   agy 기본 모델로 띄웠으면 그 값이 `null`이다 — 그때만 최신 agy 로그의 마지막 모델 라벨을 쓴다:
   `ls -t ~/.gemini/antigravity-cli/log/cli-*.log | head -1 | xargs grep -o 'label="[^"]*"' | tail -1` (예: `label="Gemini 3.8 Flash (Medium)"` → `Implemented-by: agy/Gemini 3.8 Flash (Medium)`). 라벨이 없으면 `agy/unknown`.
   **산문(`구현: agy / ...`)이 아니라 트레일러여야 한다.** 포맷이 갈리면 `git log --format='%(trailers:key=Implemented-by)'` 같은 기계 판독이 깨지고, "`git log`만 보고 어느 단계가 무엇을 만들었는지 가린다"는 목적 자체가 무너진다.

@@ -14,7 +14,7 @@
 | `doctor`·`handoff-check` `FAIL`, 스냅숏 `author_not_trusted`, 빨간 기준선 | 멈춤 보고 — (c) |
 | `publish`의 `stop` | 멈춤 보고 (브랜치·워크트리는 남긴다) |
 | 머지 단계: `merge-check` FAIL, main 과 충돌, 합친 결과 게이트 실패, `gh pr merge` 실패(셋 다 PR 은 연 채), main 깨짐(닫힌 이슈에 코멘트), 다음 handoff 실패(다음 이슈에 코멘트, 자기 워크트리를 남김) | 멈춤 보고 — `references/merge.md` |
-| Orca의 기동 실패 circuit-break, 영수증의 `outcome_unknown`, `commit-guard` 실패, 그 밖에 문서가 사람을 부르라는 곳 | 멈춤 보고 — (d)(f), SKILL.md 불변식 |
+| Orca의 기동 실패 circuit-break, 영수증의 `outcome_unknown`, `commit-guard` 실패, 같은 태스크의 게이트 재검증 두 번째 실패, 그 밖에 문서가 사람을 부르라는 곳 | 멈춤 보고 — (d)(f), SKILL.md 불변식 |
 
 일괄 진행에서 멈추면 진행 목록 전체가 멈춘다. 멈춘 진행자 세션은 다음 이슈를 handoff 하지 않고, 자기 워크트리를 지우지 않는다.
 
@@ -115,9 +115,11 @@ Relay-Done: I-<n>        ← dismiss·accept 일 때만
 
 4. 이 세션에도 같은 내용을 남기고 끝난다. PR 은 열지 않는다. 끝난 태스크의 커밋은 브랜치에 남는다(ADR 0007).
 
+멈춘 이유가 relay 문서나 `relay_cli` 판정에 없는 것이었으면, 멈춤 보고 끝에 `규칙 제안: <한 줄>` 을 더한다. 반영은 사람이 승인한 뒤 플러그인 소스에서 한다. 진행자는 relay 문서를 고치지 않는다.
+
 ### 시도와 라운드를 구분한다
 
-용어의 정본은 `CONTEXT.md`다.
+용어의 정본은 `$RELAY/CONTEXT.md`다.
 
 | 용어 | 뜻 | 세는 법 (재개해도 남는 곳) |
 |---|---|---|
