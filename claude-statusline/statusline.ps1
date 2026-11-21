@@ -71,17 +71,16 @@ if ($dir -and (Test-Path -LiteralPath $dir)) {
 $line2 = @()
 
 $cw = $j.context_window
-if ($cw -and $null -ne $cw.used_percentage) {
-    $pct = [math]::Min(100, [math]::Max(0, [double]$cw.used_percentage))
-    $width = 10
-    $filled = [int][math]::Round($pct / 100 * $width)
-    $col = Level-Color $pct
-    $bar = (C $col ([string][char]0x2588 * $filled)) + (C $Gray ([string][char]0x2591 * ($width - $filled)))
-    $line2 += (Emoji 0x1F9E0) + ' ' + $bar + ' ' + (C $col ('{0:0}%' -f $pct))
-    if ($null -ne $cw.total_input_tokens -and $cw.context_window_size) {
-        $line2 += C $Dim ((Fmt-Tokens $cw.total_input_tokens) + '/' + (Fmt-Tokens $cw.context_window_size))
-    }
-}
+# always shown: no usage yet (new session / after /clear) -> empty gauge, 0%
+$pct = if ($cw -and $null -ne $cw.used_percentage) { [math]::Min(100, [math]::Max(0, [double]$cw.used_percentage)) } else { 0 }
+$width = 10
+$filled = [int][math]::Round($pct / 100 * $width)
+$col = Level-Color $pct
+$bar = (C $col ([string][char]0x2588 * $filled)) + (C $Gray ([string][char]0x2591 * ($width - $filled)))
+$line2 += (Emoji 0x1F9E0) + ' ' + $bar + ' ' + (C $col ('{0:0}%' -f $pct))
+$used = if ($cw -and $null -ne $cw.total_input_tokens) { $cw.total_input_tokens } else { 0 }
+$size = if ($cw -and $cw.context_window_size) { Fmt-Tokens $cw.context_window_size } else { '?' }
+$line2 += C $Dim ((Fmt-Tokens $used) + '/' + $size)
 
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $rl = $j.rate_limits
