@@ -1,6 +1,0 @@
-{
-  "reason": "spec_violation",
-  "decision": "dismiss",
-  "rationale": "리뷰 지적(pc-setup/test/SandboxHost.psm1:437, 90분 제한이 결과 대기에만 적용됨)은 spec 위반이 아니다. spec 「동작 명세」 7단계는 제한 시간을 Wait-SandboxResult -Timeout 에 건다고 명시하고, 엣지 케이스 #9 도 시간 초과를 Wait-SandboxResult 가 $false 인 경우로만 둔다. 배경 4의 '전체 제한 90분'은 winget 프롬프트 멈춤을 잡으려는 것이고 그 멈춤은 결과 대기 구간에서 일어난다. 구현 :437·:439·:475 는 7·9단계와 일치한다. 'wsb start 가 반환하지 않음'은 spec 이 열거하지 않은 범위 밖 경우이고, 고정 시그니처 Start-TestSandbox 에 제한 시간 인자가 없다. 같은 리뷰의 BLOCKER(:484)는 SPEC_VIOLATION 이 아니므로 이 판정에 넣지 않는다. 그 정리 분기(:483-497)는 spec 9단계가 정하지 않은 동작이므로 진행자가 심각도 분기에서 따로 다룬다.",
-  "instruction": "기각 근거: spec 「동작 명세」 7단계는 제한 시간을 Wait-SandboxResult -Timeout <TimeoutMinutes 분> 에 건다고 명시한다. 엣지 케이스 #9 도 시간 초과를 Wait-SandboxResult 가 $false 인 경우로 정한다. 구현은 이 둘과 9단계(finally 에서 Stop-TestSandbox)를 그대로 따른다. 'wsb start 가 반환하지 않는 경우'는 spec 이 열거하지 않은 범위 밖 경우이고, 고정 시그니처 Start-TestSandbox 에 제한 시간 인자도 없다."
-}
