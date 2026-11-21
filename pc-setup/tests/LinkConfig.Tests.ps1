@@ -2,6 +2,29 @@
     $script:toolPath = Join-Path $PSScriptRoot '..' 'tools' 'link-config.ps1'
     . $script:toolPath
 
+    function Invoke-ChildRaw {
+        # 자식 pwsh -File 을 띄워 표준 출력 바이트를 디코딩하지 않고 그대로 받는다 → @{ Bytes; ExitCode }
+        # 부모 콘솔 출력 인코딩을 잠깐 CP949 로 두어, 스크립트가 스스로 UTF-8 로 맞추는지 확인한다.
+        param([string[]]$Arguments)
+        $saved = [Console]::OutputEncoding
+        try {
+            [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(949)
+            $psi = [System.Diagnostics.ProcessStartInfo]::new('pwsh')
+            foreach ($a in @('-NoProfile', '-File', $script:toolPath) + $Arguments) {
+                $psi.ArgumentList.Add($a)
+            }
+            $psi.RedirectStandardOutput = $true
+            $psi.UseShellExecute = $false
+            $proc = [System.Diagnostics.Process]::Start($psi)
+            $ms = [System.IO.MemoryStream]::new()
+            $proc.StandardOutput.BaseStream.CopyTo($ms)
+            $proc.WaitForExit()
+            return @{ Bytes = $ms.ToArray(); ExitCode = $proc.ExitCode }
+        } finally {
+            [Console]::OutputEncoding = $saved
+        }
+    }
+
     function Get-TreeSnapshot {
         # 폴더 아래 모든 항목의 경로·종류·링크 대상·내용을 한 글로 만든다. -Check 전후 비교에 쓴다.
         param([string]$Root)
@@ -328,6 +351,16 @@ Describe 'link-config.ps1 에러 처리' {
 }
 
 Describe 'link-config.ps1 (자식 pwsh -File)' {
+    BeforeAll {
+        # 스크립트는 UTF-8 로 출력하므로, 자식 출력을 UTF-8 로 읽는다.
+        $script:savedOutputEncoding = [Console]::OutputEncoding
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    }
+
+    AfterAll {
+        [Console]::OutputEncoding = $script:savedOutputEncoding
+    }
+
     BeforeEach {
         $testDriveFull = (Get-Item -LiteralPath 'TestDrive:/').FullName
         $script:caseRoot = Join-Path $testDriveFull ([guid]::NewGuid().ToString('N'))
@@ -372,5 +405,27 @@ Describe 'link-config.ps1 의존성' {
         $text = Get-Content -LiteralPath $script:toolPath -Raw
         $text | Should -Not -Match '(?im)^\s*(Import-Module|using\s+module|\.\s+\S)'
         $text | Should -Not -Match '(?i)[\\/]lib[\\/]|''lib'''
+    }
+}
+
+Describe 'link-config.ps1 출력 인코딩 (자식 pwsh -File, 바이트)' {
+    BeforeEach {
+        $testDriveFull = (Get-Item -LiteralPath 'TestDrive:/').FullName
+        $script:caseRoot = Join-Path $testDriveFull ([guid]::NewGuid().ToString('N'))
+        New-Item -Path $script:caseRoot -ItemType Directory -Force | Out-Null
+        $script:srcFile = (New-Item -Path (Join-Path $script:caseRoot 'source.txt') -ItemType File -Value 'repo-content' -Force).FullName
+        $script:dest = Join-Path $script:caseRoot 'target.txt'
+    }
+
+    It '다름 줄이 콘솔 코드 페이지와 상관없이 BOM 없는 UTF-8 바이트다, 종료 코드 0' {
+        $r = Invoke-ChildRaw -Arguments @('-Source', $script:srcFile, '-Target', $script:dest, '-Mode', 'Link', '-Check')
+        $r.ExitCode | Should -Be 0
+        $r.Bytes | Should -Be ([System.Text.UTF8Encoding]::new($false).GetBytes("다름: 없음`r`n"))
+    }
+
+    It '실패 줄도 UTF-8 바이트다, 종료 코드 1' {
+        $r = Invoke-ChildRaw -Arguments @('-Source', $script:srcFile, '-Target', $script:dest, '-Mode', 'Copy')
+        $r.ExitCode | Should -Be 1
+        $r.Bytes | Should -Be ([System.Text.UTF8Encoding]::new($false).GetBytes("실패: Mode 는 Link 또는 GitInclude 다`r`n"))
     }
 }

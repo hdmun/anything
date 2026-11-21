@@ -184,7 +184,17 @@ function Invoke-Main {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
-    $outcome = Invoke-Main -Entry $Entry -Prepend:$Prepend -Check:$Check
-    Write-Output $outcome.Line
-    exit $outcome.ExitCode
+    # bash 등 콘솔 코드 페이지가 UTF-8 이 아닌 곳에서 불러도 한국어 한 줄이 깨지지 않게, 실행 동안만 출력 인코딩을 BOM 없는 UTF-8 로 둔다.
+    $savedOutputEncoding = [Console]::OutputEncoding
+    $exitCode = 1
+    try {
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        $outcome = Invoke-Main -Entry $Entry -Prepend:$Prepend -Check:$Check
+        [Console]::Out.WriteLine($outcome.Line)
+        [Console]::Out.Flush()
+        $exitCode = $outcome.ExitCode
+    } finally {
+        [Console]::OutputEncoding = $savedOutputEncoding
+    }
+    exit $exitCode
 }
