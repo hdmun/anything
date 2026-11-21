@@ -1,13 +1,22 @@
 ---
 name: spec
 description: '구현 이슈(relay spec)를 쓰거나 고칠 때 사용한다. "구현 이슈 써줘", "relay 템플릿으로 이슈 작성", wayfinder 지도의 task 티켓을 구현 이슈로 다시 쓸 때 부른다. 다 쓴 이슈를 진행자에게 넘기는 일은 relay:handoff 다.'
+# 대상 모델: Opus · effort high (설계 세션).
 ---
 
 # relay:spec
 
 구현 이슈 본문을 `references/spec-template.md` 형식으로 쓰고, 마지막에 기동 전 검사를 돌린다. 진행자 세션은 띄우지 않는다.
 
-`$RELAY` 는 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
+`$RELAY` 는 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`. 필요한 도구와 설치 줄은 `$RELAY/README.md` 「준비물」에 있다.
+
+## 순서
+
+1. 대상 코드를 읽는다 — 고치면 안 되는 동작을 찾는다
+2. `references/spec-template.md` 를 Read 한다 — 형식의 정본
+3. 태스크를 나눈다 — 하위 이슈 = 태스크, 5개 이하, 위임 가치가 음수면 직접 쓴다
+4. 본문을 쓴다 — 아래 「쓰는 규칙」대로
+5. 「끝내기」의 `handoff-check` 를 돌린다 — `FAIL` 이면 `→` 줄대로 고치고 4로 돌아간다
 
 ## 쓰는 규칙
 
@@ -32,3 +41,5 @@ description: '구현 이슈(relay spec)를 쓰거나 고칠 때 사용한다. "�
 ## 끝내기
 
 `python "$RELAY/scripts/relay_cli.py" handoff-check --issue <이슈 URL>` 을 돌린다. 읽기만 하는 검사다. `FAIL` 이면 `→` 줄대로 이슈를 고치고 다시 돌린다. 통과하면 끝난다. 진행자 세션을 띄우는 것은 `relay:handoff` 다.
+
+`FAIL` 이 템플릿이나 위 「쓰는 규칙」에 없는 이유였으면, 끝에 새 규칙 한 줄을 제안하고 사용자의 승인을 받은 뒤 「쓰는 규칙」에 더한다.

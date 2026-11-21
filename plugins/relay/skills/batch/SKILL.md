@@ -2,6 +2,7 @@
 name: batch
 description: 'relay 일괄 진행을 시작하거나 재개한다. 사람이 /relay:batch <구현 이슈 URL> 로만 부른다. 진행 목록을 만들고 모든 이슈를 검사한 뒤 첫 이슈의 진행자 세션을 띄우고 끝난다. 구현 이슈 하나만 PR 까지 넘기는 일은 relay:handoff 다.'
 disable-model-invocation: true
+# 대상 모델: Opus · effort high (설계 세션).
 ---
 
 <!-- disable-model-invocation: true 이유: 연쇄하는 진행자 세션이 이 스킬을 불러 진행 목록을 도중에 다시 만드는 일을 막는다. 잘못 발동하면 사람 확인 없는 머지가 된다. -->
@@ -14,7 +15,7 @@ disable-model-invocation: true
 - **검사를 끝까지 돌려 실패를 한 번에 보고한다.** `FAIL` 이 하나라도 있으면 아무 이슈도 띄우지 않는다.
 - **순서를 보여 준 뒤 확인을 기다리지 않는다.**
 - **첫 이슈를 띄우면 끝난다. 감독하지 않는다.** 그 뒤는 진행자 세션들이 `skills/relay/references/merge.md` 대로 한다.
-- `$RELAY` 는 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
+- `$RELAY` 는 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`. 필요한 도구와 설치 줄은 `$RELAY/README.md` 「준비물」에 있다.
 
 ## 순서
 

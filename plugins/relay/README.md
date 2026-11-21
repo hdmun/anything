@@ -16,7 +16,7 @@
 
 1. **Orca** — `orca` CLI가 PATH에 있어야 한다. 설계 세션은 Orca 터미널 안에서 연다.
    - **Orca 스킬** `orchestration`·`orca-cli`(`~/.agents/skills/`)가 있어야 한다. Orca 설치에 들어 있다. `relay_cli.py doctor` 가 검사한다(`skill:*`).
-2. **gh** — GitHub 트래커의 구현 이슈를 읽는다(`handoff-check`·`snapshot`). 인증이 안 되어 있으면 `handoff-check` 가 종료코드 2 로 멈춘다.
+2. **gh** — GitHub 트래커의 구현 이슈를 읽는다(`handoff-check`·`snapshot`). 인증이 안 되어 있으면 `handoff-check` 가 종료코드 2 로 멈춘다. 설치: `winget install GitHub.cli`, 인증: `gh auth login`.
 3. **agy** — trust 등록은 Orca가 한다(`worker-start`가 agy를 띄우기 직전에 워크트리를 `trustedWorkspaces`에 추가). Orca는 지우지 않으므로 진행자가 PR 을 열 때 지운다.
 4. **codex** — `~/.codex/config.toml`에 아래 두 키가 필요하다. 없으면 Orca가 codex 기동을 감지하지 못하거나 업데이트 프롬프트에서 멈춘다.
 
@@ -27,7 +27,8 @@
    terminal_title = ["app-name", "activity", "project-name"]
    ```
 
-5. **Python 3** — `relay_cli.py` 와 `/relay:init` 이 쓴다(표준 라이브러리만).
+5. **Python 3.11+** — `relay_cli.py` 와 `/relay:init` 이 쓴다(표준 라이브러리의 `tomllib`). 3.10 이하면 `pip install tomli`.
+6. **gitleaks** — 푸시·PR·코멘트 앞 유출 검사(`publish`)가 쓴다. 설치: `winget install Gitleaks.Gitleaks`. 없으면 `doctor` 가 `FAIL gitleaks` 다.
 
 ## 설치
 

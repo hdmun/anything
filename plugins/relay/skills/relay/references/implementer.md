@@ -20,7 +20,7 @@
    # {"action": "ready", "version": "1.2.16", "updated": true, "unverified": true}
    ```
 
-   - agy는 실행할 때마다 백그라운드로 자동 업데이트하고 다음 실행부터 새 버전을 쓴다. 막지 않는 대신 여기서 `agy update`로 먼저 끝내, **Task 도중에 버전이 바뀌지 않게** 한다(CONTEXT.md 「예열」).
+   - agy는 실행할 때마다 백그라운드로 자동 업데이트하고 다음 실행부터 새 버전을 쓴다. 막지 않는 대신 여기서 `agy update`로 먼저 끝내, **Task 도중에 버전이 바뀌지 않게** 한다(`$RELAY/CONTEXT.md` 「예열」).
    - `unverified: true`면 그 버전은 smoke를 통과한 적이 없다. 사람이 필요한 것으로 알리고 `relay_cli.py smoke --agent antigravity`를 먼저 돌린다. 실패하면 워커를 띄우지 않는다 — (h).
    - `human`이면 업데이트 실패 — (h).
 

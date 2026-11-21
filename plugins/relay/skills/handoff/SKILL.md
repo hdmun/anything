@@ -1,6 +1,7 @@
 ---
 name: handoff
 description: 설계 세션에서 다 쓴 구현 이슈를 relay 진행자 세션에 넘길 때 사용한다. 머신 점검(doctor)과 기동 전 검사(handoff-check)를 돌리고, 통과하면 이슈 워크트리와 진행자 세션을 한 번에 띄운 뒤 끝난다. "relay:handoff", "구현 이슈를 relay 로 넘겨줘", "relay 로 이 이슈 시작해줘"처럼 relay 를 명시해 구현 이슈를 넘기라고 할 때 쓴다. relay 없이 작업을 다른 워크트리나 에이전트에 통째로 맡기는 단순 위임(감독·리뷰 없음)에는 쓰지 않는다 — 그것은 Orca 스킬 `orca-cli` 의 handoff 다.
+# 대상 모델: Opus · effort high (설계 세션).
 ---
 
 # relay:handoff
@@ -12,7 +13,7 @@ description: 설계 세션에서 다 쓴 구현 이슈를 relay 진행자 세션
 - orca 명령을 쓰기 전에 **Skill 도구로 Orca 스킬 `orca-cli` 를 불러** Orca 가이드를 읽는다. 이 스킬은 명령 문법을 적지 않는다 — 동사 이름과 relay 가 정한 값만 적는다. 충돌하면 Orca 가이드가 옳다.
 - **두 검사를 끝까지 돌려 실패를 한 번에 보고한다.** `FAIL` 이 하나라도 있으면 진행자 세션을 띄우지 않는다.
 - 진행자 세션은 이슈 하나에 하나다. 띄운 뒤에는 설계 세션이 끝난다 — Run 을 감독하거나 진행자에게 답하지 않는다. 진행자가 멈추면 멈춤 보고(이슈 코멘트)가 남고, 사람이 이슈를 고친 뒤 같은 이슈로 다시 handoff 한다.
-- `$RELAY` 는 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`.
+- `$RELAY` 는 이 스킬을 불러왔을 때 표시되는 *Base directory* 에서 두 단계 위(플러그인 루트)다 — `python "$RELAY/scripts/relay_cli.py" --help`. 필요한 도구와 설치 줄은 `$RELAY/README.md` 「준비물」에 있다.
 
 ## 1. 구현 이슈를 쓴다
 
