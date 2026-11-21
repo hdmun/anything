@@ -38,7 +38,7 @@ import pathlib
 import subprocess
 import sys
 
-from relaylib import batch, doctor, handoff, issue, judgment, leak, merge, models, orca, resume, review, roles, smoke, trust
+from relaylib import batch, doctor, handoff, issue, judgment, leak, merge, models, orca, resume, review, roles, smoke, trust, verified
 
 
 class InputError(Exception):
@@ -304,7 +304,14 @@ def _cli_version(agent):
 
 
 def _verified():
-    return json.loads(doctor.VERIFIED_PATH.read_text(encoding="utf-8"))
+    return verified.load(verified.USER_PATH)
+
+
+def _verified_or_input_error():
+    try:
+        return _verified()
+    except verified.VerifiedError as e:
+        raise InputError("검증된 버전 기록을 읽지 못했다 (%s): %s" % (verified.USER_PATH, e))
 
 
 def _plugin_version():
@@ -341,6 +348,11 @@ def cmd_doctor(a):
         models_cfg, models_files = models.load_all(repo=a.repo, user_path=a.user_config)
     except models.ModelsError as e:
         models_error = str(e)
+    verified_error, verified_data = None, {}
+    try:
+        verified_data = _verified()
+    except verified.VerifiedError as e:
+        verified_error = str(e)
     rc_leak, out_leak = _run(["gitleaks", "version"], timeout=30)
     gitleaks_ver = doctor.parse_version(out_leak) if rc_leak == 0 else None
     leak_rules_file = leak.USER_RULES
@@ -351,7 +363,8 @@ def cmd_doctor(a):
         "codex_models": _codex_models_text(),
         "codex_config": codex_cfg.read_text(encoding="utf-8") if codex_cfg.exists() else None,
         "versions": {k: _cli_version(k) for k in doctor.AGENTS},
-        "verified": _verified(),
+        "verified": verified_data,
+        "verified_error": verified_error,
         "agy_settings": settings,
         "trust_root": str(trust.DEFAULT_ROOT),
         "exists": lambda p: pathlib.Path(p).is_dir(),
@@ -446,7 +459,7 @@ def cmd_warmup(a):
     before = _cli_version("antigravity")
     rc, _ = _run(["agy", "update"], timeout=600) if before else (0, "")
     after = _cli_version("antigravity")
-    return _emit(doctor.warmup_decide(before, rc, after, _verified()))
+    return _emit(doctor.warmup_decide(before, rc, after, _verified_or_input_error()))
 
 
 def _smoke_worker_launch(agent, cfg, a):
@@ -463,13 +476,22 @@ def _smoke_worker_launch(agent, cfg, a):
 def cmd_smoke_worker(a, agents, cfg):
     wait_s = smoke.WORKER_WAIT_MS // 1000
     run = lambda argv: _run(argv, timeout=wait_s + 60)      # check --wait 보다 길게
-    verified = _verified()
+    known = _verified_or_input_error()
     ok = True
     for ag in agents:
         model, effort = _smoke_worker_launch(ag, cfg, a)
         r = smoke.run_workers(ag, a.dir.replace("\\", "/"), run, repeat=a.repeat, run_id=a.run,
                               version=_cli_version(ag), model=model, effort=effort)
-        r["verified"] = r["version"] in verified.get(ag, [])
+        r["verified"] = r["version"] in known.get(ag, [])
+        if r["passed"] and r["version"] is not None:
+            rec = {ag: r["version"]}
+            orca_ver = _cli_version("orca")
+            if orca_ver is not None:
+                rec["orca"] = orca_ver
+            verified.record(verified.USER_PATH, rec)
+            r["recorded"] = True
+        else:
+            r["recorded"] = False
         a.run = r["run"]                                     # 두 에이전트를 같은 smoke Run 에 묶는다
         print(json.dumps(r, ensure_ascii=False))
         ok = ok and r["passed"]
@@ -646,7 +668,7 @@ def main(argv=None):
         ap.error("trust %s 에는 경로가 필요하다" % a.op)
     try:
         return a.func(a)
-    except (InputError, issue.IssueError, models.ModelsError, review.ReviewError, leak.LeakError, OSError, ValueError) as e:
+    except (InputError, issue.IssueError, models.ModelsError, review.ReviewError, leak.LeakError, verified.VerifiedError, OSError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 2
 

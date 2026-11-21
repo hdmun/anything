@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-import json
 import unittest
 
-from helpers import PLUGIN_ROOT
+import helpers  # noqa: F401 — sys.path 에 scripts 를 넣는다
 from relaylib import doctor
 
 GOOD_CODEX = 'model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n[tui]\nterminal_title = ["app-name"]\n'
@@ -174,10 +173,15 @@ class Doctor(unittest.TestCase):
             c = by_name(doctor.evaluate(facts(plugin_version="1.2.3", installed_versions=installed)))["plugin"]
             self.assertEqual(c["status"], "ok", installed)
 
-    def test_verified_file_has_known_agents(self):
-        v = json.loads(doctor.VERIFIED_PATH.read_text(encoding="utf-8"))
-        self.assertTrue(str(doctor.VERIFIED_PATH).startswith(str(PLUGIN_ROOT)))
-        self.assertEqual(set(v) - {"$comment"}, {"codex", "antigravity", "orca"})
+    def test_verified_error_is_fail(self):
+        checks = doctor.evaluate(facts(verified={}, verified_error="깨짐"))
+        c = by_name(checks)["verified"]
+        self.assertEqual(c["status"], "fail")
+        self.assertIn("smoke", c["fix"])
+        self.assertEqual(doctor.exit_code(checks), 1)
+
+    def test_no_verified_check_without_error(self):
+        self.assertNotIn("verified", by_name(doctor.evaluate(facts())))
 
 
 class OrcaPrereqs(unittest.TestCase):

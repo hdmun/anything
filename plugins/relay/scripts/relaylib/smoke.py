@@ -5,7 +5,7 @@ relay 가 워커를 띄우는 경로(`worker-start --agent`)를 smoke 전용 Run
 터미널을 먼저 띄우던 리허설 경로는 relay 가 그 기동을 그만두면서 지웠다 (plan 트랙 3).
 
 수동 도구다(CI 아님). CLI 업데이트 뒤, doctor 가 미검증 버전을 알릴 때 돌린다.
-통과하면 사람이 references/verified-cli.json 에 버전을 추가한다.
+통과하면 relay_cli.py 가 그 버전을 ~/.relay/verified.json 에 기록한다.
 
 이 모듈은 진단 도구라 orca 를 직접 부른다 — 진행자에게 명령을 조립해 주는 것과는 다르다 (ADR 0001).
 """

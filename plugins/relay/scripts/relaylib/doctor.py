@@ -4,12 +4,10 @@
 evaluate() 는 수집된 사실(facts)만 보고 판정한다. 수집과 --fix 쓰기는 relay_cli 가 한다.
 """
 import copy
-import pathlib
 import re
 
 from relaylib import models, orca, trust
 
-VERIFIED_PATH = pathlib.Path(__file__).resolve().parents[2] / "skills" / "relay" / "references" / "verified-cli.json"
 AGENTS = ("codex", "antigravity", "orca")
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 
@@ -44,7 +42,7 @@ def _version(agent, version, verified):
     if version in verified.get(agent, []):
         return _check(name, "ok", version)
     return _check(name, "warn", "%s 는 검증된 버전이 아니다 (검증: %s)" % (version, ", ".join(verified.get(agent, [])) or "없음"),
-                  "relay_cli.py smoke 가 통과하면 references/verified-cli.json 에 사람이 추가한다")
+                  "relay_cli.py smoke 가 통과하면 이 PC 의 ~/.relay/verified.json 에 자동으로 기록된다")
 
 
 def _trust(settings, root, exists):
@@ -151,6 +149,9 @@ def evaluate(f):
     rv = _reviewer(f)
     if rv:
         checks.append(rv)
+    if f.get("verified_error"):
+        checks.append(_check("verified", "fail", f["verified_error"],
+                             "~/.relay/verified.json 을 지우고 relay_cli.py smoke 를 다시 돌린다"))
     for agent in AGENTS:
         checks.append(_version(agent, (f.get("versions") or {}).get(agent), f.get("verified") or {}))
     checks.append(_trust(f.get("agy_settings"), f.get("trust_root", str(trust.DEFAULT_ROOT)), f.get("exists")))
