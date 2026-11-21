@@ -102,3 +102,94 @@ Describe '검증 PC 체크리스트 문서' {
         }
     }
 }
+
+Describe 'pc-setup README 문서' {
+    BeforeAll {
+        $script:repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
+        $script:readmePath = Join-Path $script:repoRoot 'pc-setup' 'README.md'
+        $script:expectedHeadings = @(
+            '새 PC'
+            '손으로 할 일'
+            '이미 셋업한 PC'
+            '선언'
+            '검증'
+        )
+        $script:expectedManualSubheadings = @(
+            '비밀값'
+            '작업 저장소'
+            '에이전트 폴더'
+            'Flutter'
+            'VS Code'
+            '셋업이 알린 할 일'
+        )
+    }
+
+    It 'pc-setup/README.md 가 있고 ## 제목이 시그니처 다섯 개, 그 순서다' {
+        Test-Path -LiteralPath $script:readmePath -PathType Leaf | Should -BeTrue
+        $lines = Get-Content -LiteralPath $script:readmePath -Encoding UTF8
+        $actualHeadings = @(
+            foreach ($line in $lines) {
+                if ($line -match '^##\s+(.+?)\s*$') {
+                    $Matches[1]
+                }
+            }
+        )
+        $actualHeadings.Count | Should -Be $script:expectedHeadings.Count
+        for ($i = 0; $i -lt $script:expectedHeadings.Count; $i++) {
+            $actualHeadings[$i] | Should -Be $script:expectedHeadings[$i]
+        }
+    }
+
+    It '## 새 PC 절에 부트스트랩 한 줄 명령이 있다' {
+        $content = Get-Content -LiteralPath $script:readmePath -Raw -Encoding UTF8
+        $sectionMatch = [regex]::Match($content, '(?ms)^## 새 PC\r?\n(?<body>.*?)(?=^## |\z)')
+        $sectionMatch.Success | Should -BeTrue
+        $sectionMatch.Groups['body'].Value | Should -Match ([regex]::Escape('irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1 | iex'))
+    }
+
+    It '## 손으로 할 일 절이 ## 새 PC 바로 다음이고 ### 소제목 6개가 순서대로 있다' {
+        $content = Get-Content -LiteralPath $script:readmePath -Raw -Encoding UTF8
+        $lines = Get-Content -LiteralPath $script:readmePath -Encoding UTF8
+        $h2Headings = @(
+            foreach ($line in $lines) {
+                if ($line -match '^##\s+(.+?)\s*$') {
+                    $Matches[1]
+                }
+            }
+        )
+        $newPcIndex = [Array]::IndexOf($h2Headings, '새 PC')
+        $manualIndex = [Array]::IndexOf($h2Headings, '손으로 할 일')
+        $newPcIndex | Should -BeGreaterOrEqual 0
+        $manualIndex | Should -Be ($newPcIndex + 1)
+
+        $sectionMatch = [regex]::Match($content, '(?ms)^## 손으로 할 일\r?\n(?<body>.*?)(?=^## |\z)')
+        $sectionMatch.Success | Should -BeTrue
+        $subHeadings = @(
+            foreach ($m in [regex]::Matches($sectionMatch.Groups['body'].Value, '(?m)^###\s+(.+?)\s*$')) {
+                $m.Groups[1].Value
+            }
+        )
+        $subHeadings.Count | Should -Be $script:expectedManualSubheadings.Count
+        for ($i = 0; $i -lt $script:expectedManualSubheadings.Count; $i++) {
+            $subHeadings[$i] | Should -Be $script:expectedManualSubheadings[$i]
+        }
+    }
+
+    It 'pc-setup/README.md 의 상대 링크가 가리키는 파일이 모두 있다' {
+        $docDir = Split-Path -Path $script:readmePath -Parent
+        $content = Get-Content -LiteralPath $script:readmePath -Raw -Encoding UTF8
+        $linkMatches = [regex]::Matches($content, '\]\(([^)]+)\)')
+        foreach ($m in $linkMatches) {
+            $target = $m.Groups[1].Value.Trim()
+            if ($target -match '^https?://') {
+                continue
+            }
+            $pathOnly = ($target -replace '#.*$', '').Trim()
+            if ([string]::IsNullOrEmpty($pathOnly)) {
+                continue
+            }
+            $resolved = Join-Path $docDir $pathOnly
+            Test-Path -LiteralPath $resolved | Should -BeTrue -Because "README.md 의 상대 링크 '$target' ($resolved) 가 존재해야 한다"
+        }
+    }
+}
