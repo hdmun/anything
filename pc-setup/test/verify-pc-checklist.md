@@ -11,6 +11,7 @@
 - [ ] `-Skip` 은 사람이 정한 항목만 넣는다.
 - [ ] 막히면 스스로 넘겨짚지 말고 멈춘 뒤 사람에게 묻는다.
 - [ ] 사람: 검증할 브랜치 이름을 세션에게 알려 준다.
+- [ ] 아래 `<저장소>` 는 부트스트랩이 clone 하는 위치(`$HOME\anything`)다. 명령을 실행할 때 실제 경로로 바꿔 넣는다.
 
 ## 0. 사람: Claude Code 설치
 
@@ -28,12 +29,12 @@
   ```powershell
   Get-Command git, pwsh -ErrorAction SilentlyContinue
   ```
-- [ ] **Git 과 pwsh 7 이 있으면**: `$HOME\anything` 이 이미 있는지 확인한다.
-  - 폴더가 이미 있으면 그 폴더의 현재 브랜치와 상태를 보고하고 사람에게 어떻게 할지 묻는다(부트스트랩은 `$HOME\anything` 이 있으면 clone 도 pull 도 하지 않고 그대로 쓴다).
+- [ ] **Git 과 pwsh 7 이 있으면**: `<저장소>` 가 이미 있는지 확인한다.
+  - 폴더가 이미 있으면 그 폴더의 현재 브랜치와 상태를 보고하고 사람에게 어떻게 할지 묻는다(부트스트랩은 `<저장소>` 가 있으면 clone 도 pull 도 하지 않고 그대로 쓴다).
   - 폴더가 없으면 검증할 브랜치를 clone 한 뒤 일반 권한으로 `setup.ps1 -Check` 를 실행해 `다름`·`할 일`·`확인 못 함` 목록을 뽑는다.
   ```powershell
-  git clone -b <branch> https://github.com/hdmun/anything.git $HOME\anything
-  pwsh $HOME\anything\pc-setup\setup.ps1 -Check
+  git clone -b <branch> https://github.com/hdmun/anything.git <저장소>
+  pwsh <저장소>\pc-setup\setup.ps1 -Check
   ```
 - [ ] **Git 또는 pwsh 7 이 없으면**: 검증할 브랜치의 선언 파일 4개(`windows-settings.psd1`·`apps.psd1`·`config-files.psd1`·`repo-tools.psd1`)를 raw URL 로 읽고, `winget list`·레지스트리·파일 확인으로 항목마다 현재 상태를 확인해 보고한다.
   ```powershell
@@ -93,12 +94,12 @@
 
 - [ ] 끝 요약에 `할 일: 재부팅 후 부트스트랩 다시 실행` 또는 `할 일: 재부팅 후 셋업 다시 실행` 이 있으면 사람에게 재부팅을 부탁한다.
 - [ ] 사람: PC 를 재부팅한 뒤 **일반 권한** 터미널에서 Claude 세션을 다시 열고, 이 체크리스트의 5번부터 이어 가라고 알린다.
-- [ ] 재부팅 뒤 `$HOME\anything\pc-setup\setup.ps1` 이 아직 없으면(부트스트랩이 저장소 clone 전에 재부팅으로 끝난 경우) 2번에서 정한 같은 `-Skip` 을 유지해 4번의 부트스트랩 명령을 일반 권한 Windows PowerShell 5.1 창에서 다시 실행한다.
-- [ ] `$HOME\anything\pc-setup\setup.ps1` 이 있으면 일반 권한으로 `pwsh $HOME\anything\pc-setup\setup.ps1` 을 다시 실행하고 출력 전체(`*>&1`)를 로그 파일로 남긴다(2번에서 정한 `-Skip` 이 있으면 같은 `-Skip` 을 넘긴다). `할 일` 이 없어질 때까지 되풀이하고 재부팅 횟수를 적는다.
+- [ ] 재부팅 뒤 `<저장소>\pc-setup\setup.ps1` 이 아직 없으면(부트스트랩이 저장소 clone 전에 재부팅으로 끝난 경우) 2번에서 정한 같은 `-Skip` 을 유지해 4번의 부트스트랩 명령을 일반 권한 Windows PowerShell 5.1 창에서 다시 실행한다.
+- [ ] `<저장소>\pc-setup\setup.ps1` 이 있으면 일반 권한으로 `pwsh <저장소>\pc-setup\setup.ps1` 을 다시 실행하고 출력 전체(`*>&1`)를 로그 파일로 남긴다(2번에서 정한 `-Skip` 이 있으면 같은 `-Skip` 을 넘긴다). `할 일` 이 없어질 때까지 되풀이하고 재부팅 횟수를 적는다.
   ```powershell
-  pwsh $HOME\anything\pc-setup\setup.ps1 *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-rerun.log"
+  pwsh <저장소>\pc-setup\setup.ps1 *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-rerun.log"
   # -Skip 이 있을 때:
-  pwsh $HOME\anything\pc-setup\setup.ps1 -Skip <Id1>,<Id2> *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-rerun.log"
+  pwsh <저장소>\pc-setup\setup.ps1 -Skip <Id1>,<Id2> *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-rerun.log"
   ```
 - [ ] 사람: UAC 확인 창이 뜰 때마다 승인하고 실제 UAC 횟수를 센다.
 
@@ -106,9 +107,9 @@
 
 - [ ] **일반 권한** 창에서 셋업을 한 번 더 실행하고 출력 전체(`*>&1`)를 로그 파일로 남긴다(같은 `-Skip` 유지).
   ```powershell
-  pwsh $HOME\anything\pc-setup\setup.ps1 *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-idempotent.log"
+  pwsh <저장소>\pc-setup\setup.ps1 *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-idempotent.log"
   # -Skip 이 있을 때:
-  pwsh $HOME\anything\pc-setup\setup.ps1 -Skip <Id1>,<Id2> *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-idempotent.log"
+  pwsh <저장소>\pc-setup\setup.ps1 -Skip <Id1>,<Id2> *>&1 | Tee-Object -FilePath "$env:TEMP\pc-setup-idempotent.log"
   ```
 - [ ] 사람: UAC 확인 창을 승인하고 실제 횟수를 센다.
 - [ ] 끝 요약의 `바꿈`·`실패` 가 0개이고 UAC 가 1회인지 확인한다. 아니면 결과를 그대로 기록하고 사람에게 알린다.
@@ -116,7 +117,7 @@
 ## 7. 결과 기록
 
 - [ ] 아래 항목을 담아 검증 요약을 만든다. **이 PC 의 개인값(IP·PC 이름·토큰)은 넣지 않는다(공개 저장소).**
-  - 브랜치·커밋 (`git -C $HOME\anything rev-parse --abbrev-ref HEAD`, `git -C $HOME\anything rev-parse --short HEAD`)
+  - 브랜치·커밋 (`git -C <저장소> rev-parse --abbrev-ref HEAD`, `git -C <저장소> rev-parse --short HEAD`)
   - 1번 미리보기 보고
   - 3번 셋업 전 정리에서 한 일
   - 단계별 끝 요약(부트스트랩·셋업 첫 실행·재실행 로그에서 붙여 넣기)
