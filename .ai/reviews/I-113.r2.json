@@ -1,0 +1,14 @@
+{
+  "taskId": "I-113",
+  "verdict": "changes_requested",
+  "findings": [
+    {
+      "severity": "SPEC_VIOLATION",
+      "file": "pc-setup/test/verify-pc-checklist.md",
+      "line": 84,
+      "summary": "사람이 정한 `-Skip` 값이 기본 브랜치 부트스트랩과 멱등 재실행 명령에 전달되지 않습니다.",
+      "repro": "검증 브랜치가 main이고 2번에서 `-Skip Foo`를 정함 → 4번 main 명령에는 `-Skip`이 없어 Foo가 건너뛰어지지 않고, 6번 재실행 명령도 같은 `-Skip` 없이 실행됩니다.",
+      "specRef": "「2. 사람: 보고 확인」의 '같은 `-Skip` 을 재실행에도 그대로 넘긴다' 및 「5. 재부팅과 셋업 다시 실행」의 `[-Skip ...]` 전달 명세"
+    }
+  ]
+}
