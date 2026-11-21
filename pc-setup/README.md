@@ -39,7 +39,7 @@ irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1
 
 ### 에이전트 폴더
 
-셋업은 **에이전트 폴더**(Claude Code·Codex·agy 설정 폴더, agent-accounts 계정 폴더)를 건드리지 않는다.
+셋업은 **에이전트 폴더**(Claude Code·Codex·agy 설정 폴더, agent-accounts 계정 폴더)를 건드리지 않는다([에이전트 설정 디렉터리 경계 정하기](https://github.com/hdmun/anything/issues/64)).
 
 - [ ] agent-accounts: `$PROFILE` 에 dot-source 한 줄을 넣는다 → [agent-accounts/README.md](../agent-accounts/README.md)
 - [ ] 전역 규칙: Claude 설정 폴더마다 `CLAUDE_CONFIG_DIR` 를 바꿔 가며 `sh agent-rules/build.sh --global` 을 실행한다 → [agent-rules/README.md](../agent-rules/README.md)
@@ -49,11 +49,11 @@ irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1
 
 ### Flutter
 
-- [ ] Android Studio 를 처음 실행해 Android SDK 를 설치하고 `flutter doctor --android-licenses` 를 실행한다.
+- [ ] Android Studio 를 처음 실행해 Android SDK 를 설치하고 `flutter doctor --android-licenses` 를 실행한다([런타임 버전 관리 방식 정하기](https://github.com/hdmun/anything/issues/62)).
 
 ### VS Code
 
-- [ ] Settings Sync 에 로그인해 설정과 확장을 맞춘다.
+- [ ] Settings Sync 에 로그인해 설정과 확장을 맞춘다([설정 파일 관리 방식 정하기: symlink·복사](https://github.com/hdmun/anything/issues/45)).
 
 ### 셋업이 알린 할 일
 
