@@ -40,6 +40,10 @@
   ```powershell
   pwsh $HOME\anything\pc-setup\setup.ps1
   ```
+- [ ] 끝 요약에 `할 일: wsl -d Ubuntu-24.04 로 처음 실행해 사용자를 만든다` 가 있으면 처음 실행해 사용자를 만들고, `exit` 로 나온 뒤 셋업을 다시 실행한다.
+  ```powershell
+  wsl -d Ubuntu-24.04
+  ```
 - [ ] `할 일` 이 없어질 때까지 재부팅과 다시 실행을 되풀이한다(재부팅 횟수를 적는다).
 - [ ] Ubuntu 항목이 끝나는지 확인한다.
 
