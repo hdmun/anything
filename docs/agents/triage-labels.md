@@ -1,15 +1,15 @@
-# Triage Labels
+# 분류 라벨
 
-The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
+스킬은 정해진 분류 역할 다섯 가지로 말한다. 이 파일은 그 역할을 이 저장소 이슈 트래커에서 실제로 쓰는 라벨 문자열에 대응시킨다.
 
-| Label in mattpocock/skills | Label in our tracker | Meaning                                  |
-| -------------------------- | -------------------- | ---------------------------------------- |
-| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
-| `needs-info`               | `needs-info`         | Waiting on reporter for more information |
-| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
-| `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
-| `wontfix`                  | `wontfix`            | Will not be actioned                     |
+| mattpocock/skills 의 라벨 | 우리 트래커의 라벨  | 뜻                                        |
+| ------------------------- | ------------------- | ----------------------------------------- |
+| `needs-triage`            | `needs-triage`      | 메인테이너가 이 이슈를 평가해야 한다      |
+| `needs-info`              | `needs-info`        | 보고자의 추가 정보를 기다린다             |
+| `ready-for-agent`         | `ready-for-agent`   | 명세가 다 되어 AFK 에이전트가 맡을 수 있다 |
+| `ready-for-human`         | `ready-for-human`   | 사람이 구현해야 한다                      |
+| `wontfix`                 | `wontfix`           | 처리하지 않는다                           |
 
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
+스킬이 역할을 말하면(예: "AFK-ready 분류 라벨을 붙인다") 이 표에서 그에 맞는 라벨 문자열을 쓴다.
 
-Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
+실제로 쓰는 어휘에 맞게 "우리 트래커의 라벨" 열을 고친다.
