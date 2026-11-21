@@ -21,8 +21,8 @@
 
 | 앱 | 원천 | 원천 힌트 | 범위 | 버전 줄 | 승격 | 왜 |
 |---|---|---|---|---|---|---|
-| Git | winget | `Git.Git` | machine | | | |
-| PowerShell 7 | winget | `Microsoft.PowerShell` | machine | | | |
+| Git | winget | `Git.Git` | user | | | |
+| PowerShell 7 | winget | `Microsoft.PowerShell` | user | | | |
 | Git LFS | winget | `GitHub.GitLFS` | machine | | | |
 | GitHub CLI | winget | `GitHub.cli` | machine | | | |
 | Fork | winget | `Fork.Fork` | user | | | |
@@ -43,7 +43,7 @@
 | Discord | winget | `Discord.Discord` | user | | | |
 | Android Studio | winget | `Google.AndroidStudio` | machine | | | |
 | WinMerge | winget | `WinMerge.WinMerge` | machine | | | |
-| Python | winget | `Python.Python.3.13` | user | 3.13 | 필요 | |
+| Python | winget | `Python.Python.3.13` | user | 3.13 | 필요 | py 런처 설치에 관리자 권한이 필요하다 |
 | Ruby (DevKit 포함) | winget | `RubyInstallerTeam.RubyWithDevKit.3.4` | user | 3.4 | | |
 | Bun | winget | `Oven-sh.Bun` | user | | | |
 | Go | winget | `GoLang.Go` | machine | | | |
