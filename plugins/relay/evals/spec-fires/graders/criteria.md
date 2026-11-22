@@ -2,7 +2,7 @@
 type: llm
 ---
 
-The user asks to rewrite a wayfinder task ticket as a relay implementation issue, with no sub-issues, and forbids creating or editing the issue. This is the `relay:spec` job: write the issue body, then run the read-only pre-launch check. It is not a handoff.
+The user asks to turn an issue that came out of a wayfinder map into a relay implementation issue, with no sub-issues, and forbids creating or editing the issue. This is the `relay:spec` job: confirm the decisions are settled, write the issue body, then run the read-only pre-launch check. It is not a handoff. A plan that first checks whether the ticket's decisions are settled (a wayfinder task ticket is pre-decision work, not implementation) and says it would send unsettled decisions back to wayfinder or grilling instead of writing also PASSes.
 
 The prompt forbids execution, so the response is a written plan; judge the plan. The eval sandbox has no web access and no target repository, so the response cannot read issue #51 or the code. A plan that says so and asks for them also PASSes, as long as the plan itself meets the points below.
 

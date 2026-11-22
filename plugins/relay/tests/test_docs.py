@@ -162,6 +162,14 @@ class SessionStructure(unittest.TestCase):
         self.assertNotIn("disable-model-invocation", head)
         self.assertIn('relay_cli.py" handoff-check', SPEC_MD)
 
+    def test_spec_takes_settled_decisions_not_task_tickets(self):
+        # wayfinder 의 task 티켓은 결정 전 수작업이다. spec 의 입력은 닫힌 지도의 결정이다 (#159)
+        head = SPEC_MD.split("---")[1]
+        self.assertNotIn("task 티켓", head)
+        steps = SPEC_MD.split("## 순서")[1].split("\n## ")[0]
+        self.assertIn("0. 입력을 확인한다", steps)
+        self.assertIn("Decisions so far", steps)
+
     def test_handoff_recommends_relay_spec(self):
         entry = START_MD.split("## 1. 구현 이슈를 쓴다")[1].split("\n## ")[0]
         self.assertIn("`relay:spec`", entry)
