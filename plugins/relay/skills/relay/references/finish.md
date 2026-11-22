@@ -79,7 +79,7 @@ warnings: <doctor WARN, 미검증 버전 | 없음>
 
 ```bash
 # 진행자는 여기까지만 한다
-git -C <worktree> log --oneline main..HEAD
+git -C <worktree> log --oneline <기본 브랜치>..HEAD   # <기본 브랜치>: (c) 에서 base-branch 로 정한 값
 
 # 아래는 사람이 실행한다 — 진행자가 대신 하지 않는다
 git -C <repo> merge --no-ff <branch> -m "Merge branch '<branch>'"

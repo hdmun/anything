@@ -2,6 +2,8 @@
 
 > 이 파일은 SKILL.md 의 단계 절차 중 일부다. SKILL.md 의 불변식과 함께 읽는다. (기동 줄에 `일괄 진행:` 이 있을 때만)
 
+`<기본 브랜치>` 는 세션 시작 때 `base-branch --repo <worktree>` 로 정해 둔 값이다(`references/start.md` (c)). `merge-check`·`publish push` 는 `--base` 를 주지 않으면 같은 값(`origin/<기본 브랜치>`)을 쓴다.
+
 들어오는 곳은 `references/finish.md` 다: `publish pr` 이 `created` 또는 `exists` 를 냈고 기동 줄에 `일괄 진행:` 이 있을 때.
 
 ## 1. 머지 조건
@@ -15,10 +17,10 @@ python "$RELAY/scripts/relay_cli.py" merge-check --issue <구현 이슈 URL> --w
 
 ## 2. 머지 직전 (횟수 제한 없음)
 
-1. `git -C <worktree> fetch origin main`. `origin/main` 이 HEAD 의 조상이 아니면 `git -C <worktree> rebase origin/main`. 충돌이면 `git -C <worktree> rebase --abort` 뒤 멈춤 보고 「main 과 충돌: <파일>」. 충돌 해결을 구현자에게 맡기지 않는다(리뷰를 거치지 않은 코드가 된다).
-2. rebase 했으면 `python "$RELAY/scripts/relay_cli.py" publish push --worktree <worktree> --force-with-lease`. `stop` 이면 멈춤 보고. main 은 어떤 경우에도 force push 하지 않는다.
-3. 지금 HEAD SHA 와 `origin/main` SHA(= base)를 적어 둔다. 모든 태스크 스냅숏의 「인수 조건」 `게이트 명령:` 을 `references/gate.md`(f) 의 방법대로 돌린다. main 이 그대로여도 돌린다(앞 태스크의 게이트는 그 시점에만 통과했다). 의존성 매니페스트·lockfile 이 바뀌었으면 의존성을 먼저 동기화한다. 실패하면 멈춤 보고 「합친 결과 게이트 실패」.
-4. `git -C <worktree> fetch origin main`. `origin/main` 이 3 의 base 와 다르면 1 로 돌아간다. 같으면 아래 명령을 3 의 HEAD SHA 로 부른다. 실패하면 멈춤 보고 「gh 머지 실패: <첫 줄>」. squash·rebase merge, `--auto`, `--delete-branch` 는 쓰지 않는다. `--delete-branch` 는 이슈 워크트리 안에서 main checkout 에 실패해 원격 브랜치도 지우지 못한다.
+1. `git -C <worktree> fetch origin <기본 브랜치>`. `origin/<기본 브랜치>` 가 HEAD 의 조상이 아니면 `git -C <worktree> rebase origin/<기본 브랜치>`. 충돌이면 `git -C <worktree> rebase --abort` 뒤 멈춤 보고 「main 과 충돌: <파일>」. 충돌 해결을 구현자에게 맡기지 않는다(리뷰를 거치지 않은 코드가 된다).
+2. rebase 했으면 `python "$RELAY/scripts/relay_cli.py" publish push --worktree <worktree> --force-with-lease`. `stop` 이면 멈춤 보고. 기본 브랜치에 직접 푸시하거나 force push 하지 않는다.
+3. 지금 HEAD SHA 와 `origin/<기본 브랜치>` SHA(= base)를 적어 둔다. 모든 태스크 스냅숏의 「인수 조건」 `게이트 명령:` 을 `references/gate.md`(f) 의 방법대로 돌린다. 기본 브랜치가 그대로여도 돌린다(앞 태스크의 게이트는 그 시점에만 통과했다). 의존성 매니페스트·lockfile 이 바뀌었으면 의존성을 먼저 동기화한다. 실패하면 멈춤 보고 「합친 결과 게이트 실패」.
+4. `git -C <worktree> fetch origin <기본 브랜치>`. `origin/<기본 브랜치>` 가 3 의 base 와 다르면 1 로 돌아간다. 같으면 아래 명령을 3 의 HEAD SHA 로 부른다. 실패하면 멈춤 보고 「gh 머지 실패: <첫 줄>」. squash·rebase merge, `--auto`, `--delete-branch` 는 쓰지 않는다. `--delete-branch` 는 이슈 워크트리 안에서 기본 브랜치 checkout 에 실패해 원격 브랜치도 지우지 못한다.
 
    ```bash
    gh pr merge <PR> --merge --match-head-commit <게이트를 돌린 HEAD SHA> --subject "Merge branch '<브랜치>'" --body "<PR URL>"

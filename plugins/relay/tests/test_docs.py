@@ -148,7 +148,7 @@ class SessionStructure(unittest.TestCase):
         self.assertTrue(line.strip().startswith("relay: 구현 이슈 <이슈 URL>"))
 
     def test_handoff_runs_both_checks_and_creates_the_issue_worktree(self):
-        for phrase in ("relay_cli.py\" doctor", "relay_cli.py\" handoff-check", "--no-parent", "--base-branch main",
+        for phrase in ("relay_cli.py\" doctor", "relay_cli.py\" handoff-check", "--no-parent", "--base-branch <branch>",
                        "--agent claude", "agent launch"):
             self.assertIn(phrase, START)
         self.assertTrue((SPEC_DIR / "references" / "spec-template.md").exists())
@@ -286,6 +286,24 @@ class Frontmatter(unittest.TestCase):
     def test_batch_skill_disables_model_invocation(self):
         head = AUTO_MERGE_MD.split("---")[1]
         self.assertIn("disable-model-invocation: true", head)
+
+
+class DefaultBranchDocs(unittest.TestCase):
+    def test_launch_and_merge_do_not_hardcode_main(self):
+        for name, text in (("launch.md", LAUNCH_MD), ("start/SKILL.md", START_MD), ("merge.md", MERGE_MD)):
+            self.assertNotIn("--base-branch main", text, name)
+            self.assertNotIn("origin/main", text, name)
+
+    def test_launch_and_coordinator_call_base_branch(self):
+        self.assertIn('relay_cli.py" base-branch', LAUNCH_MD)
+        self.assertIn("`base-branch`", START_MD)
+        self.assertIn('relay_cli.py" base-branch --repo <worktree>', SKILL)
+        self.assertIn("<기본 브랜치>", MERGE_MD)
+
+    def test_issue_worktree_is_found_by_prefix(self):
+        self.assertIn("`I-<n>-` 로 시작하는지", LAUNCH_MD)
+        self.assertIn("실제 이름에서 슬러그", LAUNCH_MD)
+        self.assertIn("launch.md` 2번의 찾기와 살아 있는 에이전트 검사", AUTO_MERGE_MD)
 
 
 class MergeProcedure(unittest.TestCase):

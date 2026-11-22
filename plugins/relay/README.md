@@ -75,7 +75,8 @@ relay를 쓸 저장소에서 한 번 실행한다. 워커가 읽는 역할 파�
 ```
 doctor (머신 점검) + handoff-check --issue <URL> (태스크 수·필수 절·작성자)   ← 둘 다 끝까지, FAIL 이면 띄우지 않는다
 → model coordinator
-→ worktree create --name I-<n>-<슬러그> --no-parent --base-branch main --agent claude   (재개면 agent launch)
+→ base-branch (기본 브랜치: .relay/roles.json 의 default_branch, 없으면 main)
+→ worktree create --name I-<n>-<슬러그> --no-parent --base-branch <기본 브랜치> --agent claude   (I-<n>- 로 시작하는 워크트리가 있으면 그 이름으로 agent launch)
 → 끝
 ```
 

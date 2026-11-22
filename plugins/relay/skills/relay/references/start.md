@@ -6,6 +6,7 @@
 
 0. **기동 줄을 읽는다.** `relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그>` 에서 구현 이슈와 슬러그를 읽는다. 기동 줄에 `/ 일괄 진행: …` 필드가 있으면 그 값을 적어 둔다. `finish.md`·`merge.md`·`stop.md` 가 쓴다. 없으면 일반 relay 다. T-NNN spec 경로나 `relay 진행자:` Task 면 SKILL.md 「진입」의 호환 한 줄대로 멈춘다.
    - 현재 디렉터리가 이슈 워크트리(`I-<n>-<슬러그>`)다. 이후 `<worktree>` 는 이 경로다.
+   - **기본 브랜치를 한 번 정해 둔다** — `python "$RELAY/scripts/relay_cli.py" base-branch --repo <worktree>` 의 `branch`. 이후 `<기본 브랜치>` 는 이 값이다(`merge.md`·`finish.md`). 종료코드 2 면 멈춤 보고 — (h).
 1. **Skill 도구로 Orca 스킬 `orchestration` 과 `orca-cli` 를 불러 Orca 가이드를 먼저 읽는다.**
    진행자 세션은 Run 을 소유한 코디네이터다. 가이드의 감독 루프를 따른다. relay 문서는 orca 명령 문법을 적지 않는다 — 동사 이름과 relay가 정한 값만 적는다. **충돌하면 Orca 가이드가 옳고, 이 스킬을 고친다.**
    relay가 더하는 것은 명령 사용법이 아니라 그 위의 정책이다 — 역할 분리, 심각도 라우팅. **relay 정책은 `relay_cli.py`가 판정한다**(ADR 0001). 판정 규칙을 이 문서에서 다시 계산하지 않는다.
@@ -26,6 +27,8 @@
    python "$RELAY/scripts/relay_cli.py" resume --worktree <worktree> --tasks <DAG 순서의 태스크 ID, 쉼표로>
    # {"action": "start", "task": "I-47", "done": ["I-46"]}
    ```
+
+   - `--base-branch` 를 주지 않으면 `<기본 브랜치>..HEAD` 를 본다(`base-branch` 결정기와 같은 값).
 
    - `start` 면 `done` 의 태스크는 Orca Task 를 완료로 정리하고 건너뛴다. `task` 부터 아래 「태스크마다」를 돈다.
    - `pr` 이면 모든 태스크가 끝났다 — (i).

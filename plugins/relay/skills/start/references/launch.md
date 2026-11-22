@@ -4,10 +4,14 @@
 
 orca 명령을 쓰기 전에 **Skill 도구로 Orca 스킬 `orca-cli` 를 불러** Orca 가이드를 읽는다. 명령 문법은 Orca 가이드가 정본이다.
 
-1. 기동 인자를 결정기에 묻는다 — `python "$RELAY/scripts/relay_cli.py" model coordinator`. `launch` 의 `model`·`effort` 를 쓴다(설정이 없으면 `opus`/`low`).
-2. **같은 이름의 이슈 워크트리가 이미 있는지** Orca 가이드대로 워크트리 목록에서 확인한다. 이름은 `I-<n>-<슬러그>` 다(`<슬러그>` 는 영문 소문자·숫자·하이픈, 부모 이슈 제목에서 짓는다).
-   - **살아 있는 에이전트 검사**: 그 워크트리에 살아 있는 에이전트 터미널이 있는지 Orca 가이드대로 터미널 목록에서 본다. 있으면 띄우지 않고 그 워크트리 이름을 보고하고 끝난다. 근거: 재개가 시작 명령과 같아져 두 번 칠 수 있고, 그러면 같은 이슈 워크트리에 진행자 세션이 둘 뜬다.
-   - **없으면** `worktree create` 로 이슈 워크트리와 진행자를 한 번에 띄운다. relay 값: `--name I-<n>-<슬러그> --no-parent --base-branch main --agent claude --model <model> --effort <effort> --prompt "<기동 줄>"`.
+1. 기동 인자를 결정기에 묻는다.
+   - `python "$RELAY/scripts/relay_cli.py" model coordinator` — `launch` 의 `model`·`effort` 를 쓴다(설정이 없으면 `opus`/`low`).
+   - `python "$RELAY/scripts/relay_cli.py" base-branch --repo <저장소>` — `branch` 가 기본 브랜치다(`.relay/roles.json` 의 `default_branch`, 없으면 `main`). 종료코드 2 면 그 메시지를 보고하고 끝난다.
+2. **이 이슈의 워크트리가 이미 있는지** Orca 가이드대로 워크트리 목록에서 **이름이 `I-<n>-` 로 시작하는지**로 찾는다. 이슈 워크트리 이름은 `I-<n>-<슬러그>` 다(`<슬러그>` 는 영문 소문자·숫자·하이픈).
+   - **둘 이상이면** 띄우지 않고 그 이름들을 보고하고 끝난다.
+   - **있으면** 그 워크트리의 **실제 이름에서 슬러그**(`I-<n>-` 뒤)를 가져와 기동 줄에 쓴다. 슬러그를 새로 짓지 않는다 — 제목에서 지으면 매번 달라질 수 있다.
+   - **살아 있는 에이전트 검사**: 찾은 워크트리에 살아 있는 에이전트 터미널이 있는지 Orca 가이드대로 터미널 목록에서 본다. 있으면 띄우지 않고 그 워크트리 이름을 보고하고 끝난다. 근거: 재개가 시작 명령과 같아져 두 번 칠 수 있고, 그러면 같은 이슈 워크트리에 진행자 세션이 둘 뜬다.
+   - **없으면** 슬러그를 부모 이슈 제목에서 짓고, `worktree create` 로 이슈 워크트리와 진행자를 한 번에 띄운다. relay 값: `--name I-<n>-<슬러그> --no-parent --base-branch <branch> --agent claude --model <model> --effort <effort> --prompt "<기동 줄>"`. `<branch>` 는 1 의 `base-branch` 값이다.
    - **있으면 재개다.** 그 워크트리에 `agent launch` 로 진행자를 띄운다. relay 값: `--agent claude --model <model> --effort <effort> --prompt "<기동 줄>"`. 워크트리를 새로 만들지 않는다 — 끝난 태스크의 커밋이 그 브랜치에 있다.
 3. 기동 줄은 상황에 맞는 한 줄이다(일반 relay 는 첫 줄, 일괄 진행은 둘째 줄에 받은 필드를 그대로 넣는다):
 
