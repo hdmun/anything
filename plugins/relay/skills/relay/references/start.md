@@ -40,6 +40,7 @@
    # {"action": "commit", "task": "I-46", "path": ".relay/specs/I-46-ante.md", "updatedAt": "2026-11-04T01:02:03Z"}
    ```
 
+   - 그 태스크의 스냅숏(`.relay/specs/I-<n>-*.md`)이 이미 있으면(재개) `snapshot` 이 주어진 슬러그 대신 그 파일의 슬러그를 쓰고 그 파일을 덮어쓴다. 결과에 `slug_reused` 가 붙는다. 이후 `spec:` 경로는 결과의 `path` 를 쓴다. 스냅숏이 둘 이상이면 종료코드 2 다 — 멈춤 보고 — (h).
    - `commit`이면 그 파일 하나를 `spec(I-<n>): 스냅숏 <updatedAt>`으로 커밋한다. **이 커밋 직후의 HEAD가 `<base>`다** — 구현 diff에 스냅숏이 섞이지 않는다. `updatedAt` 은 PR 본문을 쓸 때 다시 본다 — (i).
    - `human / author_not_trusted`면 이슈 작성자가 쓰기 권한자(`OWNER`·`MEMBER`·`COLLABORATOR`)가 아니다. 진행하지 않고 멈춤 보고 — (h). 스냅숏은 이슈 본문만 담고 코멘트는 담지 않는다.
    - 진행자는 이후 이슈의 변화를 감시하지 않는다. 스냅숏을 읽는다 — 게이트 명령·변경 대상 파일·범위가 여기 있다.
