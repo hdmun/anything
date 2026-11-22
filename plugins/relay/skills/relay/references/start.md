@@ -6,6 +6,7 @@
 
 0. **기동 줄을 읽는다.** `relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그>` 에서 구현 이슈와 슬러그를 읽는다. 기동 줄에 `/ 일괄 진행: …` 필드가 있으면 그 값을 적어 둔다. `finish.md`·`merge.md`·`stop.md` 가 쓴다. 없으면 일반 relay 다. T-NNN spec 경로나 `relay 진행자:` Task 면 SKILL.md 「진입」의 호환 한 줄대로 멈춘다.
    - 현재 디렉터리가 이슈 워크트리(`I-<n>-<슬러그>`)다. 이후 `<worktree>` 는 이 경로다.
+   - **기본 브랜치를 한 번 정해 둔다** — `python "$RELAY/scripts/relay_cli.py" base-branch --repo <worktree>` 의 `branch`. 이후 `<기본 브랜치>` 는 이 값이다(`merge.md`·`finish.md`). 종료코드 2 면 멈춤 보고 — (h).
 1. **Skill 도구로 Orca 스킬 `orchestration` 과 `orca-cli` 를 불러 Orca 가이드를 먼저 읽는다.**
    진행자 세션은 Run 을 소유한 코디네이터다. 가이드의 감독 루프를 따른다. relay 문서는 orca 명령 문법을 적지 않는다 — 동사 이름과 relay가 정한 값만 적는다. **충돌하면 Orca 가이드가 옳고, 이 스킬을 고친다.**
    relay가 더하는 것은 명령 사용법이 아니라 그 위의 정책이다 — 역할 분리, 심각도 라우팅. **relay 정책은 `relay_cli.py`가 판정한다**(ADR 0001). 판정 규칙을 이 문서에서 다시 계산하지 않는다.
@@ -27,6 +28,8 @@
    # {"action": "start", "task": "I-47", "done": ["I-46"]}
    ```
 
+   - `--base-branch` 를 주지 않으면 `<기본 브랜치>..HEAD` 를 본다(`base-branch` 결정기와 같은 값).
+
    - `start` 면 `done` 의 태스크는 Orca Task 를 완료로 정리하고 건너뛴다. `task` 부터 아래 「태스크마다」를 돈다.
    - `pr` 이면 모든 태스크가 끝났다 — (i).
    - 앞선 Run 에서 멈춘 태스크는 `done` 에 없으므로 처음부터 다시 돈다: **스냅숏을 다시 커밋하고**(사람이 고친 이슈를 읽는다), 그 커밋 직후가 새 `<base>` 이므로 라운드는 처음부터 센다. 리뷰 리포트 파일 번호는 라운드와 별개로 이어 간다 — `r2` 까지 있으면 새 첫 리뷰는 라운드 1 이고 파일은 `r3` 이다(덮어쓰지 않는다).
@@ -40,6 +43,7 @@
    # {"action": "commit", "task": "I-46", "path": ".relay/specs/I-46-ante.md", "updatedAt": "2026-11-04T01:02:03Z"}
    ```
 
+   - 그 태스크의 스냅숏(`.relay/specs/I-<n>-*.md`)이 이미 있으면(재개) `snapshot` 이 주어진 슬러그 대신 그 파일의 슬러그를 쓰고 그 파일을 덮어쓴다. 결과에 `slug_reused` 가 붙는다. 이후 `spec:` 경로는 결과의 `path` 를 쓴다. 스냅숏이 둘 이상이면 종료코드 2 다 — 멈춤 보고 — (h).
    - `commit`이면 그 파일 하나를 `spec(I-<n>): 스냅숏 <updatedAt>`으로 커밋한다. **이 커밋 직후의 HEAD가 `<base>`다** — 구현 diff에 스냅숏이 섞이지 않는다. `updatedAt` 은 PR 본문을 쓸 때 다시 본다 — (i).
    - `human / author_not_trusted`면 이슈 작성자가 쓰기 권한자(`OWNER`·`MEMBER`·`COLLABORATOR`)가 아니다. 진행하지 않고 멈춤 보고 — (h). 스냅숏은 이슈 본문만 담고 코멘트는 담지 않는다.
    - 진행자는 이후 이슈의 변화를 감시하지 않는다. 스냅숏을 읽는다 — 게이트 명령·변경 대상 파일·범위가 여기 있다.

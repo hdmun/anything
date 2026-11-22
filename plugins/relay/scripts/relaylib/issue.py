@@ -143,8 +143,30 @@ def snapshot(issue_ref, worktree, slug, run):
     problem = author_problem(ref, issue)
     if problem:
         return {"action": "human", "reason": problem, "task": tid, "author_association": issue.get("author_association")}
-    rel = ".relay/specs/%s-%s.md" % (tid, slug)
+    used = existing_slug(worktree, tid) or slug
+    rel = ".relay/specs/%s-%s.md" % (tid, used)
     path = pathlib.Path(worktree) / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render(issue), encoding="utf-8", newline="\n")
-    return {"action": "commit", "task": tid, "path": rel, "updatedAt": issue["updated_at"]}
+    out = {"action": "commit", "task": tid, "path": rel, "updatedAt": issue["updated_at"]}
+    if used != slug:
+        out["slug_reused"] = used
+    return out
+
+
+def existing_slug(worktree, tid):
+    """`.relay/specs/<tid>-*.md` 가 하나 있으면 그 슬러그, 없으면 None.
+
+    슬러그는 모델이 제목에서 짓는다. 재개 때 다른 슬러그를 지어도 같은 파일을 덮어쓰게 한다.
+    """
+    specs = pathlib.Path(worktree) / ".relay" / "specs"
+    prefix = tid + "-"
+    found = sorted(p.name for p in specs.glob(prefix + "*.md") if p.is_file()) if specs.is_dir() else []
+    if not found:
+        return None
+    if len(found) > 1:
+        raise IssueError("%s 의 스냅숏이 여럿이다: %s" % (tid, ", ".join(found)))
+    slug = found[0][len(prefix):-len(".md")]
+    if not SLUG_RE.match(slug):
+        raise IssueError("%s 의 스냅숏 이름이 <태스크 ID>-<슬러그>.md 가 아니다: %s" % (tid, found[0]))
+    return slug

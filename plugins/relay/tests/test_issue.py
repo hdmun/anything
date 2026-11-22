@@ -2,10 +2,12 @@
 """구현 이슈 읽기와 spec 스냅숏 (ADR 0006·0007)."""
 import json
 import pathlib
+import subprocess
+import sys
 import tempfile
 import unittest
 
-import helpers  # noqa: F401
+from helpers import SCRIPTS
 from relaylib import issue
 
 URL = "https://github.com/hdmun/poker-server/issues/45"
@@ -71,6 +73,59 @@ class Snapshot(unittest.TestCase):
     def test_slug_must_be_ascii_kebab(self):
         with tempfile.TemporaryDirectory() as d, self.assertRaises(issue.IssueError):
             issue.snapshot(URL, d, "앤티", gh())
+
+    def _existing(self, d, *names):
+        specs = pathlib.Path(d) / ".relay" / "specs"
+        specs.mkdir(parents=True, exist_ok=True)
+        for n in names:
+            (specs / n).write_text("old\n", encoding="utf-8")
+        return specs
+
+    def test_existing_snapshot_slug_is_reused(self):
+        with tempfile.TemporaryDirectory() as d:
+            specs = self._existing(d, "I-45-ante.md", "I-4-other.md", "I-450-x.md")
+            got = issue.snapshot(URL, d, "hand-ante", gh())
+            self.assertEqual((got["path"], got["slug_reused"]), (".relay/specs/I-45-ante.md", "ante"))
+            self.assertIn("# Hand 가 Ante 를 받는다", (specs / "I-45-ante.md").read_text(encoding="utf-8"))
+            self.assertFalse((specs / "I-45-hand-ante.md").exists())
+
+    def test_same_slug_has_no_slug_reused(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._existing(d, "I-45-ante.md")
+            got = issue.snapshot(URL, d, "ante", gh())
+        self.assertEqual(got["path"], ".relay/specs/I-45-ante.md")
+        self.assertNotIn("slug_reused", got)
+
+    def test_no_snapshot_uses_given_slug(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._existing(d, "I-4-other.md")
+            got = issue.snapshot(URL, d, "ante", gh())
+        self.assertEqual(got["path"], ".relay/specs/I-45-ante.md")
+        self.assertNotIn("slug_reused", got)
+
+    def test_two_snapshots_is_input_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._existing(d, "I-45-ante.md", "I-45-hand-ante.md")
+            with self.assertRaises(issue.IssueError) as cm:
+                issue.snapshot(URL, d, "ante", gh())
+        self.assertIn("I-45 의 스냅숏이 여럿이다: I-45-ante.md, I-45-hand-ante.md", str(cm.exception))
+
+    def test_malformed_snapshot_name_is_input_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._existing(d, "I-45-Ante_X.md")
+            with self.assertRaises(issue.IssueError):
+                issue.snapshot(URL, d, "ante", gh())
+
+    def test_two_snapshots_cli_exits_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._existing(d, "I-ante-03-a.md", "I-ante-03-b.md")
+            src = pathlib.Path(d) / ".scratch" / "ante" / "issues" / "03-hand-posts-ante.md"
+            src.parent.mkdir(parents=True)
+            src.write_text("# 제목\n\n본문\n", encoding="utf-8")
+            r = subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "snapshot", "--issue", str(src),
+                                "--worktree", d, "--slug", "a"], capture_output=True)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("스냅숏이 여럿이다", r.stderr.decode("utf-8"))
 
     def test_local_markdown_skips_author_check(self):
         with tempfile.TemporaryDirectory() as d:

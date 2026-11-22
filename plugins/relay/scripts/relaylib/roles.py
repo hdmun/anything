@@ -47,6 +47,21 @@ def load_vars(plugin_root, repo):
     return v
 
 
+def default_branch(repo) -> tuple[str, str]:
+    """(브랜치, 출처). 출처는 "roles" (<repo>/.relay/roles.json 의 default_branch) 또는 "default" ("main")."""
+    vp = pathlib.Path(repo) / VARS_PATH
+    if not vp.exists():
+        return "main", "default"
+    try:
+        v = json.loads(vp.read_text(encoding="utf-8"))
+    except ValueError as e:
+        raise RolesError("변수 파일 JSON 오류: %s (%s)" % (vp, e))
+    b = v.get("default_branch") if isinstance(v, dict) else None
+    if isinstance(b, str) and b.strip():
+        return b.strip(), "roles"
+    return "main", "default"
+
+
 def _line(s):
     return s if not s or s.endswith("\n") else s + "\n"
 

@@ -75,7 +75,8 @@ relay를 쓸 저장소에서 한 번 실행한다. 워커가 읽는 역할 파�
 ```
 doctor (머신 점검) + handoff-check --issue <URL> (태스크 수·필수 절·작성자)   ← 둘 다 끝까지, FAIL 이면 띄우지 않는다
 → model coordinator
-→ worktree create --name I-<n>-<슬러그> --no-parent --base-branch main --agent claude   (재개면 agent launch)
+→ base-branch (기본 브랜치: .relay/roles.json 의 default_branch, 없으면 main)
+→ worktree create --name I-<n>-<슬러그> --no-parent --base-branch <기본 브랜치> --agent claude   (I-<n>- 로 시작하는 워크트리가 있으면 그 이름으로 agent launch)
 → 끝
 ```
 
@@ -141,6 +142,7 @@ plugins/relay/
 - `publish`: 유출 검사 후 원격에 내보내기 (`push`·`pr`·`comment`)
 - `snapshot`: spec 스냅숏 커밋
 - `resume`: 재개할 태스크 결정
+- `base-branch`: 기본 브랜치 결정 (`.relay/roles.json` 의 `default_branch`, 없으면 `main`)
 - `judgment`: 판정 결과 스키마 검증
 - `diff-guard` / `commit-guard`: 변경 및 커밋 규칙 검사
 - `review-branch` / `validate-review`: 리뷰 리포트 검증 및 분기
