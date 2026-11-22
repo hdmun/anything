@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$raw = [Console]::In.ReadToEnd()
+$raw = [System.IO.StreamReader]::new([Console]::OpenStandardInput(), [System.Text.UTF8Encoding]::new($false)).ReadToEnd()
 try { $j = $raw | ConvertFrom-Json } catch { $j = $null }
 if (-not $j) { Write-Output 'statusline: no input'; exit 0 }
 

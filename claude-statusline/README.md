@@ -34,4 +34,5 @@ Claude Code 상태 줄 스크립트다. Windows PowerShell 7 전용.
 ## 주의
 
 - 화면 갱신은 대화가 진행될 때 일어난다. 스크립트를 고친 직후엔 바로 안 바뀔 수 있다.
+- stdin 은 UTF-8 로 읽는다. `[Console]::In` 은 콘솔 코드 페이지(한국어 Windows 는 CP949)로 디코딩해 한글이 든 JSON 을 깨뜨린다.
 - PowerShell 변수는 대소문자를 가리지 않는다. 색 코드용 `$E` 와 겹치는 `$e` 같은 이름을 쓰지 않는다.
