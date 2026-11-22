@@ -209,6 +209,17 @@ class SessionStructure(unittest.TestCase):
         line = next(l for l in stop.splitlines() if "같은 Task에 다시 띄운다" in l)
         self.assertIn("`outcome_unknown`·`agent_prompt_blocked` 는 다시 띄우지 않는다", line)
 
+    def test_batch_stop_report_lives_only_in_stop_batch_md(self):
+        # 일반 진행의 진행자가 일괄 진행 형식을 읽지 않게 한다 (#159, 컨텍스트 위생 (j))
+        stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
+        batch = (SKILL_DIR / "references" / "stop-batch.md").read_text(encoding="utf-8")
+        for phrase in ("남은 진행 목록", "/relay:auto-merge <URL>"):
+            self.assertIn(phrase, batch)
+            self.assertNotIn(phrase, stop)
+        self.assertIn("`일괄 진행:` 이 있으면 `references/stop-batch.md` 를 Read 하고", stop)
+        self.assertIn("(기동 줄에 `일괄 진행:` 이 있을 때만)", batch.splitlines()[2])
+        self.assertIn("references/stop-batch.md", MERGE_MD)
+
     def test_stops_with_a_report_not_ask_or_decision_gates(self):
         # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")

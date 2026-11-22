@@ -90,7 +90,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 대기 (e) | 턴을 끝내고 Orca가 깨우면 메시지를 처리한다 | 아래 (e) |
 | 게이트 (f) | 독립 재검증, 통과 즉시 커밋 | `references/gate.md` |
 | 리뷰 분기 (g) | review-branch, 수정 라운드 | `references/review.md` |
-| 판정·멈춤 (h) | 판정 서브에이전트, 판정 기록, 멈춤 보고, 시도와 라운드 | `references/stop.md` |
+| 판정·멈춤 (h) | 판정 서브에이전트, 판정 기록, 멈춤 보고, 시도와 라운드 | `references/stop.md`, `references/stop-batch.md`(일괄 진행일 때) |
 | 종료 (i) | 워커 출구, PR(경로 A/B), 사람에게 보고 | `references/finish.md` |
 | 머지 (일괄 진행) | 머지 조건·머지·연쇄 handoff·워크트리 삭제 | `references/merge.md` |
 | 다음 이슈 기동 (일괄 진행) | 머지 뒤 다음 이슈의 진행자 세션 띄우기 | `skills/start/references/launch.md` |
