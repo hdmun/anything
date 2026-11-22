@@ -209,6 +209,12 @@ class SessionStructure(unittest.TestCase):
         line = next(l for l in stop.splitlines() if "같은 Task에 다시 띄운다" in l)
         self.assertIn("`outcome_unknown`·`agent_prompt_blocked` 는 다시 띄우지 않는다", line)
 
+    def test_prompt_blocked_line_tells_the_prevention(self):
+        # 사람을 부를 때 예방책을 함께 적게 한다. 사실 서술만으로는 eval prompt-blocked 가 3회 중 1회 실패했다
+        line = next(l for l in SKILL_MD.splitlines() if "`agent_prompt_blocked`면 사람을 부른다" in l)
+        self.assertIn("사람에게 알릴 때 예방책을 함께 적는다", line)
+        self.assertIn("check_for_update_on_startup = false", line)
+
     def test_batch_stop_report_lives_only_in_stop_batch_md(self):
         # 일반 진행의 진행자가 일괄 진행 형식을 읽지 않게 한다 (#159, 컨텍스트 위생 (j))
         stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
