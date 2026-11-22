@@ -37,7 +37,7 @@
 
    ```bash
    python "$RELAY/scripts/relay_cli.py" snapshot --issue <태스크 이슈 URL> --worktree <worktree> --slug <슬러그>
-   # {"action": "commit", "task": "I-46", "path": ".ai/specs/I-46-ante.md", "updatedAt": "2026-11-04T01:02:03Z"}
+   # {"action": "commit", "task": "I-46", "path": ".relay/specs/I-46-ante.md", "updatedAt": "2026-11-04T01:02:03Z"}
    ```
 
    - `commit`이면 그 파일 하나를 `spec(I-<n>): 스냅숏 <updatedAt>`으로 커밋한다. **이 커밋 직후의 HEAD가 `<base>`다** — 구현 diff에 스냅숏이 섞이지 않는다. `updatedAt` 은 PR 본문을 쓸 때 다시 본다 — (i).

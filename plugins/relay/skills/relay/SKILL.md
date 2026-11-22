@@ -12,7 +12,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
 
 **진행자 세션은 설계 세션이 `relay:handoff` 로 띄운다**(ADR 0005). 기동 줄은 `relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그>` 이고(/ 일괄 진행: #a #b 필드가 붙을 수 있다), 이 세션은 그 이슈의 **이슈 워크트리** 안에서 Run 을 소유한 최상위 코디네이터다. dispatch 된 워커가 아니다. 먼저 `references/start.md`를 Read 한다.
 
-- **호환 한 줄**: 입력이 T-NNN spec 경로(`.ai/specs/T-…`)이거나 Task 첫 줄이 `relay 진행자:` 이면 진행하지 않는다. "3.0.0 은 구현 이슈만 받는다. spec 을 이슈로 옮기고 `relay:handoff` 로 시작한다" 를 남기고 멈춘다.
+- **호환 한 줄**: 입력이 T-NNN spec 경로(`.relay/specs/T-…`)이거나 Task 첫 줄이 `relay 진행자:` 이면 진행하지 않는다. "3.0.0 은 구현 이슈만 받는다. spec 을 이슈로 옮기고 `relay:handoff` 로 시작한다" 를 남기고 멈춘다.
 - 사람이 이 세션에서 직접 "relay 로 이슈 <URL> 진행해줘" 라고 해도 같다. 이슈 워크트리 밖이면 진행하지 않고 `relay:handoff` 로 시작하라고 알린다 — 이슈 워크트리는 handoff 가 만든다.
 
 ## 역할과 모델
@@ -41,7 +41,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
                                ↓
 [진행자 세션]           게이트 독립 재검증 → 구현 커밋
                                ↓
-[리뷰 codex·high]      .ai/reviews/I-<n>.rN.json 작성
+[리뷰 codex·high]      .relay/reviews/I-<n>.rN.json 작성
                                ↓
 [진행자 세션]           스키마 검증 → 심각도 분기 → 다음 태스크
                         모든 태스크 뒤: PR 하나 (구현 이슈마다) → 사람에게 보고
@@ -111,7 +111,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 ## (j) 컨텍스트 위생 규범
 
 1. **`orca ... --json` 출력에서 필요한 필드만 추출해서 읽는다.** orca의 JSON 응답은 크고, 매 턴 재전송되어 비용이 누적된다.
-2. 진행자 한 명이 이슈의 태스크를 모두 돈다(ADR 0005). 그래서 태스크가 5개 이하다. 지난 태스크의 게이트 로그·리뷰 리포트는 다시 읽지 않는다 — 필요한 것은 git 과 `.ai/reviews/` 에 있다.
+2. 진행자 한 명이 이슈의 태스크를 모두 돈다(ADR 0005). 그래서 태스크가 5개 이하다. 지난 태스크의 게이트 로그·리뷰 리포트는 다시 읽지 않는다 — 필요한 것은 git 과 `.relay/reviews/` 에 있다.
 3. 태스크 상태는 `task-list --ready`로 매번 조회한다. 컨텍스트에 들고 있지 않는다.
 
 ## (k) 병렬 실행 정책

@@ -1,5 +1,5 @@
 ---
-description: 현재 저장소에 relay 역할 파일(.ai/roles/)과 게이트 로그 gitignore 항목을 플러그인 템플릿에서 생성/검증한다
+description: 현재 저장소에 relay 역할 파일(.relay/roles/)과 게이트 로그 gitignore 항목을 플러그인 템플릿에서 생성/검증한다
 argument-hint: "[--check | --force]"
 # 대상 모델: Sonnet 이상. 렌더링은 스크립트가 한다.
 ---
@@ -10,7 +10,7 @@ argument-hint: "[--check | --force]"
 ## 하는 일
 
 역할 파일은 워커(agy·codex)가 읽는 규범이고, **공유 규범 85% + 저장소 고유 15%** 로 이루어진다.
-공유분은 플러그인 템플릿이 정본이고, 고유분만 이 저장소의 `.ai/relay-roles.json` 에 산다.
+공유분은 플러그인 템플릿이 정본이고, 고유분만 이 저장소의 `.relay/roles.json` 에 산다.
 
 ## 절차
 
@@ -20,7 +20,7 @@ argument-hint: "[--check | --force]"
 - `--force` → 덮어쓴다.
 - 인자 없음 → 없으면 생성, 있고 다르면 거부하고 알린다.
 
-### 2. `.ai/relay-roles.json` 확보
+### 2. `.relay/roles.json` 확보
 
 파일이 이미 있으면 그대로 쓴다. **없을 때만** 아래를 저장소에서 추론하고, 추론이 안 되는 것만 사용자에게 한 번에 묻는다.
 
@@ -37,7 +37,7 @@ argument-hint: "[--check | --force]"
 
 필수 키(비어 있으면 렌더링이 거부된다): `rules_doc`, `dep_rule`, `gate_cmd_prose`, `gate_cmd_raw`, `review_focus`.
 
-추론한 값을 사용자에게 표로 보여주고 확인받은 뒤 `.ai/relay-roles.json` 에 쓴다.
+추론한 값을 사용자에게 표로 보여주고 확인받은 뒤 `.relay/roles.json` 에 쓴다.
 
 ### 3. 렌더링
 
@@ -47,7 +47,7 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/relay_cli.py" roles --plugin-root "${CLAUD
 
 종료코드: 0 성공 / 1 드리프트(`--check`) / 2 거부 또는 입력 오류(변수 파일의 필수 키 누락, 템플릿의 미치환 자리표시자 — 사유가 stderr 에 나온다).
 
-종료코드가 2이고 사유가 필수 키 누락이면 `.ai/relay-roles.json` 을 고치고 3으로 돌아간다. 사유가 템플릿의 미치환 자리표시자면 플러그인 쪽 문제다 — 고치지 말고 사용자에게 알린다.
+종료코드가 2이고 사유가 필수 키 누락이면 `.relay/roles.json` 을 고치고 3으로 돌아간다. 사유가 템플릿의 미치환 자리표시자면 플러그인 쪽 문제다 — 고치지 말고 사용자에게 알린다.
 
 ### 4. 결과 보고
 
@@ -60,5 +60,5 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/relay_cli.py" roles --plugin-root "${CLAUD
 
 - **생성된 역할 파일을 직접 고치지 않는다.** 맨 위 스탬프가 그렇게 적혀 있다.
   공유 규범을 고쳐야 하면 플러그인의 `templates/` 를 고치고 `--force` 로 재생성한다.
-  저장소 고유분을 고쳐야 하면 `.ai/relay-roles.json` 을 고치고 `--force` 로 재생성한다.
+  저장소 고유분을 고쳐야 하면 `.relay/roles.json` 을 고치고 `--force` 로 재생성한다.
 - `--check` 는 플러그인 업데이트 직후에 각 저장소에서 돌린다. 종료코드 1이면 드리프트다.

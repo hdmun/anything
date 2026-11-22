@@ -62,7 +62,7 @@ class ReviewBranchCli(GitRepoCase):
         self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
         self.commit("r.json", "review(I-42): r1 changes_requested\n\nReviewed-by: codex/gpt-6-luna")
         self.commit("c.txt", "feat(I-42): fix\n\nImplemented-by: agy/Gemini 3.8 Flash (Medium)")
-        reviews = self.repo / ".ai" / "reviews"
+        reviews = self.repo / ".relay" / "reviews"
         reviews.mkdir(parents=True)
         for n, s in ((1, "a"), (2, "b"), (3, "c")):
             (reviews / ("I-42.r%d.json" % n)).write_text(json.dumps({
@@ -77,7 +77,7 @@ class ReviewBranchCli(GitRepoCase):
         self.assertEqual(d["review_rounds"], 3)
 
     def test_resumed_task_counts_only_reports_after_base(self):
-        reviews = self.repo / ".ai" / "reviews"
+        reviews = self.repo / ".relay" / "reviews"
         reviews.mkdir(parents=True)
         bad = {"taskId": "I-42", "verdict": "changes_requested",
                "findings": [{"severity": "MAJOR", "file": "x", "summary": "같은 지적", "repro": "r"}]}
@@ -179,8 +179,8 @@ class OrcaCli(unittest.TestCase):
             c.write_text('model = "gpt-6-luna"\ncheck_for_update_on_startup = false\n[tui]\nterminal_title = ["app-name"]\n', encoding="utf-8")
             u = d / "user.json"
             u.write_text(json.dumps({"reviewer": {"model": "gpt-9", "effort": "low"}}), encoding="utf-8")
-            (d / ".ai").mkdir()
-            (d / ".ai" / "relay-models.json").write_text(json.dumps({"reviewer": {"effort": "xhigh"}}), encoding="utf-8")
+            (d / ".relay").mkdir()
+            (d / ".relay" / "models.json").write_text(json.dumps({"reviewer": {"effort": "xhigh"}}), encoding="utf-8")
             out = json.loads(cli("model", "reviewer", "--config", str(c), "--repo", str(d), "--user-config", str(u)).stdout)
             self.assertEqual((out["model"], out["effort"]), ("gpt-9", "xhigh"))
 
@@ -216,7 +216,7 @@ class ModelsInitCli(unittest.TestCase):
             r = self.run_init(d, "--reviewer-model", "gpt-9", "--reviewer-effort", "xhigh",
                               "--implementer-model", "gemini-3.8-flash", "--implementer-effort", "low")
             self.assertEqual(r.returncode, 0, r.stderr)
-            path = pathlib.Path(d) / ".ai" / "relay-models.json"
+            path = pathlib.Path(d) / ".relay" / "models.json"
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
                              {"reviewer": {"model": "gpt-9", "effort": "xhigh"}, "implementer": {"model": "gemini-3.8-flash", "effort": "low"}})
             self.assertNotIn(bytes([13]), path.read_bytes())   # LF 로 쓴다
@@ -229,7 +229,7 @@ class ModelsInitCli(unittest.TestCase):
             r = self.run_init(d, "--coordinator-model", "sonnet", "--coordinator-effort", "medium",
                               "--designer-model", "opus", "--designer-effort", "max")
             self.assertEqual(r.returncode, 0, r.stderr)
-            path = pathlib.Path(d) / ".ai" / "relay-models.json"
+            path = pathlib.Path(d) / ".relay" / "models.json"
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
                              {"designer": {"model": "opus", "effort": "max"}, "coordinator": {"model": "sonnet", "effort": "medium"}})
             out = json.loads(cli("models", "--repo", d, "--user-config", str(pathlib.Path(d) / "none.json")).stdout)
@@ -242,7 +242,7 @@ class ModelsInitCli(unittest.TestCase):
             r = self.run_init(d, "--reviewer-model", "b")
             self.assertEqual(r.returncode, 2)
             self.assertIn("--force", r.stderr.decode("utf-8"))
-            path = pathlib.Path(d) / ".ai" / "relay-models.json"
+            path = pathlib.Path(d) / ".relay" / "models.json"
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["reviewer"]["model"], "a")
             self.assertEqual(self.run_init(d, "--reviewer-model", "b", "--force").returncode, 0)
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["reviewer"]["model"], "b")
@@ -251,13 +251,13 @@ class ModelsInitCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             for args in (("--reviewer-model", "x;y"), ("--reviewer-model", "a", "--reviewer-effort", "minimal"), ()):
                 self.assertEqual(self.run_init(d, *args).returncode, 2, args)
-            self.assertFalse((pathlib.Path(d) / ".ai").exists())
+            self.assertFalse((pathlib.Path(d) / ".relay").exists())
 
     def test_print_does_not_write(self):
         with tempfile.TemporaryDirectory() as d:
             r = self.run_init(d, "--reviewer-model", "gpt-9", "--print")
             self.assertEqual(json.loads(r.stdout), {"reviewer": {"model": "gpt-9"}})
-            self.assertFalse((pathlib.Path(d) / ".ai").exists())
+            self.assertFalse((pathlib.Path(d) / ".relay").exists())
 
     def test_output_path_override(self):
         with tempfile.TemporaryDirectory() as d:

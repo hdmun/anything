@@ -43,7 +43,7 @@ class Snapshot(unittest.TestCase):
         run = gh()
         with tempfile.TemporaryDirectory() as d:
             got = issue.snapshot(URL, d, "ante", run)
-            self.assertEqual(got, {"action": "commit", "task": "I-45", "path": ".ai/specs/I-45-ante.md",
+            self.assertEqual(got, {"action": "commit", "task": "I-45", "path": ".relay/specs/I-45-ante.md",
                                    "updatedAt": "2026-11-04T01:02:03Z"})
             text = (pathlib.Path(d) / got["path"]).read_bytes().decode("utf-8")
         self.assertIn("> 이슈: %s\n" % URL, text)
@@ -57,7 +57,7 @@ class Snapshot(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             got = issue.snapshot(URL, d, "ante", gh(association="CONTRIBUTOR"))
             self.assertEqual((got["action"], got["reason"]), ("human", "author_not_trusted"))
-            self.assertFalse((pathlib.Path(d) / ".ai").exists())
+            self.assertFalse((pathlib.Path(d) / ".relay").exists())
 
     def test_member_and_collaborator_are_trusted(self):
         for a in ("MEMBER", "COLLABORATOR"):

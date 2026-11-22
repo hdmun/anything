@@ -7,7 +7,7 @@
 | 순서 | 파일 | 용도 |
 |---|---|---|
 | 1 | `~/.relay/models.json` | 사용자 전역 — 계정·쿼터에 따른 개인 선호 |
-| 2 | `<저장소>/.ai/relay-models.json` | 저장소별 — 팀 통일 또는 이 저장소만 다르게 |
+| 2 | `<저장소>/.relay/models.json` | 저장소별 — 팀 통일 또는 이 저장소만 다르게 |
 
 ```json
 { "designer":    { "model": "opus",   "effort": "high" },

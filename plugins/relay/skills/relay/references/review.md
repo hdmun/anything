@@ -2,7 +2,7 @@
 
 > 이 파일은 SKILL.md의 단계 절차 중 일부다. SKILL.md의 불변식과 함께 읽는다. (리뷰 분기)
 
-리뷰어는 `.ai/reviews/I-<n>.rN.json`(`N`은 리뷰 라운드 번호, 1부터)을 쓰고 `worker_done`의 `--report-path`로 경로를 넘긴다.
+리뷰어는 `.relay/reviews/I-<n>.rN.json`(`N`은 리뷰 라운드 번호, 1부터)을 쓰고 `worker_done`의 `--report-path`로 경로를 넘긴다.
 
 **라운드마다 파일을 따로 남기는 이유는 (h)의 카운터 때문이다.** 라운드 수를 진행자의 컨텍스트에 들고 있지 않는다 — 재개한 진행자도 같은 수를 센다. `<base>` 이후에 추가된 리포트 파일 개수가 곧 리뷰 라운드 수이고(`review-branch` 가 센다), git에 남아 세션과 무관하게 유지된다. 파일 번호 `N` 은 라운드 수와 별개로 이어 간다.
 
@@ -38,7 +38,7 @@ Relay-Done: I-<n>          ← `success` 일 때만. 진행자가 붙인다
 
 워커는 `worker_done` 뒤 스스로 닫히고, 닫힌 워커에 `send` 하면 Orca 가 후속 Task 로 다시 연다(Orca 1.4.247, ADR 0010). 명령은 Orca 가이드를 따른다.
 
-1. 이전 **구현** dispatch 에 `send` 한다. 본문: `I-<n> 수정 라운드 N. 리뷰: .ai/reviews/I-<n>.rN.json / 원본 명세: .ai/specs/I-<n>-<슬러그>.md / base: <base> / 지적마다 같은 패턴을 변경 대상 파일 전체에서 찾아 함께 고친다.`
+1. 이전 **구현** dispatch 에 `send` 한다. 본문: `I-<n> 수정 라운드 N. 리뷰: .relay/reviews/I-<n>.rN.json / 원본 명세: .relay/specs/I-<n>-<슬러그>.md / base: <base> / 지적마다 같은 패턴을 변경 대상 파일 전체에서 찾아 함께 고친다.`
 2. 영수증을 `implementer.md` 3대로 읽는다. 다시 연 워커는 이전 세션 컨텍스트를 이어 가므로 배경을 다시 설명할 필요가 없다.
 
 - 다시 열기가 기동 실패로 끝나면 `implementer.md` 2(예열)·3대로 **새 워커**를 `--agent antigravity`로 띄운다. **맥락은 잃는다** — 수정 지시가 리뷰 파일과 원본 명세 경로를 담고 있으므로 그것으로 충분해야 한다.

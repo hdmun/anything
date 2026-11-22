@@ -33,7 +33,7 @@
 
    - `human / agy_model_invalid`면 설정이 agy와 맞지 않는다(`detail`에 사유). `human / effort_needs_model`이면 설정에 effort만 있다 — Orca는 `--effort`를 `--model` 없이 받지 않는다. 어느 쪽이든 기동하지 않고 `detail`을 (h)로 올린다.
    - `launch`면 Orca 가이드의 `worker-start` 에 relay가 정하는 값만 채운다:
-     - `--spec` — `I-<n> 구현. 역할: .ai/roles/implementer.md / spec: .ai/specs/I-<n>-<슬러그>.md / base: <base>`
+     - `--spec` — `I-<n> 구현. 역할: .relay/roles/implementer.md / spec: .relay/specs/I-<n>-<슬러그>.md / base: <base>`
      - `--worktree current` — 이슈 워크트리
      - `--parent <태스크의 task_id>` — (c) 5 에서 만든 태스크
      - `--agent antigravity`, 그리고 `model`이 있을 때만 `--model <model>`(`effort`가 있으면 `--effort <effort>`)

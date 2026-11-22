@@ -139,7 +139,7 @@ class Vars(TempRepoCase):
         self.assertIn("gate_cmd_raw", str(cm.exception))
 
     def test_missing_vars_file(self):
-        (self.repo / ".ai" / "relay-roles.json").unlink()
+        (self.repo / ".relay" / "roles.json").unlink()
         with self.assertRaises(roles.RolesError):
             run(self)
 
@@ -202,6 +202,29 @@ class Cli(TempRepoCase):
         r = self._cli("relay_cli.py", "roles", "--plugin-root", str(self.plugin), "--repo", str(self.repo))
         self.assertEqual(r.returncode, 2)
         self.assertIn("review_focus", r.stderr.decode("utf-8"))
+
+    def _move_vars_to_old_folder(self):
+        old = self.repo / ".ai" / "relay-roles.json"
+        old.parent.mkdir(parents=True)
+        (self.repo / ".relay" / "roles.json").replace(old)
+
+    def test_old_folder_only_exits_2_and_writes_nothing(self):
+        self._move_vars_to_old_folder()
+        r = self._cli("relay_cli.py", "roles", "--plugin-root", str(self.plugin), "--repo", str(self.repo))
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(r.stderr.decode("utf-8").splitlines()[0],
+                         "옛 relay 폴더(.ai/)가 있다 — README 「4.0.0 으로 올리기」대로 옮긴다: "
+                         "git mv .ai/relay-roles.json .relay/roles.json")
+        self.assertFalse((self.repo / ".relay" / "roles").exists())
+        self.assertFalse((self.repo / ".gitignore").exists())
+
+    def test_both_folders_use_new_one_without_warning(self):
+        self._move_vars_to_old_folder()
+        self.write_vars(FULL_VARS)
+        r = self._cli("relay_cli.py", "roles", "--plugin-root", str(self.plugin), "--repo", str(self.repo))
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+        self.assertNotIn("옛 relay 폴더", r.stderr.decode("utf-8") + r.stdout.decode("utf-8"))
+        self.assertTrue(self.role("implementer").exists())
 
     def test_legacy_render_roles_entry_still_works(self):
         # commands/init.md 와 기존 저장소 안내가 이 경로를 부른다

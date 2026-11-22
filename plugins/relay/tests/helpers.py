@@ -36,14 +36,14 @@ class TempRepoCase(unittest.TestCase):
         shutil.copy(PLUGIN_ROOT / ".claude-plugin" / "plugin.json", self.plugin / ".claude-plugin" / "plugin.json")
         shutil.copytree(PLUGIN_ROOT / "templates", self.plugin / "templates")
         self.repo = base / "repo"
-        (self.repo / ".ai").mkdir(parents=True)
+        (self.repo / ".relay").mkdir(parents=True)
         self.write_vars(FULL_VARS)
 
     def tearDown(self):
         self._tmp.cleanup()
 
     def write_vars(self, v):
-        (self.repo / ".ai" / "relay-roles.json").write_text(json.dumps(v, ensure_ascii=False), encoding="utf-8")
+        (self.repo / ".relay" / "roles.json").write_text(json.dumps(v, ensure_ascii=False), encoding="utf-8")
 
     def write_bytes(self, rel, data):
         p = self.repo / rel
@@ -55,4 +55,4 @@ class TempRepoCase(unittest.TestCase):
         return (self.repo / rel).read_bytes()
 
     def role(self, name):
-        return self.repo / ".ai" / "roles" / (name + ".md")
+        return self.repo / ".relay" / "roles" / (name + ".md")

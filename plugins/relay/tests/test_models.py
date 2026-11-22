@@ -43,7 +43,7 @@ class Layers(unittest.TestCase):
         self.base = pathlib.Path(self._d.name)
         self.user = self.base / "user.json"
         self.repo = self.base / "repo"
-        (self.repo / ".ai").mkdir(parents=True)
+        (self.repo / ".relay").mkdir(parents=True)
 
     def tearDown(self):
         self._d.cleanup()
@@ -53,7 +53,7 @@ class Layers(unittest.TestCase):
 
     def test_repo_overrides_user_per_field(self):
         self.user.write_text(json.dumps({"reviewer": {"model": "u-model", "effort": "low"}, "designer": {"model": "opus"}}), encoding="utf-8")
-        (self.repo / ".ai" / "relay-models.json").write_text(json.dumps({"reviewer": {"effort": "xhigh"}}), encoding="utf-8")
+        (self.repo / ".relay" / "models.json").write_text(json.dumps({"reviewer": {"effort": "xhigh"}}), encoding="utf-8")
         cfg, used = models.load_all(self.repo, self.user)
         self.assertEqual(cfg["reviewer"], {"model": "u-model", "effort": "xhigh"})
         self.assertEqual(cfg["designer"], {"model": "opus"})

@@ -32,7 +32,7 @@ def _codex(config_text, cfg=None):
         return _check("codex", "fail", "사전 조건 누락: " + "; ".join(d["missing"]),
                       'config.toml 에 추가: check_for_update_on_startup = false / [tui] terminal_title = ["app-name", "activity", "project-name"]')
     return _check("codex", "fail", "리뷰어 모델이 정해지지 않았다 (codex config.toml 의 model 은 쓰지 않는다)",
-                  '~/.relay/models.json 또는 .ai/relay-models.json 에 {"reviewer": {"model": "<리뷰어로 쓸 모델>"}}')
+                  '~/.relay/models.json 또는 .relay/models.json 에 {"reviewer": {"model": "<리뷰어로 쓸 모델>"}}')
 
 
 def _version(agent, version, verified):
@@ -82,7 +82,7 @@ def _agy_permissions(settings):
 def _models(f):
     """relay 모델 설정 파일: 문법·값 검증, 구현자는 agy models 와 대조. 파일이 없으면 기본 동작이라 ok."""
     if f.get("models_error"):
-        return _check("models", "fail", f["models_error"], "~/.relay/models.json 또는 .ai/relay-models.json 을 고친다")
+        return _check("models", "fail", f["models_error"], "~/.relay/models.json 또는 .relay/models.json 을 고친다")
     cfg = f.get("models_cfg") or {}
     files = f.get("models_files") or []
     if not files:

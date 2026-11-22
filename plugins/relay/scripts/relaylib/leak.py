@@ -16,11 +16,11 @@ except ImportError:
 
 DEFAULT_CONFIG = pathlib.Path(__file__).with_name("leak_default.toml")
 USER_RULES = pathlib.Path.home() / ".relay" / "leak-rules.toml"
-REPO_ALLOW = ".ai/leak-allow.toml"
+REPO_ALLOW = ".relay/leak-allow.toml"
 ALLOWLIST_FILES = (".gitleaksignore", REPO_ALLOW)
-LOG_DIR = ".ai/leak"
+LOG_DIR = ".relay/leak"
 LEAK_EXIT = 99
-LEAK_NOTICE = "relay 멈춤 — 유출 검사에 걸려 내보내지 않았다. 자세한 결과는 이슈 워크트리 {worktree} 의 .ai/leak/ 로그에 있다."
+LEAK_NOTICE = "relay 멈춤 — 유출 검사에 걸려 내보내지 않았다. 자세한 결과는 이슈 워크트리 {worktree} 의 .relay/leak/ 로그에 있다."
 
 
 class LeakError(Exception):
@@ -174,7 +174,7 @@ def changed_allowlists(worktree, base, git):
 
 
 def write_log(worktree, op, findings):
-    """findings 를 <worktree>/.ai/leak/<UTC 시각>-<op>.json 에 쓰고 워크트리 기준 경로를 돌려준다."""
+    """findings 를 <worktree>/.relay/leak/<UTC 시각>-<op>.json 에 쓰고 워크트리 기준 경로를 돌려준다."""
     leak_dir = pathlib.Path(worktree) / LOG_DIR
     leak_dir.mkdir(parents=True, exist_ok=True)
     gitignore = leak_dir / ".gitignore"

@@ -35,8 +35,8 @@ python "$RELAY/scripts/relay_cli.py" model judge
   ```
   relay 판정: <사유> / I-<n>
   워크트리: <worktree> / base: <base>
-  spec: <worktree>/.ai/specs/I-<n>-<슬러그>.md
-  리뷰: <worktree>/.ai/reviews/I-<n>.rN.json   (repeated_finding 이면 직전 리포트도)
+  spec: <worktree>/.relay/specs/I-<n>-<슬러그>.md
+  리뷰: <worktree>/.relay/reviews/I-<n>.rN.json   (repeated_finding 이면 직전 리포트도)
   질문: <워커 question 원문>                     (question 일 때만)
   형식: <$RELAY>/skills/relay/references/judgment-schema.json 의 JSON 하나만 돌려준다.
   규칙: 읽기만 한다 — 파일 수정·커밋·워커 메시지 금지. diff 는 git -C <worktree> diff <base>..HEAD 로 직접 본다.
@@ -45,7 +45,7 @@ python "$RELAY/scripts/relay_cli.py" model judge
 
 ### 2. 검증한다
 
-받은 JSON 을 파일로 쓰고 검증한다 — `spec_violation`·`repeated_finding` 은 `.ai/judgments/I-<n>.jN.json`(N 은 그 태스크의 판정 번호, 1부터), `question` 은 워크트리 밖 임시 파일.
+받은 JSON 을 파일로 쓰고 검증한다 — `spec_violation`·`repeated_finding` 은 `.relay/judgments/I-<n>.jN.json`(N 은 그 태스크의 판정 번호, 1부터), `question` 은 워크트리 밖 임시 파일.
 
 ```bash
 python "$RELAY/scripts/relay_cli.py" judgment validate <파일> --reason <사유> ; echo "exit=$?"
@@ -88,7 +88,7 @@ Relay-Done: I-<n>        ← dismiss·accept 일 때만
 
    ```
    relay 멈춤 — I-<n> <사유>: <사람이 정해야 할 것 한 줄>
-   근거: <worktree>/.ai/reviews/I-<n>.rN.json, <worktree>/.ai/judgments/I-<n>.jN.json, <spec 절>, <파일:줄>
+   근거: <worktree>/.relay/reviews/I-<n>.rN.json, <worktree>/.relay/judgments/I-<n>.jN.json, <spec 절>, <파일:줄>
    워크트리: <worktree> / base: <base> / 브랜치: <branch>
    재개: 이슈를 고친 뒤 같은 이슈로 relay:handoff
    ```
@@ -97,7 +97,7 @@ Relay-Done: I-<n>        ← dismiss·accept 일 때만
 
    ```
    relay 멈춤 — I-<n> <사유>: <사람이 정해야 할 것 한 줄>
-   근거: <worktree>/.ai/reviews/I-<n>.rN.json, <worktree>/.ai/judgments/I-<n>.jN.json, <spec 절>, <파일:줄>
+   근거: <worktree>/.relay/reviews/I-<n>.rN.json, <worktree>/.relay/judgments/I-<n>.jN.json, <spec 절>, <파일:줄>
    워크트리: <worktree> / base: <base> / 브랜치: <branch>
    남은 진행 목록: #<n>, #<n> (시작하지 않음)
    재개: <고칠 것> 뒤 시작 명령 /relay:batch <URL>
@@ -108,8 +108,8 @@ Relay-Done: I-<n>        ← dismiss·accept 일 때만
    - 다음 handoff 실패로 **다음 이슈**에 다는 보고도 같은 형식이다. 이때 남은 진행 목록은 다음 이슈 뒤의 열린 이슈다.
    - 머지 조건이 어긋난 채 재개 시: 사람은 PR 을 직접 머지하고 시작 명령을 다시 치거나, PR 을 닫고 이슈 워크트리를 지운 뒤 처음부터 한다.
 
-   유출 검사로 멈춘 경우(푸시·PR 의 `stop/leak`·`allowlist_changed`)의 보고: 첫 줄에 `파일:줄`·규칙 id 만 적고 값은 적지 않는다. 로그 경로(`.ai/leak/…`)를 적는다. 재개 줄에는 두 길을 적는다.
-   - 오탐: `~/.relay/leak-rules.toml` 이나 저장소의 `.ai/leak-allow.toml`(사람이 main 에 커밋)을 고친 뒤 같은 이슈로 `relay:handoff`(일괄 진행이면 시작 명령 `/relay:batch <URL>`).
+   유출 검사로 멈춘 경우(푸시·PR 의 `stop/leak`·`allowlist_changed`)의 보고: 첫 줄에 `파일:줄`·규칙 id 만 적고 값은 적지 않는다. 로그 경로(`.relay/leak/…`)를 적는다. 재개 줄에는 두 길을 적는다.
+   - 오탐: `~/.relay/leak-rules.toml` 이나 저장소의 `.relay/leak-allow.toml`(사람이 main 에 커밋)을 고친 뒤 같은 이슈로 `relay:handoff`(일괄 진행이면 시작 명령 `/relay:batch <URL>`).
    - 진짜 값: 원인(예: 이슈 본문의 실제 값)을 고치고, 이슈 워크트리와 브랜치를 지운 뒤 같은 이슈로 `relay:handoff`(일괄 진행이면 시작 명령 `/relay:batch <URL>`).
    - 진행자는 커밋 이력을 고치지 않는다.
 
@@ -125,7 +125,7 @@ Relay-Done: I-<n>        ← dismiss·accept 일 때만
 |---|---|---|
 | **기동 실패** | 워커가 태스크 프롬프트를 받기 전에 실패한 것. Orca가 영수증으로 보고한 실패(`agent_readiness`, `agent_prompt_blocked` 등)와 `outcome_unknown`을 모두 포함한다. **라운드가 아니다** | Orca Task의 실패 이력 |
 | **구현 라운드** | 게이트를 통과해 커밋으로 남은 구현 한 번 | `git log <base>..HEAD`의 `Implemented-by:` 트레일러 커밋 수 — **트레일러가 빠진 커밋은 세지 못한다** |
-| **리뷰 라운드** | 리뷰 리포트 하나 | `<base>` 이후에 추가된 `.ai/reviews/I-<n>.r*.json` 파일 개수 |
+| **리뷰 라운드** | 리뷰 리포트 하나 | `<base>` 이후에 추가된 `.relay/reviews/I-<n>.r*.json` 파일 개수 |
 | **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (기록용, 한도 없음) |
 
 - **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. breaker가 걸리면 멈춤 보고(ADR 0009).

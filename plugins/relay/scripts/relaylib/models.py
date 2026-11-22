@@ -3,7 +3,7 @@
 
 파일 두 개를 필드 단위로 겹친다 (뒤가 앞을 덮는다):
   1. ~/.relay/models.json        사용자 전역 — 계정·쿼터에 따른 개인 선호
-  2. <repo>/.ai/relay-models.json 저장소별 — 팀이 통일하거나 이 저장소만 다르게 할 때
+  2. <repo>/.relay/models.json 저장소별 — 팀이 통일하거나 이 저장소만 다르게 할 때
 
 둘 다 없거나 필드가 비어 있으면 값이 None 이다. 그 경우 호출자가 기존 동작으로 되돌아간다
 (구현자는 agy 기본 모델, effort 는 역할 기본값). 리뷰어 model 만은 기본값이 없다 —
@@ -16,7 +16,7 @@ import pathlib
 import re
 
 USER_PATH = pathlib.Path.home() / ".relay" / "models.json"
-REPO_REL = ".ai/relay-models.json"
+REPO_REL = ".relay/models.json"
 
 ROLES = ("designer", "coordinator", "implementer", "reviewer", "judge")
 FIELDS = ("model", "effort")

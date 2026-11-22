@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """구현 이슈 읽기와 spec 스냅숏 — ADR 0006·0007 의 정본.
 
-정본은 트래커의 구현 이슈다. 진행자는 태스크를 시작할 때 이슈 본문을 워크트리의 `.ai/specs/` 에
+정본은 트래커의 구현 이슈다. 진행자는 태스크를 시작할 때 이슈 본문을 워크트리의 `.relay/specs/` 에
 스냅숏(고정 사본)으로 남긴다. 스냅숏에는 본문만 넣고 코멘트는 넣지 않는다(프롬프트 주입 대책).
 GitHub 이슈는 작성자가 쓰기 권한자일 때만 스냅숏한다. local-markdown 이슈는 저장소 안 파일이라 권한을 보지 않는다.
 """
@@ -134,7 +134,7 @@ def snapshot_body(text):
 
 
 def snapshot(issue_ref, worktree, slug, run):
-    """이슈를 읽어 `.ai/specs/<ID>-<slug>.md` 를 쓴다. 결정 dict 를 돌려준다(커밋은 진행자가 한다)."""
+    """이슈를 읽어 `.relay/specs/<ID>-<slug>.md` 를 쓴다. 결정 dict 를 돌려준다(커밋은 진행자가 한다)."""
     if not SLUG_RE.match(slug or ""):
         raise IssueError("슬러그는 영문 소문자·숫자·하이픈만: %r" % slug)
     ref = parse(issue_ref)
@@ -143,7 +143,7 @@ def snapshot(issue_ref, worktree, slug, run):
     problem = author_problem(ref, issue)
     if problem:
         return {"action": "human", "reason": problem, "task": tid, "author_association": issue.get("author_association")}
-    rel = ".ai/specs/%s-%s.md" % (tid, slug)
+    rel = ".relay/specs/%s-%s.md" % (tid, slug)
     path = pathlib.Path(worktree) / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render(issue), encoding="utf-8", newline="\n")

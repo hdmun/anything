@@ -12,7 +12,7 @@ python "$RELAY/scripts/relay_cli.py" model reviewer
 ```
 
 - `launch`면 그 `model`·`effort`로 띄운다. 둘 다 모델 설정 파일의 값이고, effort는 설정 파일에 없으면 `high`다.
-- `human`(`reviewer_model_unset`)이면 기동하지 말고 사용자에게 `~/.relay/models.json`(또는 `.ai/relay-models.json`)에 `{"reviewer": {"model": "<모델>"}}`을 추가해 달라고 한다.
+- `human`(`reviewer_model_unset`)이면 기동하지 말고 사용자에게 `~/.relay/models.json`(또는 `.relay/models.json`)에 `{"reviewer": {"model": "<모델>"}}`을 추가해 달라고 한다.
 - `human`(`codex_prereq_missing`)이면 기동하지 말고 `missing`에 적힌 키를 사용자에게 추가해 달라고 한다:
 
   ```toml
@@ -35,7 +35,7 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
 - 리뷰어 역할 파일에도 같은 확인이 있다(빈 diff면 `--outcome failed`). 진행자 쪽 확인이 1차, 역할 파일 쪽은 템플릿이 갱신된 저장소에서만 동작하는 2차 방어다.
 
 - **`worker-start --agent codex`로 띄운다.** Orca 가이드의 `worker-start` 에 relay가 정하는 값만 채운다:
-  - `--spec` — `I-<n> 리뷰 rN. 역할: .ai/roles/reviewer.md / spec: .ai/specs/I-<n>-<슬러그>.md / base: <base> / 리포트: .ai/reviews/I-<n>.rN.json`
+  - `--spec` — `I-<n> 리뷰 rN. 역할: .relay/roles/reviewer.md / spec: .relay/specs/I-<n>-<슬러그>.md / base: <base> / 리포트: .relay/reviews/I-<n>.rN.json`
   - `--worktree current` — 구현 워커와 같은 이슈 워크트리
   - `--agent codex --model <model reviewer 의 model> --effort <model reviewer 의 effort>`
   - `--full` — 리뷰 리포트 트레일러의 `launch.effective.model` 은 전체 기록에만 있다(`implementer.md` 3)
@@ -45,5 +45,5 @@ python "$RELAY/scripts/relay_cli.py" diff-guard --worktree <worktree> --base <ba
   - `agent_prompt_blocked`면 codex가 확인창에서 멈춘 것이다. 그 창은 사람이 터미널에서 직접 처리한다 — 사람을 부른다(SKILL.md 불변식). 업데이트 창이었다면 질문에 예방책(위 `check_for_update_on_startup = false`, `doctor`가 검사)을 함께 적는다.
 - **구현 워커와 같은 worktree를 쓴다.** 파이프라인이 순차라 충돌이 없다. (f)에서 게이트 통과 즉시 구현 커밋을 만들어두므로, 리뷰어는 `codex review <base>..HEAD`처럼 커밋된 범위를 본다 — `--uncommitted`를 전제하지 않는다.
 - **그 `<base>`를 Task spec에 반드시 적는다.** 리뷰어는 base를 추측할 수 없고, 범위를 잘못 잡으면 **조용히 빈 diff를 보고 `pass`를 낸다.** 정상 통과와 구분되지 않으므로 이 파이프라인에서 가장 비싼 실패다. 스냅숏 커밋 직후에 적어둔 SHA를 그대로 넣는다((c) 태스크마다 1).
-- 저장소의 역할 파일(`.ai/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다**. `/relay:init --check`로 확인한다.
+- 저장소의 역할 파일(`.relay/roles/reviewer.md`)도 같은 전제로 맞춰져 있어야 한다. **커밋 정책을 바꿀 때 역할 파일을 함께 고치지 않으면 리뷰어가 `--uncommitted`로 빈 diff를 검증하게 된다**. `/relay:init --check`로 확인한다.
 - **기록하는 `model`은 영수증의 `launch.effective.model`이다** — 리뷰 리포트 커밋의 트레일러에 쓴다. 요청한 값이 아니라 Orca가 실제로 띄운 값이다.

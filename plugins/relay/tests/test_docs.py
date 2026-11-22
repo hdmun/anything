@@ -180,7 +180,7 @@ class SessionStructure(unittest.TestCase):
         # 판정 서브에이전트의 입출력 계약 (#23): 경로 입력, 스키마 검증, 판정 기록, judge 역할
         self.assertFalse((SKILL_DIR / "references" / "escalation.md").exists())
         stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
-        for phrase in ("model judge", "judgment validate", "judgment-schema.json", ".ai/judgments/I-<n>.jN.json",
+        for phrase in ("model judge", "judgment validate", "judgment-schema.json", ".relay/judgments/I-<n>.jN.json",
                        "Judged-by: claude/", "Relay-Done: I-<n>", "Agent 도구"):
             self.assertIn(phrase, stop)
         self.assertTrue((SKILL_DIR / "references" / "judgment-schema.json").exists())
