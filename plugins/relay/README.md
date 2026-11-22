@@ -4,7 +4,7 @@
 
 | 역할 | 실행 주체 | 하는 일 |
 |---|---|---|
-| 설계자 | **설계 세션** — 사람이 연 Claude Code 세션 (Opus·high) | 구현 이슈(하위 이슈 = 태스크, 5개 이하)를 쓰고 `relay:handoff` 로 진행자를 띄운 뒤 끝난다 |
+| 설계자 | **설계 세션** — 사람이 연 Claude Code 세션 (Opus·high) | 구현 이슈(하위 이슈 = 태스크, 5개 이하)를 쓰고 `relay:start` 로 진행자를 띄운 뒤 끝난다 |
 | 진행자 | **진행자 세션** — handoff 가 이슈 워크트리에 띄우는 Claude Code 세션 (Opus·low) | Run 을 소유한다. 태스크마다 spec 스냅숏, 워커 기동, 게이트 재검증, 리뷰 분기. 모든 태스크 뒤 PR 하나 |
 | 구현자 | agy (Antigravity CLI) — 진행자의 워커 | spec 을 코드로 옮기고 게이트를 통과시킨다 |
 | 리뷰어 | codex — 진행자의 워커 | 커밋된 변경을 spec 과 대조해 심각도별 JSON 리포트를 낸다 |
@@ -41,7 +41,7 @@ claude plugin marketplace add <저장소>
 claude plugin install relay@hdmun-scripts
 ```
 
-설정 디렉터리를 여러 개 쓰면(`~/.claude`, 서브 계정 폴더) 각각에서 설치한다. 스킬은 넷이다: `relay`(진행자 세션), `relay:handoff`(설계 세션), `relay:spec`(구현 이슈 쓰기), `relay:batch`(일괄 진행).
+설정 디렉터리를 여러 개 쓰면(`~/.claude`, 서브 계정 폴더) 각각에서 설치한다. 스킬은 넷이다: `relay`(진행자 세션), `relay:start`(설계 세션), `relay:spec`(구현 이슈 쓰기), `relay:auto-merge`(일괄 진행).
 
 ## 사용
 
@@ -57,20 +57,20 @@ relay를 쓸 저장소에서 한 번 실행한다. 워커가 읽는 역할 파�
 
 | 생성물 | 정본 |
 |---|---|
-| `.ai/roles/implementer.md`, `.ai/roles/reviewer.md` | 플러그인 `templates/` (공유 규범) + 저장소의 `.ai/relay-roles.json` (게이트 명령 등 고유분) |
-| `.gitignore`의 `# >>> relay gate logs >>>` 블록 | `.ai/relay-roles.json`의 `gate_logs` |
+| `.relay/roles/implementer.md`, `.relay/roles/reviewer.md` | 플러그인 `templates/` (공유 규범) + 저장소의 `.relay/roles.json` (게이트 명령 등 고유분) |
+| `.gitignore`의 `# >>> relay gate logs >>>` 블록 | `.relay/roles.json`의 `gate_logs` |
 
-역할 파일은 손으로 고치지 않는다. 공유 규범은 템플릿을, 저장소 고유분은 `.ai/relay-roles.json`을 고치고 `--force`로 다시 만든다.
+역할 파일은 손으로 고치지 않는다. 공유 규범은 템플릿을, 저장소 고유분은 `.relay/roles.json`을 고치고 `--force`로 다시 만든다.
 워커는 `AGENTS.md`/`CLAUDE.md`의 링크를 통해서만 역할 파일에 도달하므로 링크를 걸어 둔다.
 
-### 2. 설계 세션 — 구현 이슈를 쓰고 `relay:handoff`
+### 2. 설계 세션 — 구현 이슈를 쓰고 `relay:start`
 
 구현 이슈를 트래커에 쓴다. 형식은 `skills/spec/references/spec-template.md` 다.
 
 - 하위 이슈가 있으면 하위 이슈 하나가 태스크 하나(5개 이하), 트래커의 blocking 이 의존이다. 없으면 이슈 자체가 태스크다([ADR 0007](docs/adr/0007-implementation-issue-is-one-branch-one-pr.md)).
 - 이슈는 쓰기 권한자(`OWNER`·`MEMBER`·`COLLABORATOR`)가 쓴다. 이슈가 spec 의 정본이고, 진행자는 태스크를 시작할 때 본문을 스냅숏으로 뜬다([ADR 0006](docs/adr/0006-implementation-issue-is-spec-canonical.md)).
 
-그다음 "이 구현 이슈 relay 로 넘겨줘"처럼 요청한다. `relay:handoff` 가:
+그다음 "이 구현 이슈 relay 로 넘겨줘"처럼 요청한다. `relay:start` 가:
 
 ```
 doctor (머신 점검) + handoff-check --issue <URL> (태스크 수·필수 절·작성자)   ← 둘 다 끝까지, FAIL 이면 띄우지 않는다
@@ -98,11 +98,11 @@ doctor → handoff-check(태스크 목록) → 기준선 게이트 → run-creat
 
 | 상황 | 처리 |
 |---|---|
-| `SPEC_VIOLATION`, 같은 지적 반복, 구현자의 spec 해석 질문 | 판정 서브에이전트(`model judge`)가 spec 안에서 판정 → `.ai/judgments/I-<n>.jN.json` 커밋. spec 이 틀렸으면 `stop` |
+| `SPEC_VIOLATION`, 같은 지적 반복, 구현자의 spec 해석 질문 | 판정 서브에이전트(`model judge`)가 spec 안에서 판정 → `.relay/judgments/I-<n>.jN.json` 커밋. spec 이 틀렸으면 `stop` |
 | 기동 실패 circuit-break, `outcome_unknown`, doctor FAIL 등 | 멈춤 보고 |
 | 워커가 확인창에 멈춤(`agent_prompt_blocked`) | 사람이 그 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 기다린다 |
 
-**멈춤 보고**는 구현 이슈 코멘트로 남고 진행자 세션은 끝난다. 워커는 `worker-keep-open` 으로 남는다(증거). **재개**는 사람이 이슈를 고친 뒤 같은 이슈로 다시 `relay:handoff` 하는 것이다 — 같은 이슈 워크트리에서 `Relay-Done` 이 붙은 태스크를 건너뛰고, 멈춘 태스크는 스냅숏을 다시 떠 라운드를 처음부터 센다([ADR 0010](docs/adr/0010-one-issue-worktree-workers-close-themselves.md)).
+**멈춤 보고**는 구현 이슈 코멘트로 남고 진행자 세션은 끝난다. 워커는 `worker-keep-open` 으로 남는다(증거). **재개**는 사람이 이슈를 고친 뒤 같은 이슈로 다시 `relay:start` 하는 것이다 — 같은 이슈 워크트리에서 `Relay-Done` 이 붙은 태스크를 건너뛰고, 멈춘 태스크는 스냅숏을 다시 떠 라운드를 처음부터 센다([ADR 0010](docs/adr/0010-one-issue-worktree-workers-close-themselves.md)).
 
 ## 구조
 
@@ -111,11 +111,11 @@ plugins/relay/
   .claude-plugin/plugin.json      버전
   skills/relay/SKILL.md           진행자 세션: 진입, 불변식, Orca 기본과 다른 점, 단계 목록 (절차의 정본)
   skills/relay/references/        단계별 절차(start·implementer·reviewer·gate·review·stop·finish·merge …), 리뷰·판정 JSON 스키마
-  skills/handoff/SKILL.md         설계 세션: 두 검사, 진행자 기동 (relay:handoff)
-  skills/handoff/references/      진행자 세션 기동 공유 절차 (launch)
+  skills/start/SKILL.md           설계 세션: 두 검사, 진행자 기동 (relay:start)
+  skills/start/references/        진행자 세션 기동 공유 절차 (launch)
   skills/spec/SKILL.md            구현 이슈 작성 (relay:spec)
   skills/spec/references/         spec 템플릿 (구현 이슈 본문 형식)
-  skills/batch/SKILL.md           일괄 진행 (relay:batch)
+  skills/auto-merge/SKILL.md      일괄 진행 (relay:auto-merge)
   docs/field-notes.md             실측 사례 서사 (사람용, 스킬이 가리키지 않음)
   commands/init.md                /relay:init
   scripts/relay_cli.py            단일 진입점 (relay_cli.py <sub>)
@@ -178,10 +178,10 @@ plugins/relay/
 
 | 저장소 쪽 파일 | 플러그인에서 오는가 | 갱신 방법 |
 |---|---|---|
-| `.ai/roles/implementer.md`, `reviewer.md` | 예 (템플릿) | 아래 절차 |
+| `.relay/roles/implementer.md`, `reviewer.md` | 예 (템플릿) | 아래 절차 |
 | `.gitignore`의 relay 블록 | 예 (`gate_logs`) | 아래 절차가 함께 처리 |
-| `.ai/relay-roles.json` | 아니오 — 저장소 소유 | 손으로 고친다 |
-| `.ai/specs/`, `.ai/reviews/` | 아니오 — 산출물 | 건드리지 않는다 |
+| `.relay/roles.json` | 아니오 — 저장소 소유 | 손으로 고친다 |
+| `.relay/specs/`, `.relay/reviews/` | 아니오 — 산출물 | 건드리지 않는다 |
 
 스킬(`SKILL.md`)만 바뀐 버전이면 저장소 쪽은 할 일이 없다. 바뀐 파일은 `git log -p <이전 태그나 커밋>.. -- plugins/relay/templates` 로 확인한다.
 
@@ -211,15 +211,15 @@ plugins/relay/
    | `OK 드리프트 없음` (exit 0) | 이미 최신 | 끝 |
    | `OK 내용 동일. 스탬프만 낡음` (exit 0) | 버전 스탬프만 다름 | 선택. 맞추려면 4번 |
    | `DRIFT ...` (exit 1) | 템플릿이 바뀌었다 | diff를 읽고, 템플릿 쪽이 맞으면 4번. 저장소 쪽이 맞으면 **템플릿을 고친다**(저장소 파일을 손으로 고치지 않는다) |
-   | `치환되지 않은 자리표시자: [...]` (exit 2) | 새 버전이 변수를 추가했다 | 그 키를 `.ai/relay-roles.json`에 넣고 2번부터 다시 |
+   | `치환되지 않은 자리표시자: [...]` (exit 2) | 새 버전이 변수를 추가했다 | 그 키를 `.relay/roles.json`에 넣고 2번부터 다시 |
    | `필수 키가 없거나 비어 있습니다: ...` (exit 2) | 변수 파일이 불완전하다 | 그 키를 채우고 2번부터 다시 |
 
 4. **덮어쓰고 커밋한다.**
 
    ```bash
    python "$P/scripts/relay_cli.py" roles --plugin-root "$P" --repo . --force
-   git diff --stat                      # .ai/roles/*.md 와 .gitignore 만 바뀌어야 한다
-   git add .ai/roles .gitignore
+   git diff --stat                      # .relay/roles/*.md 와 .gitignore 만 바뀌어야 한다
+   git add .relay/roles .gitignore
    git commit -m "chore(relay): 역할 파일 relay-roles v<버전> 반영"
    ```
 
@@ -231,8 +231,8 @@ relay를 쓰는 저장소와 각 역할 파일의 버전을 한 번에 본다.
 
 ```bash
 for r in ~/repo/*/; do
-  if [ -f "$r/.ai/relay-roles.json" ]; then
-    echo "$(basename "$r")  $(head -1 "$r/.ai/roles/implementer.md" | grep -o 'v[0-9.]*')"
+  if [ -f "$r/.relay/roles.json" ]; then
+    echo "$(basename "$r")  $(head -1 "$r/.relay/roles/implementer.md" | grep -o 'v[0-9.]*')"
   fi
 done
 ```
@@ -246,7 +246,7 @@ done
 | 파일 | 용도 |
 |---|---|
 | `~/.relay/models.json` | 사용자 전역 — 계정·쿼터에 따른 개인 선호 |
-| `<저장소>/.ai/relay-models.json` | 저장소별 — 팀 통일, 또는 이 저장소만 다르게 |
+| `<저장소>/.relay/models.json` | 저장소별 — 팀 통일, 또는 이 저장소만 다르게 |
 
 ```json
 {
@@ -261,7 +261,7 @@ done
 | 역할 | 적용 방식 | 생략하면 |
 |---|---|---|
 | designer | 강제하지 못한다(사람이 연 세션). `relay_cli.py model designer` 가 `claude --model … --effort …` 를 알려 준다 | 사용자가 고른 세션 그대로 |
-| coordinator | `relay:handoff` 가 진행자 세션을 `worktree create --agent claude --model … --effort …` 로 띄운다 | `opus` / `low` |
+| coordinator | `relay:start` 가 진행자 세션을 `worktree create --agent claude --model … --effort …` 로 띄운다 | `opus` / `low` |
 | implementer (agy) | 진행자가 `worker-start --agent antigravity [--model … --effort …]` 로 띄운다 | agy 기본 모델 |
 | reviewer (codex) | 진행자가 `worker-start --agent codex --model … --effort …` 로 띄운다 | `model` 은 **필수**(없으면 기동 거부), `effort` 는 `high` |
 | judge | 진행자가 판정 서브에이전트를 Agent 도구의 `model`·`effort` 로 띄운다. 별칭(`opus`·`sonnet`·`haiku`·`fable`)만 받는다 | `opus` / `high` |
@@ -280,15 +280,15 @@ cd <프로젝트>
 python "$P/scripts/relay_cli.py" models-init \
   --reviewer-model gpt-6-luna --reviewer-effort high \
   --implementer-model gemini-3.8-flash --implementer-effort low
-# wrote <프로젝트>/.ai/relay-models.json
-# 저장소 설정이다 — 팀과 공유하려면 git add .ai/relay-models.json
+# wrote <프로젝트>/.relay/models.json
+# 저장소 설정이다 — 팀과 공유하려면 git add .relay/models.json
 ```
 
 (`P` 는 위 「1.3.0 으로 올리기」 4번의 설치 경로. 이 저장소 안에서는 `python plugins/relay/scripts/relay_cli.py …`.)
 
 | 옵션 | 뜻 |
 |---|---|
-| `--repo <dir>` | 파일을 만들 프로젝트 (기본: 현재 디렉터리). 결과는 `<dir>/.ai/relay-models.json` |
+| `--repo <dir>` | 파일을 만들 프로젝트 (기본: 현재 디렉터리). 결과는 `<dir>/.relay/models.json` |
 | `--user` | 프로젝트 대신 사용자 전역 `~/.relay/models.json` 에 만든다 |
 | `--print` | 쓰지 않고 내용만 출력한다 (미리 보기) |
 | `--force` | 이미 있어도 덮어쓴다. 없으면 기존 파일이 있을 때 거부한다 |
@@ -325,7 +325,7 @@ python "$P/scripts/relay_cli.py" models-init \
    | effort 만 바꾸기 | `{"model": "gpt-6-luna", "effort": "medium"}` (model 은 항상 필요) |
 
    `effort` 를 생략하면 `high` 다. `model` 을 생략하면 기동하지 않는다.
-3. **저장소마다 다르게 하려면** `<저장소>/.ai/relay-models.json` 에 같은 형식으로 적는다. 필드 단위로 사용자 파일을 덮는다. 예를 들어 이 파일에 `{"reviewer": {"effort": "xhigh"}}` 만 있으면 모델은 사용자 파일의 것, effort 만 `xhigh` 다.
+3. **저장소마다 다르게 하려면** `<저장소>/.relay/models.json` 에 같은 형식으로 적는다. 필드 단위로 사용자 파일을 덮는다. 예를 들어 이 파일에 `{"reviewer": {"effort": "xhigh"}}` 만 있으면 모델은 사용자 파일의 것, effort 만 `xhigh` 다.
 4. **확인한다.** `reviewer-model` 줄이 `OK` 여야 한다. 모델이 지원하지 않는 effort 는 `FAIL`, 목록에 없는 모델은 `WARN`(캐시가 낡았거나 사용자 정의 모델일 수 있어 막지 않는다).
 
    ```bash
@@ -384,11 +384,11 @@ python "$P/scripts/relay_cli.py" models-init \
 
 커밋 트레일러 `Implemented-by: agy/<모델>` 은 `worker-start` 응답의 `launch.effective.model` 이다. agy 기본 모델로 띄워 그 값이 `null` 이면 agy 로그의 마지막 모델 라벨을 쓴다.
 
-## 3.0.0 으로 올리기 (다른 작업 경로·설정 디렉터리)
+## 4.0.0 으로 올리기 (다른 작업 경로·설정 디렉터리)
 
-3.0.0 은 입력과 세션 구조를 바꿨다 — 입력은 T-NNN spec 파일이 아니라 **구현 이슈 URL** 이고, 설계 세션은 `relay:handoff` 로 진행자 세션을 띄운 뒤 끝난다(ADR 0005~0010). 하위 호환은 없다: 3.0.0 relay 는 T-NNN spec 경로나 `relay 진행자:` Task 를 받으면 멈춘다. **`templates/` 도 바뀌었으므로 저장소마다 역할 파일을 다시 렌더링한다.**
+4.0.0 은 저장소 폴더 이름을 바꿨다 — `.ai/` 가 `.relay/` 가 되고, 폴더가 relay 이름을 가지므로 파일 이름의 `relay-` 접두어가 빠진다(`roles.json`, `models.json`). 하위 호환은 없다: 옛 폴더만 있는 저장소에서 `/relay:init` 은 아무것도 쓰지 않고 멈춘다. `~/.relay/` 아래 사용자 파일은 그대로다. 스킬 이름도 바뀌었다: `relay:handoff` → `relay:start`, `relay:batch`(`/relay:batch <URL>`) → `relay:auto-merge`(`/relay:auto-merge <URL>`). 둘을 나누는 기준은 자동 머지 여부다.
 
-1. **relay Run 이 하나도 떠 있지 않아야 한다.** `orca orchestration run-list`, 그리고 `I-*`·`T-*` 워크트리가 없는지 본다. 끝내지 못한 T-NNN spec 은 구현 이슈로 옮긴다. 옛 `.ai/specs/T-*`·`.ai/reviews/T-*` 는 그대로 둔다(새 패턴에 맞지 않아 무시된다).
+1. **relay Run 이 하나도 떠 있지 않아야 한다.** `orca orchestration run-list`, 그리고 `I-*` 워크트리가 없는지 본다.
 2. **설정 디렉터리마다 플러그인을 갱신한다.** 마켓플레이스 소스가 로컬 폴더(`<저장소>`)라 **main 이 체크아웃된 상태**여야 한다.
 
    ```bash
@@ -398,25 +398,23 @@ python "$P/scripts/relay_cli.py" models-init \
    CLAUDE_CONFIG_DIR=<서브 계정 폴더> claude plugin update relay    # 서브 계정 폴더
    ```
 
-3. **설치된 버전을 확인한다.** 모두 `3.0.0` 이어야 한다.
+3. **열려 있는 Claude 세션에서 `/reload-plugins`.**
+4. **저장소마다 설정 파일을 옮긴다.** 둘째·셋째 줄은 그 파일이 있을 때만.
 
    ```bash
-   for d in ~/.claude <서브 계정 폴더>; do
-     python -c "import json,sys; d=json.load(open(sys.argv[1]+'/plugins/installed_plugins.json')); print(sys.argv[1], [e['version'] for k,v in d['plugins'].items() if k.startswith('relay@') for e in v])" "$d"
-   done
+   git mv .ai/relay-roles.json .relay/roles.json
+   git mv .ai/relay-models.json .relay/models.json
+   git mv .ai/leak-allow.toml .relay/leak-allow.toml
    ```
 
-4. **열려 있는 Claude 세션에서 `/reload-plugins`.** 안 하면 `FAIL plugin`(낡은 절차)이 나온다.
-5. **doctor 를 확인한다.** `relay:handoff` 가 보이고, `orca:nested-depth` 는 없고(워커 중첩 깊이 설정은 이제 필요 없다), `model judge` 는 `opus`/`high` 다.
+5. **역할 파일을 새 폴더에 다시 만든다.** `/relay:init --force` 를 돌린 뒤 옛 역할 파일을 지운다.
 
    ```bash
-   P=$(ls -d ~/.claude/plugins/cache/hdmun-scripts/relay/*/ | sort -V | tail -1)
-   cd <repo>
-   python "$P/scripts/relay_cli.py" doctor | grep -E "FAIL|plugin|skill|models|codex"
-   python "$P/scripts/relay_cli.py" models
+   git rm -r .ai/roles
    ```
 
-6. **저장소마다 역할 파일을 갱신한다** — 「사용 중인 저장소 갱신」 절차(`/relay:init --force` 후 커밋). `--check` 가 `DRIFT` 를 내는 것이 정상이다.
+6. **`AGENTS.md`/`CLAUDE.md` 의 역할 파일 링크를 `.relay/roles/` 로 고친다.**
+7. **커밋한다.** 옛 `.ai/` 아래 spec 스냅숏·리뷰 리포트는 옮기지 않는다(기록이다).
 
 ## 알려진 한계
 

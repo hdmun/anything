@@ -14,11 +14,11 @@ SKILL = "\n".join(
     p.read_text(encoding="utf-8")
     for p in [SKILL_DIR / "SKILL.md", *sorted((SKILL_DIR / "references").glob("*.md"))]
 )
-HANDOFF_DIR = PLUGIN_ROOT / "skills/handoff"
-HANDOFF_MD = (HANDOFF_DIR / "SKILL.md").read_text(encoding="utf-8")
-HANDOFF = "\n".join(
+START_DIR = PLUGIN_ROOT / "skills/start"
+START_MD = (START_DIR / "SKILL.md").read_text(encoding="utf-8")
+START = "\n".join(
     p.read_text(encoding="utf-8")
-    for p in [HANDOFF_DIR / "SKILL.md", *sorted((HANDOFF_DIR / "references").glob("*.md"))]
+    for p in [START_DIR / "SKILL.md", *sorted((START_DIR / "references").glob("*.md"))]
 )
 SPEC_DIR = PLUGIN_ROOT / "skills/spec"
 SPEC_MD = (SPEC_DIR / "SKILL.md").read_text(encoding="utf-8")
@@ -26,13 +26,13 @@ SPEC = "\n".join(
     p.read_text(encoding="utf-8")
     for p in [SPEC_DIR / "SKILL.md", *sorted((SPEC_DIR / "references").glob("*.md"))]
 )
-BATCH_DIR = PLUGIN_ROOT / "skills/batch"
-BATCH_MD = (BATCH_DIR / "SKILL.md").read_text(encoding="utf-8")
-BATCH = "\n".join(
+AUTO_MERGE_DIR = PLUGIN_ROOT / "skills/auto-merge"
+AUTO_MERGE_MD = (AUTO_MERGE_DIR / "SKILL.md").read_text(encoding="utf-8")
+AUTO_MERGE = "\n".join(
     p.read_text(encoding="utf-8")
-    for p in [BATCH_DIR / "SKILL.md", *sorted((BATCH_DIR / "references").glob("*.md"))]
-) if (BATCH_DIR / "references").exists() else BATCH_MD
-LAUNCH_MD = (HANDOFF_DIR / "references" / "launch.md").read_text(encoding="utf-8")
+    for p in [AUTO_MERGE_DIR / "SKILL.md", *sorted((AUTO_MERGE_DIR / "references").glob("*.md"))]
+) if (AUTO_MERGE_DIR / "references").exists() else AUTO_MERGE_MD
+LAUNCH_MD = (START_DIR / "references" / "launch.md").read_text(encoding="utf-8")
 MERGE_MD = (SKILL_DIR / "references" / "merge.md").read_text(encoding="utf-8")
 
 
@@ -46,7 +46,7 @@ def _subcommands():
 
 class SkillCallsExistingCommands(unittest.TestCase):
     def test_every_relay_cli_call_is_a_real_subcommand(self):
-        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL + HANDOFF + SPEC + BATCH))
+        called = set(re.findall(r"relay_cli\.py\"? ([a-z][a-z-]+)", SKILL + START + SPEC + AUTO_MERGE))
         self.assertTrue(called, "SKILL.md 에 relay_cli 호출이 하나도 없다")
         self.assertLessEqual(called - {"--help"}, _subcommands())
 
@@ -90,24 +90,24 @@ class OrcaGuideIsTheSource(unittest.TestCase):
     """명령 문법은 Orca 가이드가 정본이다 — relay 문서는 Orca 스킬로 불러 따르고 스냅숏을 두지 않는다 (ADR 0003)."""
 
     def test_no_orca_command_snapshots(self):
-        hits = [line.strip() for line in (SKILL + HANDOFF + SPEC + BATCH).splitlines() if ORCA_COMMAND.search(line)]
+        hits = [line.strip() for line in (SKILL + START + SPEC + AUTO_MERGE).splitlines() if ORCA_COMMAND.search(line)]
         self.assertEqual(hits, [])
 
     def test_sessions_load_guides_through_orca_skills(self):
         start = (SKILL_DIR / "references" / "start.md").read_text(encoding="utf-8")
-        for text in (start, HANDOFF_MD, BATCH_MD):
+        for text in (start, START_MD, AUTO_MERGE_MD):
             self.assertIn("Skill 도구", text)
             self.assertIn("`orca-cli`", text)
         self.assertIn("`orchestration`", start)       # 진행자 세션은 Run 을 소유한다
-        self.assertNotIn("`orchestration`", HANDOFF_MD)  # handoff 는 워크트리와 진행자만 띄운다 — Run 은 진행자 것
-        self.assertNotIn("`orchestration`", BATCH_MD)
+        self.assertNotIn("`orchestration`", START_MD)  # handoff 는 워크트리와 진행자만 띄운다 — Run 은 진행자 것
+        self.assertNotIn("`orchestration`", AUTO_MERGE_MD)
 
     def test_every_referenced_file_exists(self):
         # `skills/…`·`$RELAY/skills/…` 는 플러그인 루트 기준, 맨 `references/…` 는 그 문서가 속한 스킬 기준이다
         # (references/*.md 안에서도 같다). 회귀: batch SKILL.md 가 relay 의 merge.md 를 자기 references/ 로 적었다
-        ref = re.compile(r"((?:skills/[a-z]+/)?references/[A-Za-z0-9_.-]+\.(?:md|json))")
+        ref = re.compile(r"((?:skills/[a-z-]+/)?references/[A-Za-z0-9_.-]+\.(?:md|json))")
         missing = []
-        for skill in (SKILL_DIR, HANDOFF_DIR, SPEC_DIR, BATCH_DIR):
+        for skill in (SKILL_DIR, START_DIR, SPEC_DIR, AUTO_MERGE_DIR):
             for doc in skill.rglob("*.md"):
                 for target in ref.findall(doc.read_text(encoding="utf-8")):
                     path = PLUGIN_ROOT / target if target.startswith("skills/") else skill / target
@@ -123,19 +123,19 @@ class OrcaGuideIsTheSource(unittest.TestCase):
 
 
 class SessionStructure(unittest.TestCase):
-    """설계 세션은 relay:handoff 로 진행자 세션을 띄우고 끝난다 (ADR 0005·0010)."""
+    """설계 세션은 relay:start 로 진행자 세션을 띄우고 끝난다 (ADR 0005·0010)."""
 
     def test_no_session_classification_or_depth_two(self):
         self.assertNotIn("세션 판정", SKILL_MD)
         self.assertNotIn("진행자 워커", SKILL)
         self.assertNotIn("SUB-DISPATCH", SKILL)
-        self.assertNotIn("nested-depth", SKILL + HANDOFF)
+        self.assertNotIn("nested-depth", SKILL + START)
 
     def test_old_inputs_stop_with_the_compat_line(self):
         entry = SKILL_MD.split("## 진입")[1].split("\n## ")[0]
         self.assertIn("T-NNN", entry)
         self.assertIn("relay 진행자:", entry)
-        self.assertIn("3.0.0 은 구현 이슈만 받는다. spec 을 이슈로 옮기고 `relay:handoff` 로 시작한다", entry)
+        self.assertIn("4.0.0 은 구현 이슈만 받는다. spec 을 이슈로 옮기고 `relay:start` 로 시작한다", entry)
 
     def test_handoff_launch_line_tells_the_session_to_load_relay(self):
         # 회귀: 기동 줄만으로는 description 이 3회 중 1회 발동하지 않았다 (2026-11-03 eval)
@@ -150,9 +150,9 @@ class SessionStructure(unittest.TestCase):
     def test_handoff_runs_both_checks_and_creates_the_issue_worktree(self):
         for phrase in ("relay_cli.py\" doctor", "relay_cli.py\" handoff-check", "--no-parent", "--base-branch main",
                        "--agent claude", "agent launch"):
-            self.assertIn(phrase, HANDOFF)
+            self.assertIn(phrase, START)
         self.assertTrue((SPEC_DIR / "references" / "spec-template.md").exists())
-        self.assertFalse((HANDOFF_DIR / "references" / "spec-template.md").exists())
+        self.assertFalse((START_DIR / "references" / "spec-template.md").exists())
         self.assertFalse((SKILL_DIR / "references" / "spec-template.md").exists())
         self.assertFalse((SKILL_DIR / "references" / "design.md").exists())
 
@@ -163,7 +163,7 @@ class SessionStructure(unittest.TestCase):
         self.assertIn('relay_cli.py" handoff-check', SPEC_MD)
 
     def test_handoff_recommends_relay_spec(self):
-        entry = HANDOFF_MD.split("## 1. 구현 이슈를 쓴다")[1].split("\n## ")[0]
+        entry = START_MD.split("## 1. 구현 이슈를 쓴다")[1].split("\n## ")[0]
         self.assertIn("`relay:spec`", entry)
 
     def test_workers_run_in_the_issue_worktree_and_close_themselves(self):
@@ -180,7 +180,7 @@ class SessionStructure(unittest.TestCase):
         # 판정 서브에이전트의 입출력 계약 (#23): 경로 입력, 스키마 검증, 판정 기록, judge 역할
         self.assertFalse((SKILL_DIR / "references" / "escalation.md").exists())
         stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
-        for phrase in ("model judge", "judgment validate", "judgment-schema.json", ".ai/judgments/I-<n>.jN.json",
+        for phrase in ("model judge", "judgment validate", "judgment-schema.json", ".relay/judgments/I-<n>.jN.json",
                        "Judged-by: claude/", "Relay-Done: I-<n>", "Agent 도구"):
             self.assertIn(phrase, stop)
         self.assertTrue((SKILL_DIR / "references" / "judgment-schema.json").exists())
@@ -205,7 +205,7 @@ FORBIDDEN = [
 
 class SupervisionStaysInOrca(unittest.TestCase):
     def test_no_forbidden_tokens_in_either_skill(self):
-        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, HANDOFF_DIR, SPEC_DIR, BATCH_DIR) for p in d.rglob("*.md")}
+        docs = {p: p.read_text(encoding="utf-8") for d in (SKILL_DIR, START_DIR, SPEC_DIR, AUTO_MERGE_DIR) for p in d.rglob("*.md")}
         hits = ["%s: %s" % (p.relative_to(PLUGIN_ROOT), pat) for p, text in docs.items() for pat in FORBIDDEN
                 if re.search(pat, text)]
         self.assertEqual(hits, [])
@@ -219,10 +219,10 @@ class SupervisionStaysInOrca(unittest.TestCase):
 
 
 EVALS = PLUGIN_ROOT / "evals"
-TRIGGER_CASES = {"handoff-fires", "handoff-not-relay", "spec-fires"}
-BATCH_CASES = {"merge-check-fail", "batch-last-issue"}
+TRIGGER_CASES = {"start-fires", "start-not-relay", "spec-fires"}
+AUTO_MERGE_CASES = {"merge-check-fail", "batch-last-issue"}
 EVAL_CASES = {"outcome-unknown", "prompt-blocked", "spec-violation-judge", "stop-reason-reinstruct",
-              "resume-skips-done", "mutation-dirty", "tsc-silent"} | TRIGGER_CASES | BATCH_CASES
+              "resume-skips-done", "mutation-dirty", "tsc-silent"} | TRIGGER_CASES | AUTO_MERGE_CASES
 
 
 def _launch_line_pattern(line):
@@ -244,13 +244,13 @@ class Evals(unittest.TestCase):
         batch = _launch_line_pattern(next(l for l in lines if "/ 일괄 진행:" in l))
         for case in sorted(EVAL_CASES - TRIGGER_CASES):
             prompt = (EVALS / case / "prompt.md").read_text(encoding="utf-8")
-            self.assertRegex(prompt, batch if case in BATCH_CASES else plain, case)
+            self.assertRegex(prompt, batch if case in AUTO_MERGE_CASES else plain, case)
             self.assertNotIn("relay 진행자:", prompt, case)
             self.assertNotIn("You are a dispatched worker", prompt, case)
 
     def test_handoff_cases_check_which_skill_fired(self):
-        for case, name in (("handoff-fires", "relay-not-fired.md"), ("handoff-fires", "skill-fired.md"),
-                           ("handoff-not-relay", "handoff-not-fired.md"), ("handoff-not-relay", "relay-not-fired.md"),
+        for case, name in (("start-fires", "relay-not-fired.md"), ("start-fires", "skill-fired.md"),
+                           ("start-not-relay", "handoff-not-fired.md"), ("start-not-relay", "relay-not-fired.md"),
                            ("spec-fires", "skill-fired.md"), ("spec-fires", "handoff-not-fired.md"),
                            ("spec-fires", "relay-not-fired.md")):
             self.assertTrue((EVALS / case / "graders" / name).exists(), (case, name))
@@ -264,7 +264,7 @@ class Frontmatter(unittest.TestCase):
     """
 
     def test_descriptions_are_safe_yaml_scalars(self):
-        for md in (SKILL_MD, HANDOFF_MD, SPEC_MD, BATCH_MD):
+        for md in (SKILL_MD, START_MD, SPEC_MD, AUTO_MERGE_MD):
             head = md.split("---")[1]
             for line in head.strip().splitlines():
                 key, _, value = line.partition(": ")
@@ -279,12 +279,12 @@ class Frontmatter(unittest.TestCase):
 
     def test_skill_names(self):
         self.assertIn("\nname: relay\n", SKILL_MD[:40])
-        self.assertIn("\nname: handoff\n", HANDOFF_MD[:40])
+        self.assertIn("\nname: start\n", START_MD[:40])
         self.assertIn("\nname: spec\n", SPEC_MD[:40])
-        self.assertIn("\nname: batch\n", BATCH_MD[:40])
+        self.assertIn("\nname: auto-merge\n", AUTO_MERGE_MD[:40])
 
     def test_batch_skill_disables_model_invocation(self):
-        head = BATCH_MD.split("---")[1]
+        head = AUTO_MERGE_MD.split("---")[1]
         self.assertIn("disable-model-invocation: true", head)
 
 
@@ -302,7 +302,7 @@ class MergeProcedure(unittest.TestCase):
 class SkillSkeleton(unittest.TestCase):
     def test_both_skill_mds_stay_within_500_lines(self):
         # 다시 비대해지는 것을 막는 상한 (분리 성공 기준). 컴팩션 생존은 리뷰에서 사람이 본다
-        for text in (SKILL_MD, HANDOFF_MD):
+        for text in (SKILL_MD, START_MD):
             self.assertLessEqual(len(text.splitlines()), 500)
 
     def test_invariants_live_in_skill_md_itself(self):

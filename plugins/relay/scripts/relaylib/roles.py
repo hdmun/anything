@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""역할 파일(.ai/roles/*.md)과 .gitignore 게이트 로그 블록을 플러그인 템플릿에서 생성·검증한다.
+"""역할 파일(.relay/roles/*.md)과 .gitignore 게이트 로그 블록을 플러그인 템플릿에서 생성·검증한다.
 
 모드
   None    : 없으면 만들고, 역할 파일이 이미 있고 내용이 다르면 아무것도 쓰지 않고 거부(2)
@@ -13,7 +13,7 @@ import json
 import pathlib
 import re
 
-VARS_PATH = ".ai/relay-roles.json"
+VARS_PATH = ".relay/roles.json"
 ROLE_NAMES = ("implementer", "reviewer")
 BEGIN = "# >>> relay gate logs >>>"
 END = "# <<< relay gate logs <<<"
@@ -30,6 +30,9 @@ class RolesError(Exception):
 
 def load_vars(plugin_root, repo):
     vp = pathlib.Path(repo) / VARS_PATH
+    if not vp.exists() and (pathlib.Path(repo) / ".ai" / "relay-roles.json").exists():
+        raise RolesError("옛 relay 폴더(.ai/)가 있다 — README 「4.0.0 으로 올리기」대로 옮긴다: "
+                         "git mv .ai/relay-roles.json .relay/roles.json")
     if not vp.exists():
         raise RolesError("변수 파일이 없습니다: %s — 먼저 /relay:init 으로 생성하세요." % vp)
     try:
@@ -65,7 +68,7 @@ def render(template, v):
         out = out.replace("{{%s}}" % k, val)
     left = sorted(set(PLACEHOLDER_RE.findall(out)))
     if left:
-        raise RolesError("치환되지 않은 자리표시자: %s — .ai/relay-roles.json 에 키를 추가하거나 템플릿을 고치세요" % left)
+        raise RolesError("치환되지 않은 자리표시자: %s — .relay/roles.json 에 키를 추가하거나 템플릿을 고치세요" % left)
     return out
 
 
@@ -131,7 +134,7 @@ def plan(plugin_root, repo):
     targets = []
     for name in ROLE_NAMES:
         tmpl = (plugin_root / "templates" / (name + ".md.tmpl")).read_text(encoding="utf-8")
-        path = repo / ".ai" / "roles" / (name + ".md")
+        path = repo / ".relay" / "roles" / (name + ".md")
         cur, nl = read_normalized(path)
         targets.append(Target(path, "role", cur, render(tmpl, v), nl))
     gp = repo / ".gitignore"

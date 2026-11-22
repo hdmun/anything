@@ -128,7 +128,7 @@ def _impl_rounds(worktree, base):
 
 
 def cmd_review_branch(a):
-    reviews = a.reviews or str(pathlib.Path(a.worktree) / ".ai" / "reviews")
+    reviews = a.reviews or str(pathlib.Path(a.worktree) / ".relay" / "reviews")
     return _emit(review.decide(reviews, a.task, _impl_rounds(a.worktree, a.base), _reports_since(a.worktree, a.base, reviews)))
 
 
@@ -222,7 +222,7 @@ def cmd_model(a):
 
 
 def cmd_models_init(a):
-    """역할별 model/effort 를 설정 파일로 만든다. 저장소(.ai/relay-models.json) 또는 사용자(~/.relay/models.json)."""
+    """역할별 model/effort 를 설정 파일로 만든다. 저장소(.relay/models.json) 또는 사용자(~/.relay/models.json)."""
     cfg = models.build({role: {f: getattr(a, "%s_%s" % (role, f)) for f in models.FIELDS} for role in models.ROLES})
     for role in cfg:
         for f, v in cfg[role].items():
@@ -507,7 +507,7 @@ def cmd_smoke(a):
 
 
 def _add_models_args(p):
-    p.add_argument("--repo", default=".", help="저장소별 설정(.ai/relay-models.json)을 찾을 저장소. 기본: 현재 디렉터리")
+    p.add_argument("--repo", default=".", help="저장소별 설정(.relay/models.json)을 찾을 저장소. 기본: 현재 디렉터리")
     p.add_argument("--user-config", help="사용자 전역 설정. 기본: ~/.relay/models.json")
 
 
@@ -544,10 +544,10 @@ def build_parser():
     b.add_argument("--task", required=True)
     b.add_argument("--worktree", required=True)
     b.add_argument("--base", required=True)
-    b.add_argument("--reviews", help="기본: <worktree>/.ai/reviews")
+    b.add_argument("--reviews", help="기본: <worktree>/.relay/reviews")
     b.set_defaults(func=cmd_review_branch)
 
-    sn = sub.add_parser("snapshot", help="구현 이슈 본문 → .ai/specs/<ID>-<slug>.md (작성자 권한 확인)")
+    sn = sub.add_parser("snapshot", help="구현 이슈 본문 → .relay/specs/<ID>-<slug>.md (작성자 권한 확인)")
     sn.add_argument("--issue", required=True, help="GitHub 이슈 URL 또는 .scratch/<feature>/issues/<NN>-<slug>.md")
     sn.add_argument("--worktree", required=True)
     sn.add_argument("--slug", required=True, help="영문 소문자·숫자·하이픈")
@@ -603,7 +603,7 @@ def build_parser():
     _add_models_args(ms)
     ms.set_defaults(func=cmd_models)
 
-    mi = sub.add_parser("models-init", help="역할별 model/effort 설정 파일 생성 (기본: <repo>/.ai/relay-models.json)")
+    mi = sub.add_parser("models-init", help="역할별 model/effort 설정 파일 생성 (기본: <repo>/.relay/models.json)")
     mi.add_argument("--repo", default=".", help="설정 파일을 만들 저장소. 기본: 현재 디렉터리")
     mi.add_argument("--user", action="store_true", help="저장소 대신 사용자 전역(~/.relay/models.json)에 만든다")
     mi.add_argument("--output", help="만들 파일 경로를 직접 지정 (테스트·특수용)")

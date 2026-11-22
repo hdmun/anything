@@ -32,7 +32,7 @@ def check(issue_ref, worktree, run, git, base="origin/main"):
             checks.append(_check("done:" + tid, "fail", "Relay-Done 이 없다"))
 
     # 2. snapshot:<태스크 ID>
-    specs_dir = pathlib.Path(worktree) / ".ai" / "specs"
+    specs_dir = pathlib.Path(worktree) / ".relay" / "specs"
     for t in tasks:
         tid = t["task"]
         matched = sorted(specs_dir.glob("%s-*.md" % tid)) if specs_dir.is_dir() else []

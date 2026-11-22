@@ -13,6 +13,6 @@ relay: 구현 이슈 https://github.com/hdmun/poker-server/issues/21 / 슬러그
 {"type": "escalation", "payload": {"dispatchId": "ctx_d301", "stopReason": "end_turn", "body": "Deck 셔플 시드를 어디서 받을지 몰라 멈췄습니다."}}
 ```
 
-spec 스냅숏 `.ai/specs/I-21-deck.md` 의 「시그니처」 절에 `fn shuffle(&mut self, rng: &mut impl Rng)` 가 있다. 이 워커가 `stopReason` 으로 멈춘 것은 이번이 처음이다.
+spec 스냅숏 `.relay/specs/I-21-deck.md` 의 「시그니처」 절에 `fn shuffle(&mut self, rng: &mut impl Rng)` 가 있다. 이 워커가 `stopReason` 으로 멈춘 것은 이번이 처음이다.
 
 두 가지를 적어라. (1) 지금 할 일. (2) 다시 지시한 뒤 같은 워커가 또 `stopReason` 으로 멈추면 할 일. 실행은 하지 마.

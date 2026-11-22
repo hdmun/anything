@@ -102,7 +102,7 @@ def make_runner(issues=None, subs=None, prs=None, fail_fetch=()):
 
 
 def make_spec(worktree, tid, slug, body, updated_at="2026-11-04T01:02:03Z"):
-    specs_dir = pathlib.Path(worktree) / ".ai" / "specs"
+    specs_dir = pathlib.Path(worktree) / ".relay" / "specs"
     specs_dir.mkdir(parents=True, exist_ok=True)
     num = int(tid.replace("I-", "")) if tid.startswith("I-") else 45
     item = {
@@ -288,7 +288,7 @@ class TestMergeCheck(unittest.TestCase):
     def test_invalid_snapshot_format_fails(self):
         runner = make_runner({45: {"body": GOOD_BODY}})
         with tempfile.TemporaryDirectory() as d:
-            specs_dir = pathlib.Path(d) / ".ai" / "specs"
+            specs_dir = pathlib.Path(d) / ".relay" / "specs"
             specs_dir.mkdir(parents=True, exist_ok=True)
             bad_spec = specs_dir / "I-45-bad.md"
             bad_spec.write_text("머리말 없는 일반 파일\n", encoding="utf-8")

@@ -186,10 +186,10 @@ class TestChangedAllowlists(unittest.TestCase):
 
     def test_detects_repo_allow_changed(self):
         def fake_git(wt, *args):
-            return ".ai/leak-allow.toml\n"
+            return ".relay/leak-allow.toml\n"
 
         res = leak.changed_allowlists("/fake", "origin/main", fake_git)
-        self.assertEqual(res, [".ai/leak-allow.toml"])
+        self.assertEqual(res, [".relay/leak-allow.toml"])
 
     def test_empty_when_no_allowlist_changed(self):
         def fake_git(wt, *args):
@@ -205,11 +205,11 @@ class TestWriteLog(unittest.TestCase):
             wt = pathlib.Path(td)
             findings = [{"rule": "relay-ipv4", "file": "src/a.py", "line": 10}]
             rel = leak.write_log(wt, "push", findings)
-            self.assertTrue(rel.startswith(".ai/leak/"))
+            self.assertTrue(rel.startswith(".relay/leak/"))
             self.assertTrue(rel.endswith("-push.json"))
             log_file = wt / rel
             self.assertTrue(log_file.is_file())
-            gitignore = wt / ".ai/leak/.gitignore"
+            gitignore = wt / ".relay/leak/.gitignore"
             self.assertTrue(gitignore.is_file())
             self.assertEqual(gitignore.read_text(encoding="utf-8").strip(), "*")
             data = json.loads(log_file.read_text(encoding="utf-8"))
@@ -311,7 +311,7 @@ class TestPublishActions(unittest.TestCase):
         self.assertEqual(dec["action"], "stop")
         self.assertEqual(dec["reason"], "leak")
         self.assertEqual(len(dec["findings"]), 1)
-        self.assertTrue(dec["log"].startswith(".ai/leak/"))
+        self.assertTrue(dec["log"].startswith(".relay/leak/"))
 
     def test_push_stop_push_failed(self):
         def fake_git(wt, *args):

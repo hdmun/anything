@@ -1,6 +1,6 @@
 ---
 name: relay
-description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리뷰어(codex)로 구현 이슈 하나를 PR 까지 옮기는 (일괄 진행이면 머지와 다음 이슈 handoff 까지) 진행자 세션의 스킬이다. 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. 기동 줄이 "relay: 구현 이슈 <URL>" 인 진행자 세션으로 떴을 때, 그리고 사람이 relay 로 구현 이슈를 진행하라고 할 때 쓴다. 구현 이슈를 진행자에게 넘기는 일은 `relay:handoff` 다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(감독·리뷰 없이 맡기기)에는 쓰지 않는다.'
+description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리뷰어(codex)로 구현 이슈 하나를 PR 까지 옮기는 (일괄 진행이면 머지와 다음 이슈 handoff 까지) 진행자 세션의 스킬이다. 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. 기동 줄이 "relay: 구현 이슈 <URL>" 인 진행자 세션으로 떴을 때, 그리고 사람이 relay 로 구현 이슈를 진행하라고 할 때 쓴다. 구현 이슈를 진행자에게 넘기는 일은 `relay:start` 다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(감독·리뷰 없이 맡기기)에는 쓰지 않는다.'
 # 대상 모델: Opus · effort low (진행자 세션). 값의 정본은 relay_cli model coordinator 다.
 ---
 
@@ -10,16 +10,16 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
 
 ## 진입
 
-**진행자 세션은 설계 세션이 `relay:handoff` 로 띄운다**(ADR 0005). 기동 줄은 `relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그>` 이고(/ 일괄 진행: #a #b 필드가 붙을 수 있다), 이 세션은 그 이슈의 **이슈 워크트리** 안에서 Run 을 소유한 최상위 코디네이터다. dispatch 된 워커가 아니다. 먼저 `references/start.md`를 Read 한다.
+**진행자 세션은 설계 세션이 `relay:start` 로 띄운다**(ADR 0005). 기동 줄은 `relay: 구현 이슈 <이슈 URL> / 슬러그: <슬러그>` 이고(/ 일괄 진행: #a #b 필드가 붙을 수 있다), 이 세션은 그 이슈의 **이슈 워크트리** 안에서 Run 을 소유한 최상위 코디네이터다. dispatch 된 워커가 아니다. 먼저 `references/start.md`를 Read 한다.
 
-- **호환 한 줄**: 입력이 T-NNN spec 경로(`.ai/specs/T-…`)이거나 Task 첫 줄이 `relay 진행자:` 이면 진행하지 않는다. "3.0.0 은 구현 이슈만 받는다. spec 을 이슈로 옮기고 `relay:handoff` 로 시작한다" 를 남기고 멈춘다.
-- 사람이 이 세션에서 직접 "relay 로 이슈 <URL> 진행해줘" 라고 해도 같다. 이슈 워크트리 밖이면 진행하지 않고 `relay:handoff` 로 시작하라고 알린다 — 이슈 워크트리는 handoff 가 만든다.
+- **호환 한 줄**: 입력이 T-NNN spec 경로(`.relay/specs/T-…`)이거나 Task 첫 줄이 `relay 진행자:` 이면 진행하지 않는다. "4.0.0 은 구현 이슈만 받는다. spec 을 이슈로 옮기고 `relay:start` 로 시작한다" 를 남기고 멈춘다.
+- 사람이 이 세션에서 직접 "relay 로 이슈 <URL> 진행해줘" 라고 해도 같다. 이슈 워크트리 밖이면 진행하지 않고 `relay:start` 로 시작하라고 알린다 — 이슈 워크트리는 handoff 가 만든다.
 
 ## 역할과 모델
 
 | 역할 | 실행 주체 | 모델 계열 / effort | Orca에서의 위치 |
 |---|---|---|---|
-| 설계자 | Claude Code | Opus (`/model opus`) / high | 설계 세션 — 구현 이슈를 쓰고 `relay:handoff` 후 끝난다. Run 밖 |
+| 설계자 | Claude Code | Opus (`/model opus`) / high | 설계 세션 — 구현 이슈를 쓰고 `relay:start` 후 끝난다. Run 밖 |
 | 진행자 | Claude Code | Opus / low — `model coordinator` 를 handoff 가 기동 인자로 준다 | 진행자 세션 — Run 을 소유한 코디네이터 |
 | 구현자 | agy (Antigravity CLI) | agy 기본 모델 — (d) 참조 | supervised worker (깊이 1) |
 | 리뷰어 | codex | 모델 설정 파일의 `reviewer.model` (필수) / high | supervised worker (깊이 1) |
@@ -32,7 +32,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
 ## 파이프라인 흐름
 
 ```
-[설계 세션 Opus·high]   구현 이슈 작성 → relay:handoff (doctor + handoff-check → 이슈 워크트리 + 진행자) → 끝
+[설계 세션 Opus·high]   구현 이슈 작성 → relay:start (doctor + handoff-check → 이슈 워크트리 + 진행자) → 끝
                                ↓ worktree create --agent claude
 [진행자 세션 Opus·low]  doctor · 기준선 게이트 · run-create · 태스크 DAG
                         태스크마다(순차): spec 스냅숏 → 구현 워커 기동
@@ -41,7 +41,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
                                ↓
 [진행자 세션]           게이트 독립 재검증 → 구현 커밋
                                ↓
-[리뷰 codex·high]      .ai/reviews/I-<n>.rN.json 작성
+[리뷰 codex·high]      .relay/reviews/I-<n>.rN.json 작성
                                ↓
 [진행자 세션]           스키마 검증 → 심각도 분기 → 다음 태스크
                         모든 태스크 뒤: PR 하나 (구현 이슈마다) → 사람에게 보고
@@ -70,7 +70,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
 
 ## Orca 기본과 다른 점
 
-Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에만 적는다. 항목마다 근거가 있고, 근거가 사라지면 항목을 지운다. 이슈 워크트리를 만들 때의 차이(`--base-branch main` 등)는 `relay:handoff` 의 표에 있다.
+Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에만 적는다. 항목마다 근거가 있고, 근거가 사라지면 항목을 지운다. 이슈 워크트리를 만들 때의 차이(`--base-branch main` 등)는 `relay:start` 의 표에 있다.
 
 | relay 가 하는 것 | Orca 기본 | 근거 |
 |---|---|---|
@@ -93,7 +93,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 판정·멈춤 (h) | 판정 서브에이전트, 판정 기록, 멈춤 보고, 시도와 라운드 | `references/stop.md` |
 | 종료 (i) | 워커 출구, PR(경로 A/B), 사람에게 보고 | `references/finish.md` |
 | 머지 (일괄 진행) | 머지 조건·머지·연쇄 handoff·워크트리 삭제 | `references/merge.md` |
-| 다음 이슈 기동 (일괄 진행) | 머지 뒤 다음 이슈의 진행자 세션 띄우기 | `skills/handoff/references/launch.md` |
+| 다음 이슈 기동 (일괄 진행) | 머지 뒤 다음 이슈의 진행자 세션 띄우기 | `skills/start/references/launch.md` |
 
 예외 경로는 해당 상황에서만 읽는다.
 
@@ -111,7 +111,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 ## (j) 컨텍스트 위생 규범
 
 1. **`orca ... --json` 출력에서 필요한 필드만 추출해서 읽는다.** orca의 JSON 응답은 크고, 매 턴 재전송되어 비용이 누적된다.
-2. 진행자 한 명이 이슈의 태스크를 모두 돈다(ADR 0005). 그래서 태스크가 5개 이하다. 지난 태스크의 게이트 로그·리뷰 리포트는 다시 읽지 않는다 — 필요한 것은 git 과 `.ai/reviews/` 에 있다.
+2. 진행자 한 명이 이슈의 태스크를 모두 돈다(ADR 0005). 그래서 태스크가 5개 이하다. 지난 태스크의 게이트 로그·리뷰 리포트는 다시 읽지 않는다 — 필요한 것은 git 과 `.relay/reviews/` 에 있다.
 3. 태스크 상태는 `task-list --ready`로 매번 조회한다. 컨텍스트에 들고 있지 않는다.
 
 ## (k) 병렬 실행 정책

@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "relay",
-      "description": "Orca orchestration 위에서 구현 이슈를 relay:handoff → 진행자 세션 → PR 로 옮기는 파이프라인",
+      "description": "Orca orchestration 위에서 구현 이슈를 relay:start → 진행자 세션 → PR 로 옮기는 파이프라인",
       "source": "./plugins/relay",
       "category": "workflow"
     }

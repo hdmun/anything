@@ -11,7 +11,7 @@
 |---|---|
 | 1 `ee6e0ba` | 감독 보강(폴링·`startup`·`liveness`·기동 실패 예산) 삭제. 남는 감독 정책 3줄 (ADR 0009) |
 | 2 `90f6281` | 작업 단위 = 구현 이슈 `I-<n>`, 태스크 시작 때 spec 스냅숏(`relay_cli snapshot`) (ADR 0006·0007) |
-| 3 `d189d38` | 설계 세션 → `relay:handoff` → 진행자 세션. `handoff-check`, 이슈 워크트리, 워커 `--worktree current`, 출구 세 줄, PR 이슈당 하나, `orca:nested-depth` 삭제 (ADR 0005·0010) |
+| 3 `d189d38` | 설계 세션 → `relay:start` → 진행자 세션. `handoff-check`, 이슈 워크트리, 워커 `--worktree current`, 출구 세 줄, PR 이슈당 하나, `orca:nested-depth` 삭제 (ADR 0005·0010) |
 | 4 `c5918d4` | 재개: `relay_cli resume` + `Relay-Done` 트레일러, `review_round_limit` 삭제 (ADR 0010) |
 | 5 `8340305` | 판정 서브에이전트: `stop.md`, `judgment-schema.json`, `judgment validate`, 판정 기록, `judge` 역할 (ADR 0008) |
 | 6 `19772dd` | `test_docs` 금지 토큰·500줄 검사, eval 9케이스 |
@@ -307,7 +307,7 @@ T-007 은 v1.2.3 으로 성공 종료(구현 2·리뷰 2, r2 pass). 그 세션�
 
 ## 기능 — 역할별 model·effort 설정 파일 (2026-10-11, v1.3.0)
 
-- `~/.relay/models.json`(사용자) + `.ai/relay-models.json`(저장소) 를 필드 단위로 겹친다. 정본은 `relaylib/models.py`, 근거는 `docs/adr/0002-model-settings-file.md`.
+- `~/.relay/models.json`(사용자) + `.relay/models.json`(저장소) 를 필드 단위로 겹친다. 정본은 `relaylib/models.py`, 근거는 `docs/adr/0002-model-settings-file.md`.
 - 리뷰어 모델은 codex `config.toml` 의 `model` 과 분리 — 설정 파일에 없으면 `reviewer_model_unset`(폴백 없음). `config.toml` 은 사전 조건 키만 본다.
 - 결정기: `model designer|coordinator|implementer|reviewer`, `models`. doctor 에 `models` 줄, smoke 가 설정의 agy 명령으로 리허설.
 - 실측(agy 1.3.3, `-p` 모드): `--model gemini-3.8-flash --effort low` 통과 / `--model gemini-3.8-flash-low --effort high` → `conflicts with --effort` 로 즉시 거부 / `--model gemini-3.1-pro --effort xhigh` → `has no "xhigh" effort (available: low, high)` / 없는 모델은 목록과 함께 거부 / `--effort high` 단독은 기본 모델에 적용되어 통과.
