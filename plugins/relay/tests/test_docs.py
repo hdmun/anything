@@ -174,6 +174,16 @@ class SessionStructure(unittest.TestCase):
         entry = START_MD.split("## 1. 구현 이슈를 쓴다")[1].split("\n## ")[0]
         self.assertIn("`relay:spec`", entry)
 
+    def test_warn_handling_lives_in_warn_md(self):
+        # WARN 처리는 한 곳에 둔다. 다른 스킬의 절 번호를 가리키면 절이 바뀔 때 깨진다 (#159)
+        warn = (START_DIR / "references" / "warn.md").read_text(encoding="utf-8")
+        self.assertIn("relay_cli.py smoke --dir <대상 저장소 루트>", warn)
+        self.assertIn("selector_not_found", warn)
+        self.assertNotIn("trust 등록된 디렉터리", START)
+        self.assertIn("references/warn.md", START_MD)
+        self.assertIn("skills/start/references/warn.md", AUTO_MERGE_MD)
+        self.assertNotIn("2절", AUTO_MERGE_MD)
+
     def test_workers_run_in_the_issue_worktree_and_close_themselves(self):
         self.assertIn("--worktree current", SKILL_MD)
         self.assertNotIn("id:<wt>", SKILL)
