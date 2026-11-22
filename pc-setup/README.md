@@ -50,7 +50,8 @@ irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1
 - [ ] 전역 규칙: 셋업이 저장소 도구 `agent-rules` 로 맞춘다(에이전트 폴더 경계의 예외). 끝 요약에 `할 일` 이 나오면 그 파일 내용을 `agent-rules/global/` 로 옮긴 뒤 `pwsh -NoProfile -File agent-rules/install.ps1 -Force` 를 실행한다 → [agent-rules/README.md](../agent-rules/README.md)
 - [ ] relay 플러그인: 설정 폴더마다 마켓플레이스 추가와 설치를 실행한다 → [plugins/relay/README.md](../plugins/relay/README.md)
 - [ ] Codex `~/.codex/config.toml`: relay 사전 조건 키 두 개(`check_for_update_on_startup = false`, `[tui] terminal_title`)는 [plugins/relay/README.md](../plugins/relay/README.md) 에 적힌 값을 따른다.
-- [ ] 그 밖의 내용(플러그인·스킬·`settings.json`·statusline·agy 폴더)은 그 PC 에서 손으로 맞춘다.
+- [ ] statusline: 셋업이 저장소 도구 `claude-statusline`·`agy-statusline`·`codex-statusline` 으로 맞춘다(에이전트 폴더 경계의 예외). Codex 는 처음 한 번 TUI 를 재시작해 상태 줄이 나오는지 본다 → [codex-statusline/README.md](../codex-statusline/README.md)
+- [ ] 그 밖의 내용(플러그인·스킬·`settings.json` 의 나머지 키·agy 폴더)은 그 PC 에서 손으로 맞춘다.
 
 ### Flutter
 
