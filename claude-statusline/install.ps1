@@ -4,7 +4,8 @@
 #   pwsh -NoProfile -File claude-statusline/install.ps1           맞춘다
 #   pwsh -NoProfile -File claude-statusline/install.ps1 -Check    아무것도 쓰지 않고 결과만 본다
 #
-# 대상: ~/.claude 와 ~/.agent-accounts/claude/* (폴더가 있을 때만). 출력 약속은 README.md 에 있다.
+# 대상: ~/.claude, 서브 계정 폴더(~/.claude-* 중 settings.json 이나 .credentials.json 이 있는 폴더),
+#       ~/.agent-accounts/claude/* (폴더가 있을 때만). 출력 약속은 README.md 에 있다.
 [CmdletBinding()]
 param(
     [switch]$Check,
@@ -19,6 +20,17 @@ function Get-TargetDirs {
     $main = Join-Path $HomeDir '.claude'
     if (Test-Path -LiteralPath $main -PathType Container) {
         $dirs.Add([pscustomobject]@{ Path = $main; Shown = '~/.claude' })
+    }
+    # 서브 계정 폴더: 이름을 저장소에 적지 않도록 패턴으로 찾고, Claude 설정 폴더로 보이는 것만 고른다.
+    $subs = Get-ChildItem -LiteralPath $HomeDir -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like '.claude-*' } |
+        Where-Object {
+            (Test-Path -LiteralPath (Join-Path $_.FullName 'settings.json')) -or
+            (Test-Path -LiteralPath (Join-Path $_.FullName '.credentials.json'))
+        } |
+        Sort-Object Name
+    foreach ($d in $subs) {
+        $dirs.Add([pscustomobject]@{ Path = $d.FullName; Shown = "~/$($d.Name)" })
     }
     $accounts = Join-Path $HomeDir '.agent-accounts' 'claude'
     if (Test-Path -LiteralPath $accounts -PathType Container) {

@@ -52,7 +52,7 @@ Claude Code·Codex·Antigravity(`agy`)의 **사용자 전역** 규칙 원본이�
 
 ## 왜 이렇게 했나
 
-- 파일은 제자리에서 덮어쓴다(임시 파일 교체·삭제 후 생성을 하지 않는다). agent-accounts 가 계정 폴더(`~/.claude-max` 등)의 `CLAUDE.md` 를 `~/.claude/CLAUDE.md` 를 가리키는 심볼릭 링크로 만들기 때문이다. 링크를 지우면 계정 폴더가 규칙을 잃는다.
+- 파일은 제자리에서 덮어쓴다(임시 파일 교체·삭제 후 생성을 하지 않는다). agent-accounts 가 서브 계정 폴더의 `CLAUDE.md` 를 `~/.claude/CLAUDE.md` 를 가리키는 심볼릭 링크로 만들기 때문이다. 링크를 지우면 계정 폴더가 규칙을 잃는다.
 - Codex 의 `AGENTS.md` 는 다른 파일을 import 하지 못한다. 그래서 원본을 합쳐서 만든다. 다른 도구도 같은 방식으로 만들어 결과를 한눈에 보게 한다.
 - 원본을 `.claude/rules/` 에 두지 않는다. Claude Code 가 이 폴더를 자동으로 읽어서 규칙이 두 번 들어가고 `*.codex.md` 도 Claude 에 들어간다.
 - Codex 는 `AGENTS.md` 를 기본 32 KiB(`project_doc_max_bytes`)까지만 읽는다. 넘으면 `-Verbose` 에서 경고한다.

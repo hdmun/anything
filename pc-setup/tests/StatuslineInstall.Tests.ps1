@@ -30,11 +30,9 @@
 
     Context 'claude-statusline' {
         It '기존 값을 덮어쓰고 다른 키·키 순서를 보존하며, 두 번째 실행은 그대로다' {
-            $homeDir = New-HomeDir @('.claude', '.agent-accounts/claude/a', '.agent-accounts/claude/b', '.claude-sub')
+            $homeDir = New-HomeDir @('.claude', '.agent-accounts/claude/a', '.agent-accounts/claude/b')
             $main = Join-Path $homeDir '.claude/settings.json'
             Write-Text $main "{`n  `"env`": {`n    `"A`": `"1`"`n  },`n  `"statusLine`": {`n    `"type`": `"command`",`n    `"command`": `"bash ~/.claude/statusline__.sh`",`n    `"padding`": 0`n  },`n  `"when`": `"2026-11-22T10:00:00Z`",`n  `"list`": [`n    `"x`"`n  ],`n  `"z`": true`n}`n"
-            $sub = Join-Path $homeDir '.claude-sub/settings.json'
-            Write-Text $sub "{}`n"
 
             & $script:claude -HomeDir $homeDir -Check | Should -Be '다름 (~/.claude/settings.json, ~/.agent-accounts/claude/a/settings.json, ~/.agent-accounts/claude/b/settings.json)'
             Test-Path (Join-Path $homeDir '.agent-accounts/claude/a/settings.json') | Should -BeFalse
@@ -57,7 +55,25 @@
             $json | Should -Match "`n$"
 
             ((Read-Text (Join-Path $homeDir '.agent-accounts/claude/a/settings.json')) | ConvertFrom-Json).statusLine.command | Should -BeExactly $cmd
-            Read-Text $sub | Should -BeExactly "{}`n"
+        }
+
+        It '서브 계정 폴더는 settings.json 이나 .credentials.json 이 있을 때만 맞춘다' {
+            $homeDir = New-HomeDir @('.claude', '.claude-x', '.claude-y', '.claude-z', '.agent-accounts/claude/a')
+            Write-Text (Join-Path $homeDir '.claude-x/settings.json') "{`n  `"a`": 1`n}`n"
+            Write-Text (Join-Path $homeDir '.claude-z/.credentials.json') "{}`n"
+            Write-Text (Join-Path $homeDir '.claude-w.json') "{}`n"
+
+            & $script:claude -HomeDir $homeDir -Check | Should -Be '다름 (~/.claude/settings.json, ~/.claude-x/settings.json, ~/.claude-z/settings.json, ~/.agent-accounts/claude/a/settings.json)'
+            & $script:claude -HomeDir $homeDir | Should -Be '바꿈 (~/.claude/settings.json, ~/.claude-x/settings.json, ~/.claude-z/settings.json, ~/.agent-accounts/claude/a/settings.json)'
+            & $script:claude -HomeDir $homeDir -Check | Should -Be '그대로'
+
+            $cmd = Get-ExpectedCommand 'claude'
+            $x = Read-Text (Join-Path $homeDir '.claude-x/settings.json') | ConvertFrom-Json
+            @($x.PSObject.Properties.Name) | Should -Be @('a', 'statusLine')
+            $x.statusLine.command | Should -BeExactly $cmd
+            (Read-Text (Join-Path $homeDir '.claude-z/settings.json') | ConvertFrom-Json).statusLine.command | Should -BeExactly $cmd
+            Test-Path (Join-Path $homeDir '.claude-y/settings.json') | Should -BeFalse
+            Read-Text (Join-Path $homeDir '.claude-w.json') | Should -BeExactly "{}`n"
         }
 
         It 'CRLF 파일은 CRLF 로 쓰고, 링크면 링크 대상에 쓴다' {

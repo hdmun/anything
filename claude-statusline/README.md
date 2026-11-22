@@ -20,7 +20,10 @@ pwsh -NoProfile -File claude-statusline/install.ps1 -Check   # 먼저 보기 (�
 pwsh -NoProfile -File claude-statusline/install.ps1
 ```
 
-- 대상: `~/.claude/settings.json` 과 `~/.agent-accounts/claude/*/settings.json`. 폴더가 없으면 건너뛴다. `settings.json` 은 계정마다 따로라 모두 맞춘다. agent-accounts 밖의 Claude 설정 폴더(서브 계정 폴더)는 건드리지 않는다.
+- 대상: 아래 폴더의 `settings.json`. 폴더가 없으면 건너뛴다. `settings.json` 은 계정마다 따로라 모두 맞춘다.
+  - `~/.claude`
+  - 서브 계정 폴더 `~/<서브 계정 폴더>`: `~/.claude-*` 패턴의 폴더 중 안에 `settings.json` 이나 `.credentials.json` 이 있는 것만. 폴더 이름은 저장소에 적지 않고 패턴으로 찾는다. `~/.claude.json` 같은 파일과 빈 폴더는 빠진다.
+  - `~/.agent-accounts/claude/*`
 - `statusLine` 을 아래 값으로 덮어쓴다. 이미 다른 값(`padding` 등)이 있어도 바꾼다. 다른 키와 키 순서·줄바꿈(LF/CRLF)은 그대로 두고, 링크면 링크 대상에 쓴다.
 
 ```json
