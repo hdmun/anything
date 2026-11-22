@@ -1,15 +1,15 @@
 # pc-setup/bootstrap.ps1 - Windows PowerShell 5.1 (pwsh 7 compatible)
-# Default (main branch, no arguments):
+# Prepares winget, Git, pwsh, one agent CLI and the repository, then prints
+# the two commands a person types to start the setup. It never elevates.
+# Default (main branch, claude, no arguments):
 #   irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1 | iex
-# With arguments (e.g. testing a pushed branch):
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/hdmun/anything/<branch>/pc-setup/bootstrap.ps1))) -Branch <branch> -Skip <Id>,<Id>
+# With arguments (e.g. another agent or a pushed branch):
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/hdmun/anything/<branch>/pc-setup/bootstrap.ps1))) -Branch <branch> -Agent agy
 [CmdletBinding()]
 param(
     [string]$Source = 'https://github.com/hdmun/anything.git',
     [string]$Branch = '',
-    [string[]]$Skip = @(),
-    [string]$ResultPath = '',
-    [string]$SetupResultPath = ''
+    [ValidateSet('claude', 'agy', 'codex')][string]$Agent = 'claude'
 )
 
 # Windows Package Manager 1.4.11071 (v1.4.11071) introduced --no-upgrade (#2655)
@@ -40,6 +40,12 @@ function Get-AnythingRepo {
 
 function Get-DefaultRepoPath {
     return (Join-Path $HOME 'anything')
+}
+
+function Test-CommandExists {
+    param([string]$Name)
+    $cmd = Get-Command -Name $Name -CommandType Application -ErrorAction SilentlyContinue
+    return ($null -ne $cmd)
 }
 
 function Invoke-Winget {
@@ -76,20 +82,16 @@ function Install-WingetFromGitHub {
     try {
         New-Item -Path $workDir -ItemType Directory -Force | Out-Null
         $headers = @{ 'User-Agent' = 'anything-pc-setup-bootstrap' }
-        $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -Headers $headers -ErrorAction Stop
+        $downloadBase = 'https://github.com/microsoft/winget-cli/releases/latest/download'
+        $bundleName = 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+        $depsName = 'DesktopAppInstaller_Dependencies.zip'
 
-        $bundleAsset = $release.assets | Where-Object { $_.name -eq 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle' } | Select-Object -First 1
-        $depsAsset = $release.assets | Where-Object { $_.name -eq 'DesktopAppInstaller_Dependencies.zip' } | Select-Object -First 1
-        if ($null -eq $bundleAsset -or $null -eq $depsAsset) {
-            throw 'Missing expected winget-cli release assets'
-        }
-
-        $depsZipPath = Join-Path $workDir 'DesktopAppInstaller_Dependencies.zip'
-        $bundlePath = Join-Path $workDir 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+        $depsZipPath = Join-Path $workDir $depsName
+        $bundlePath = Join-Path $workDir $bundleName
         $depsDir = Join-Path $workDir 'deps'
 
-        Invoke-WebRequest -Uri $depsAsset.browser_download_url -OutFile $depsZipPath -UseBasicParsing -Headers $headers -ErrorAction Stop
-        Invoke-WebRequest -Uri $bundleAsset.browser_download_url -OutFile $bundlePath -UseBasicParsing -Headers $headers -ErrorAction Stop
+        Invoke-WebRequest -Uri "$downloadBase/$depsName" -OutFile $depsZipPath -UseBasicParsing -Headers $headers -ErrorAction Stop
+        Invoke-WebRequest -Uri "$downloadBase/$bundleName" -OutFile $bundlePath -UseBasicParsing -Headers $headers -ErrorAction Stop
 
         Expand-Archive -LiteralPath $depsZipPath -DestinationPath $depsDir -Force
 
@@ -121,78 +123,106 @@ function Register-WingetFamily {
     Add-AppxPackage -RegisterByFamilyName -MainPackage 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe' -ErrorAction Stop
 }
 
-function Invoke-ElevatedInstall {
-    param([string[]]$Ids)
-
-    $errRejected = New-Text @(0xC2B9,0xACA9,0x0020,0xAC70,0xBD80,0xB428) # elevation rejected
-    $errNoResult = New-Text @(0xC2B9,0xACA9,0x0020,0xB2E8,0xACC4,0x0020,0xACB0,0xACFC,0x0020,0xC5C6,0xC74C) # elevation no result
-
-    $guid = [System.Guid]::NewGuid().ToString()
-    $tempFile = Join-Path $env:TEMP "pc-setup-bootstrap-$guid.json"
-
-    $escapedTemp = $tempFile.Replace("'", "''")
-    $escapedIds = foreach ($pkgId in $Ids) { "'" + $pkgId.Replace("'", "''") + "'" }
-    $idsLiteral = '@(' + ($escapedIds -join ',') + ')'
-
-    $childScript = @"
-`$codes = @{}
-foreach (`$id in $idsLiteral) {
-    & winget install --id `$id -e --scope machine --no-upgrade --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity
-    `$codes[`$id] = [int]`$LASTEXITCODE
-}
-`$json = ConvertTo-Json -InputObject `$codes -Compress
-[System.IO.File]::WriteAllText('$escapedTemp', `$json, [System.Text.Encoding]::UTF8)
-"@
-
-    $bytes = [System.Text.Encoding]::Unicode.GetBytes($childScript)
-    $b64 = [System.Convert]::ToBase64String($bytes)
-
-    $codes = @{}
-    $errorMsg = ''
-
+# Reads the tag (e.g. v2.47.1.windows.1) from the redirect of releases/latest.
+function Get-GitLatestTag {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $request = [System.Net.HttpWebRequest]::Create('https://github.com/git-for-windows/git/releases/latest')
+    $request.Method = 'HEAD'
+    $request.AllowAutoRedirect = $false
+    $request.UserAgent = 'anything-pc-setup-bootstrap'
+    $response = $request.GetResponse()
     try {
-        try {
-            Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $b64
-        } catch {
-            return @{
-                Requested = 1
-                Codes     = @{}
-                Error     = $errRejected
-            }
-        }
-
-        if (-not (Test-Path -LiteralPath $tempFile -PathType Leaf)) {
-            $errorMsg = $errNoResult
-        } else {
-            $content = Get-Content -LiteralPath $tempFile -Raw -Encoding UTF8
-            if ([string]::IsNullOrWhiteSpace($content)) {
-                $errorMsg = $errNoResult
-            } else {
-                try {
-                    $parsed = $content | ConvertFrom-Json
-                    if ($null -eq $parsed) {
-                        $errorMsg = $errNoResult
-                    } else {
-                        foreach ($prop in $parsed.PSObject.Properties) {
-                            $codes[$prop.Name] = [int]$prop.Value
-                        }
-                    }
-                } catch {
-                    $errorMsg = $errNoResult
-                }
-            }
-        }
-
-        return @{
-            Requested = 1
-            Codes     = $codes
-            Error     = $errorMsg
-        }
+        $location = [string]$response.Headers['Location']
     } finally {
-        if (Test-Path -LiteralPath $tempFile) {
-            Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+        $response.Close()
+    }
+    if ($location -match '/releases/tag/(v[^/?#]+)$') {
+        return $Matches[1]
+    }
+    return ''
+}
+
+# Maps a Git for Windows tag to its 64-bit installer file name.
+# v2.47.1.windows.1 -> Git-2.47.1-64-bit.exe, v2.47.1.windows.2 -> Git-2.47.1.2-64-bit.exe
+function Get-GitInstallerName {
+    param([string]$Tag)
+    if ($Tag -notmatch '^v(\d+\.\d+\.\d+)\.windows\.(\d+)$') {
+        throw "Unexpected Git for Windows tag: $Tag"
+    }
+    $version = $Matches[1]
+    if ([int]$Matches[2] -gt 1) {
+        $version = "$version.$($Matches[2])"
+    }
+    return "Git-$version-64-bit.exe"
+}
+
+function Install-GitForWindows {
+    param([string]$Tag)
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $prevProgress = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+    $fileName = Get-GitInstallerName -Tag $Tag
+    $installerPath = Join-Path $env:TEMP ("pc-setup-" + [System.Guid]::NewGuid().ToString() + "-" + $fileName)
+    try {
+        $uri = "https://github.com/git-for-windows/git/releases/download/$Tag/$fileName"
+        Invoke-WebRequest -Uri $uri -OutFile $installerPath -UseBasicParsing -ErrorAction Stop
+        $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Git'
+        $installerArgs = "/VERYSILENT /NORESTART /DIR=`"$installDir`" /o:PathOption=Cmd"
+        $proc = Start-Process -FilePath $installerPath -ArgumentList $installerArgs -Wait -PassThru
+        return [int]$proc.ExitCode
+    } finally {
+        $ProgressPreference = $prevProgress
+        if (Test-Path -LiteralPath $installerPath) {
+            Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
         }
     }
+}
+
+function Get-AgentInstallUrl {
+    param([string]$Agent)
+    switch ($Agent) {
+        'claude' { return 'https://claude.ai/install.ps1' }
+        'agy'    { return 'https://antigravity.google/cli/install.ps1' }
+        'codex'  { return 'https://chatgpt.com/codex/install.ps1' }
+    }
+    throw "Unknown agent: $Agent"
+}
+
+# Runs the official install.ps1 in a child Windows PowerShell so that an `exit`
+# inside the installer cannot end this session, and its exit code is kept.
+function Install-AgentCli {
+    param([string]$Agent)
+    $url = Get-AgentInstallUrl -Agent $Agent
+    $command = "`$ProgressPreference = 'SilentlyContinue'; irm $url | iex"
+    $ps = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    & $ps -NoProfile -ExecutionPolicy Bypass -Command $command | Out-Host
+    return [int]$LASTEXITCODE
+}
+
+# Known install locations, used when the command is not on PATH yet.
+# codex: defaultVisibleBinDir in https://chatgpt.com/codex/install.ps1
+function Get-AgentKnownPath {
+    param([string]$Agent)
+    switch ($Agent) {
+        'claude' { return (Join-Path $env:USERPROFILE '.local\bin\claude.exe') }
+        'agy'    { return (Join-Path $env:LOCALAPPDATA 'agy\bin\agy.exe') }
+        'codex'  { return (Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin\codex.exe') }
+    }
+    return ''
+}
+
+# Returns the command name when it is on PATH, the full path of the known
+# install location when the executable is there, and '' otherwise.
+function Get-AgentExePath {
+    param([string]$Agent)
+    if (Test-CommandExists -Name $Agent) {
+        return $Agent
+    }
+    $known = Get-AgentKnownPath -Agent $Agent
+    if (-not [string]::IsNullOrEmpty($known) -and (Test-Path -LiteralPath $known -PathType Leaf)) {
+        return $known
+    }
+    return ''
 }
 
 function Invoke-Git {
@@ -210,67 +240,22 @@ function Update-SessionPath {
     $env:Path = $parts -join ';'
 }
 
-function Start-SetupScript {
-    param(
-        [string]$RepoPath,
-        [string[]]$Skip = @(),
-        [string]$ResultPath = ''
-    )
-
-    $pwshCmd = Get-Command 'pwsh' -ErrorAction SilentlyContinue
-    $pwshExe = if ($null -ne $pwshCmd) {
-        $pwshCmd.Source
-    } else {
-        Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'
-    }
-
-    $setupFile = Join-Path $RepoPath 'pc-setup\setup.ps1'
-    $pwshArgs = [System.Collections.Generic.List[string]]::new()
-    $pwshArgs.Add('-NoProfile')
-    $pwshArgs.Add('-File')
-    $pwshArgs.Add($setupFile)
-
-    $skipItems = [System.Collections.Generic.List[string]]::new()
-    if ($null -ne $Skip) {
-        foreach ($item in $Skip) {
-            foreach ($part in ($item -split ',')) {
-                $trimmed = $part.Trim()
-                if ($trimmed -ne '') {
-                    $skipItems.Add($trimmed)
-                }
-            }
-        }
-    }
-    if ($skipItems.Count -gt 0) {
-        $pwshArgs.Add('-Skip')
-        $pwshArgs.Add(($skipItems -join ','))
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
-        $pwshArgs.Add('-ResultPath')
-        $pwshArgs.Add($ResultPath)
-    }
-
-    $argArray = [string[]]$pwshArgs.ToArray()
-    & $pwshExe @argArray | Out-Default
-    return [int]$LASTEXITCODE
-}
-
 function Invoke-Bootstrap {
     param(
         [string]$Source = 'https://github.com/hdmun/anything.git',
         [string]$Branch = '',
-        [string[]]$Skip = @(),
-        [string]$ResultPath = '',
-        [string]$SetupResultPath = ''
+        [string]$Agent = 'claude'
     )
 
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $ProgressPreference = 'SilentlyContinue'
     $stageName     = New-Text @(0xBD80,0xD2B8,0xC2A4,0xD2B8,0xB7A9) # bootstrap
     $statusSame    = New-Text @(0xADF8,0xB300,0xB85C)               # same
     $statusChanged = New-Text @(0xBC14,0xAFC8)                      # changed
-    $statusTodo    = New-Text @(0xD560,0x0020,0xC77C)               # todo
     $statusFail    = New-Text @(0xC2E4,0xD328)                      # fail
+    $textInstall   = New-Text @(0x0020,0xC124,0xCE58)               # " install"
+    $textExitCode  = New-Text @(0x0020,0xC885,0xB8CC,0x0020,0xCF54,0xB4DC,0x0020) # " exit code "
+    $textAfter     = New-Text @(0xC124,0xCE58,0x0020,0xB4A4,0xC5D0,0xB3C4,0x0020) # "after install "
+    $textMissing   = New-Text @(0x0020,0xC774,0x0020,0xC5C6,0xB2E4)  # " is missing"
 
     # 1. Admin window check
     if (Test-AdminWindow) {
@@ -278,87 +263,31 @@ function Invoke-Bootstrap {
         return 2
     }
 
-    $results = [System.Collections.Generic.List[object]]::new()
-    $elevationRequests = 0
-
     $addResult = {
         param([string]$Id, [string]$Status, [string]$Detail = '')
-        $obj = [pscustomobject]@{
-            Stage  = $stageName
-            Id     = $Id
-            Status = $Status
-            Detail = $Detail
-        }
-        $results.Add($obj)
-        $lineText = if ($Status -eq $statusSame) {
-            $statusSame
-        } elseif ($Status -eq $statusChanged) {
-            if ([string]::IsNullOrEmpty($Detail)) { $statusChanged } else { "$statusChanged ($Detail)" }
-        } elseif ($Status -eq $statusTodo) {
-            "${statusTodo}: $Detail"
-        } elseif ($Status -eq $statusFail) {
-            "${statusFail}: $Detail"
-        } else {
-            $Status
-        }
+        $lineText = if ($Status -eq $statusFail) { "${statusFail}: $Detail" } else { $Status }
         Write-Host "[$stageName] ${Id}: $lineText"
     }
-
-    $writeSummaryAndJson = {
-        $elapsed = $stopwatch.Elapsed
-        $totalHours = [int][Math]::Floor($elapsed.TotalHours)
-        $durationStr = if ($totalHours -ge 1) {
-            "${totalHours}:$($elapsed.Minutes.ToString('d2')):$($elapsed.Seconds.ToString('d2'))"
-        } else {
-            "$($elapsed.Minutes.ToString('d2')):$($elapsed.Seconds.ToString('d2'))"
-        }
-        $elevLabel = (New-Text @(0xBD80,0xD2B8,0xC2A4,0xD2B8,0xB7A9,0x0020,0xC2B9,0xACA9,0x0020,0xC694,0xCCAD,0x003A,0x0020)) + $elevationRequests + (New-Text @(0xD68C))
-        $timeLabel = (New-Text @(0xBD80,0xD2B8,0xC2A4,0xD2B8,0xB7A9,0x0020,0xAC78,0xB9B0,0x0020,0xC2DC,0xAC04,0x003A,0x0020)) + $durationStr
-        Write-Host $elevLabel
-        Write-Host $timeLabel
-
-        if (-not [string]::IsNullOrEmpty($ResultPath)) {
-            try {
-                $jsonObj = [ordered]@{
-                    Check             = $false
-                    ElevationRequests = $elevationRequests
-                    DurationSeconds   = [Math]::Round($elapsed.TotalSeconds, 1)
-                    Results           = [object[]]$results.ToArray()
-                }
-                $jsonText = $jsonObj | ConvertTo-Json -Depth 5
-                [System.IO.File]::WriteAllText($ResultPath, $jsonText, [System.Text.Encoding]::UTF8)
-            } catch {
-                $warnPrefix = New-Text @(0xACB0,0xACFC,0x0020,0x004A,0x0053,0x004F,0x004E,0x0020,0xC4F0,0xAE30,0x0020,0xC2E4,0xD328,0x003A,0x0020)
-                Write-Warning ($warnPrefix + $_.Exception.Message)
-            }
-        }
+    $exitCodeDetail = {
+        param([string]$What, [int]$Code)
+        return "$What$textInstall$textExitCode$Code"
+    }
+    $missingDetail = {
+        param([string]$Name)
+        return "$textAfter$Name$textMissing"
     }
 
-    # 2. Repository path
-    $anythingRepo = Get-AnythingRepo
-    $repoPath = $null
-    if (-not [string]::IsNullOrWhiteSpace($anythingRepo)) {
-        $candidateSetup = Join-Path $anythingRepo 'pc-setup\setup.ps1'
-        if (Test-Path -LiteralPath $candidateSetup -PathType Leaf) {
-            $repoPath = $anythingRepo
-        }
-    }
-    if ($null -eq $repoPath) {
-        $repoPath = Get-DefaultRepoPath
-    }
-
-    # 3. Ensure winget
+    # 2. winget
     $minVersion = if ($null -ne $script:MinWingetVersion) { $script:MinWingetVersion } else { [version]'1.4.11071' }
     try {
         $wingetVer = Get-WingetVersion
     } catch {
         & $addResult 'winget' $statusFail $_.Exception.Message
-        & $writeSummaryAndJson
         return 1
     }
 
     if ($null -ne $wingetVer -and $wingetVer -ge $minVersion) {
-        & $addResult 'winget' $statusSame ''
+        & $addResult 'winget' $statusSame
     } else {
         $lastWingetError = ''
         try {
@@ -380,125 +309,104 @@ function Invoke-Bootstrap {
         }
 
         if ($null -ne $wingetVer -and $wingetVer -ge $minVersion) {
-            & $addResult 'winget' $statusChanged ''
+            & $addResult 'winget' $statusChanged
         } else {
             if ([string]::IsNullOrWhiteSpace($lastWingetError)) {
                 $lastWingetError = "winget $minVersion+ unavailable"
             }
             & $addResult 'winget' $statusFail $lastWingetError
-            & $writeSummaryAndJson
             return 1
         }
     }
 
-    # 4. Ensure Git & pwsh
-    $targetIds = @('Git.Git', 'Microsoft.PowerShell')
-    $present = @{}
-    $missing = [System.Collections.Generic.List[string]]::new()
-
-    try {
-        foreach ($pkgId in $targetIds) {
-            $checkCode = Invoke-Winget -Arguments @('list', '--id', $pkgId, '-e', '--accept-source-agreements')
-            if ($checkCode -eq 0) {
-                $present[$pkgId] = $true
-            } else {
-                $missing.Add($pkgId)
-            }
-        }
-    } catch {
-        foreach ($pkgId in $targetIds) {
-            if ($present.ContainsKey($pkgId)) {
-                & $addResult $pkgId $statusSame ''
-            } else {
-                & $addResult $pkgId $statusFail $_.Exception.Message
-            }
-        }
-        & $writeSummaryAndJson
-        return 1
-    }
-
-    if ($missing.Count -eq 0) {
-        foreach ($pkgId in $targetIds) {
-            & $addResult $pkgId $statusSame ''
-        }
+    # 3. Git (user scope, no elevation)
+    if (Test-CommandExists -Name 'git') {
+        & $addResult 'Git' $statusSame
     } else {
-        $elevOutcome = $null
         try {
-            $elevOutcome = Invoke-ElevatedInstall -Ids ([string[]]$missing.ToArray())
+            $tag = Get-GitLatestTag
         } catch {
-            $elevationRequests++
-            foreach ($pkgId in $targetIds) {
-                if ($present.ContainsKey($pkgId)) {
-                    & $addResult $pkgId $statusSame ''
-                } else {
-                    & $addResult $pkgId $statusFail $_.Exception.Message
-                }
-            }
-            & $writeSummaryAndJson
+            & $addResult 'Git' $statusFail $_.Exception.Message
             return 1
         }
-
-        $elevationRequests += [int]$elevOutcome.Requested
-        $hasStep4Fail = $false
-        $hasStep4Todo = $false
-
-        $rebootDetail = New-Text @(0xC7AC,0xBD80,0xD305,0x0020,0xD6C4,0x0020,0xBD80,0xD2B8,0xC2A4,0xD2B8,0xB7A9,0x0020,0xB2E4,0xC2DC,0x0020,0xC2E4,0xD589)
-        $noResultDetail = New-Text @(0xC2B9,0xACA9,0x0020,0xB2E8,0xACC4,0x0020,0xACB0,0xACFC,0x0020,0xC5C6,0xC74C)
-        $wingetFailPrefix = 'winget ' + (New-Text @(0xC885,0xB8CC,0x0020,0xCF54,0xB4DC)) + ' '
-
-        foreach ($pkgId in $targetIds) {
-            if ($present.ContainsKey($pkgId)) {
-                & $addResult $pkgId $statusSame ''
-                continue
-            }
-
-            if (-not [string]::IsNullOrEmpty($elevOutcome.Error)) {
-                & $addResult $pkgId $statusFail $elevOutcome.Error
-                $hasStep4Fail = $true
-                continue
-            }
-
-            $codesDict = $elevOutcome.Codes
-            $hasKey = ($null -ne $codesDict) -and (
-                (($codesDict -is [System.Collections.IDictionary]) -and $codesDict.Contains($pkgId)) -or
-                ($null -ne $codesDict.PSObject.Properties[$pkgId])
-            )
-            if (-not $hasKey) {
-                & $addResult $pkgId $statusFail $noResultDetail
-                $hasStep4Fail = $true
-                continue
-            }
-
-            $installCode = if ($codesDict -is [System.Collections.IDictionary]) { $codesDict[$pkgId] } else { $codesDict.$pkgId }
-            $hexCode = '0x{0:X8}' -f ([uint32]([int64]$installCode -band 0xFFFFFFFFL))
-            if ([int64]$installCode -eq 0) {
-                & $addResult $pkgId $statusChanged ''
-            } elseif ($hexCode -eq '0x8A150109') {
-                & $addResult $pkgId $statusTodo $rebootDetail
-                $hasStep4Todo = $true
-            } else {
-                & $addResult $pkgId $statusFail ($wingetFailPrefix + $hexCode)
-                $hasStep4Fail = $true
-            }
+        if ([string]::IsNullOrWhiteSpace($tag)) {
+            & $addResult 'Git' $statusFail (New-Text @(0xCD5C,0xC2E0,0x0020,0xD0DC,0xADF8,0xB97C,0x0020,0xC77D,0xC9C0,0x0020,0xBABB,0xD588,0xB2E4)) # latest tag unreadable
+            return 1
         }
-
-        if ($hasStep4Fail -or $hasStep4Todo) {
-            & $writeSummaryAndJson
-            if ($hasStep4Fail) { return 1 } else { return 0 }
+        try {
+            $gitInstallCode = Install-GitForWindows -Tag $tag
+        } catch {
+            & $addResult 'Git' $statusFail $_.Exception.Message
+            return 1
         }
-
+        if ($gitInstallCode -ne 0) {
+            & $addResult 'Git' $statusFail (& $exitCodeDetail 'Git' $gitInstallCode)
+            return 1
+        }
         Update-SessionPath
+        if (-not (Test-CommandExists -Name 'git')) {
+            & $addResult 'Git' $statusFail (& $missingDetail 'git')
+            return 1
+        }
+        & $addResult 'Git' $statusChanged
     }
 
-    # 5. Clone
-    $setupScriptPath = Join-Path $repoPath 'pc-setup\setup.ps1'
+    # 4. pwsh (msixbundle, user scope)
+    if (Test-CommandExists -Name 'pwsh') {
+        & $addResult 'Microsoft.PowerShell' $statusSame
+    } else {
+        try {
+            $pwshInstallCode = Invoke-Winget -Arguments @('install', '--id', 'Microsoft.PowerShell', '--source', 'winget', '--exact', '--silent', '--accept-package-agreements', '--accept-source-agreements')
+        } catch {
+            & $addResult 'Microsoft.PowerShell' $statusFail $_.Exception.Message
+            return 1
+        }
+        if ($pwshInstallCode -ne 0) {
+            & $addResult 'Microsoft.PowerShell' $statusFail (& $exitCodeDetail 'pwsh' $pwshInstallCode)
+            return 1
+        }
+        Update-SessionPath
+        if (-not (Test-CommandExists -Name 'pwsh')) {
+            & $addResult 'Microsoft.PowerShell' $statusFail (& $missingDetail 'pwsh')
+            return 1
+        }
+        & $addResult 'Microsoft.PowerShell' $statusChanged
+    }
+
+    # 5. Agent CLI (PATH is left to the setup)
+    $agentExe = Get-AgentExePath -Agent $Agent
+    if (-not [string]::IsNullOrEmpty($agentExe)) {
+        & $addResult $Agent $statusSame
+    } else {
+        try {
+            $agentInstallCode = Install-AgentCli -Agent $Agent
+        } catch {
+            & $addResult $Agent $statusFail $_.Exception.Message
+            return 1
+        }
+        if ($agentInstallCode -ne 0) {
+            & $addResult $Agent $statusFail (& $exitCodeDetail $Agent $agentInstallCode)
+            return 1
+        }
+        Update-SessionPath
+        $agentExe = Get-AgentExePath -Agent $Agent
+        if ([string]::IsNullOrEmpty($agentExe)) {
+            & $addResult $Agent $statusFail (& $missingDetail $Agent)
+            return 1
+        }
+        & $addResult $Agent $statusChanged
+    }
+
+    # 6. Clone
+    $anythingRepo = Get-AnythingRepo
+    $repoPath = if (-not [string]::IsNullOrWhiteSpace($anythingRepo)) { $anythingRepo } else { Get-DefaultRepoPath }
+    $setupDocPath = Join-Path $repoPath 'pc-setup\SETUP.md'
     if (Test-Path -LiteralPath $repoPath) {
-        if (Test-Path -LiteralPath $setupScriptPath -PathType Leaf) {
-            & $addResult 'clone' $statusSame ''
+        if (Test-Path -LiteralPath $setupDocPath -PathType Leaf) {
+            & $addResult 'clone' $statusSame
         } else {
             $missingSetupDetail = "$repoPath" + (New-Text @(0x0020,0xC5D0,0x0020,0xC14B,0xC5C5,0xC774,0x0020,0xC5C6,0xB2E4))
             & $addResult 'clone' $statusFail $missingSetupDetail
-            & $writeSummaryAndJson
             return 1
         }
     } else {
@@ -511,32 +419,31 @@ function Invoke-Bootstrap {
             $gitCode = Invoke-Git -Arguments $gitArgs
         } catch {
             & $addResult 'clone' $statusFail $_.Exception.Message
-            & $writeSummaryAndJson
             return 1
         }
 
         if ($gitCode -eq 0) {
-            & $addResult 'clone' $statusChanged ''
+            & $addResult 'clone' $statusChanged
         } else {
-            $gitFailDetail = 'git clone ' + (New-Text @(0xC885,0xB8CC,0x0020,0xCF54,0xB4DC)) + " $gitCode"
-            & $addResult 'clone' $statusFail $gitFailDetail
-            & $writeSummaryAndJson
+            & $addResult 'clone' $statusFail ('git clone' + $textExitCode + $gitCode)
             return 1
         }
     }
 
-    # 6. Summary & JSON
-    & $writeSummaryAndJson
-
-    # 7. Setup
-    try {
-        $setupCode = Start-SetupScript -RepoPath $repoPath -Skip $Skip -ResultPath $SetupResultPath
-        return [int]$setupCode
-    } catch {
-        & $addResult 'setup' $statusFail $_.Exception.Message
-        return 1
+    # 7. The two commands a person types
+    $setupDir = Join-Path $repoPath 'pc-setup'
+    $cdLine = if ($setupDir.Contains(' ')) { "cd `"$setupDir`"" } else { "cd $setupDir" }
+    $agentCall = if ($agentExe.Contains(' ')) { "& `"$agentExe`"" } else { $agentExe }
+    $prompt = New-Text @(0x0053,0x0045,0x0054,0x0055,0x0050,0x002E,0x006D,0x0064,0x0020,0xB97C,0x0020,0xC77D,0xACE0,0x0020,0xC14B,0xC5C5,0xD574) # read SETUP.md and set up
+    $agentFlags = switch ($Agent) {
+        'agy'   { '--dangerously-skip-permissions -i' }
+        'codex' { '--yolo' }
+        default { '--dangerously-skip-permissions' }
     }
+    Write-Host $cdLine
+    Write-Host "$agentCall $agentFlags `"$prompt`""
+    return 0
 }
 
-$code = Invoke-Bootstrap -Source $Source -Branch $Branch -Skip $Skip -ResultPath $ResultPath -SetupResultPath $SetupResultPath
+$code = Invoke-Bootstrap -Source $Source -Branch $Branch -Agent $Agent
 if ($PSCommandPath) { exit $code } else { $global:LASTEXITCODE = $code }

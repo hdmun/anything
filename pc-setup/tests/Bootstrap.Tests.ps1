@@ -9,6 +9,7 @@
     foreach ($fn in $funcAsts) {
         . ([scriptblock]::Create($fn.Extent.Text))
     }
+    $script:Prompt = 'SETUP.md 를 읽고 셋업해'
 }
 
 Describe 'bootstrap.ps1 5.1 호환 및 금지 항목 검사' {
@@ -36,6 +37,25 @@ Describe 'bootstrap.ps1 5.1 호환 및 금지 항목 검사' {
         $raw | Should -Not -Match 'Set-ExecutionPolicy'
     }
 
+    It 'setup.ps1·RunAs·api.github.com·ResultPath·SetEnvironmentVariable·-Skip 문자열이 없다' {
+        $raw = [System.IO.File]::ReadAllText($script:BootstrapPath, [System.Text.Encoding]::ASCII)
+        $raw | Should -Not -Match ([regex]::Escape('setup.ps1'))
+        $raw | Should -Not -Match 'RunAs'
+        $raw | Should -Not -Match ([regex]::Escape('api.github.com'))
+        $raw | Should -Not -Match 'ResultPath'
+        $raw | Should -Not -Match 'SetEnvironmentVariable'
+        # 대소문자를 구분한다: 에이전트 플래그 --dangerously-skip-permissions 는 매개변수 -Skip 이 아니다.
+        $raw | Should -Not -MatchExactly '-Skip'
+    }
+
+    It '모든 Invoke-WebRequest 줄에 -UseBasicParsing 이 있다' {
+        $webLines = @(Get-Content -LiteralPath $script:BootstrapPath | Where-Object { $_ -match 'Invoke-WebRequest' })
+        $webLines.Count | Should -BeGreaterThan 0
+        foreach ($line in $webLines) {
+            $line | Should -Match '-UseBasicParsing'
+        }
+    }
+
     It 'irm | iex 와 [scriptblock]::Create((irm ...)) 경로의 파싱이 5.1 에서 성공한다' {
         $ps51 = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $escaped = $script:BootstrapPath.Replace("'", "''")
@@ -46,11 +66,10 @@ Describe 'bootstrap.ps1 5.1 호환 및 금지 항목 검사' {
     }
 }
 
-Describe 'Invoke-Bootstrap 엣지 케이스 표 1~20' {
+Describe 'Invoke-Bootstrap 정상 경로와 엣지 케이스' {
     BeforeEach {
         $script:lines = [System.Collections.Generic.List[string]]::new()
         Mock Write-Host { $script:lines.Add([string]$Object) }
-        Mock Write-Warning {}
         Mock Test-AdminWindow { return $false }
         Mock Get-AnythingRepo { return '' }
         $script:testCaseDir = Join-Path $TestDrive ([System.Guid]::NewGuid().ToString())
@@ -61,41 +80,68 @@ Describe 'Invoke-Bootstrap 엣지 케이스 표 1~20' {
         Mock Register-WingetFamily { throw 'should not be called' }
         Mock Install-WingetFromGitHub { throw 'should not be called' }
         Mock Update-SessionPath {}
-        Mock Invoke-Winget { param([string[]]$Arguments) return 0 }
-        Mock Invoke-ElevatedInstall { throw 'should not be called' }
-        Mock Invoke-Git { param([string[]]$Arguments) return 0 }
-        Mock Start-SetupScript { param([string]$RepoPath, [string[]]$Skip, [string]$ResultPath) return 0 }
+        Mock Test-CommandExists { return $true }
+        Mock Get-AgentExePath { return $Agent }
+        Mock Get-GitLatestTag { throw 'should not be called' }
+        Mock Install-GitForWindows { throw 'should not be called' }
+        Mock Install-AgentCli { throw 'should not be called' }
+        Mock Invoke-Winget { throw 'should not be called' }
+        Mock Invoke-Git { return 0 }
+
+        $script:newRepoWithSetup = {
+            param([string]$Path)
+            New-Item -Path (Join-Path $Path 'pc-setup') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $Path 'pc-setup\SETUP.md') -Value '# dummy'
+        }
+        $script:guidanceLines = {
+            @($script:lines | Where-Object { $_ -like 'cd *' -or $_ -like "*$script:Prompt*" })
+        }
     }
 
-    It '1: 관리자 창 -> 2, winget·git 함수 안 불림, 문구 일치' {
+    It '관리자 창 -> 2, 다른 단계 안 불림, 문구 일치' {
         Mock Test-AdminWindow { return $true }
         Mock Get-WingetVersion { throw 'should not be called' }
-        Mock Invoke-Winget { throw 'should not be called' }
         Mock Invoke-Git { throw 'should not be called' }
-        Mock Start-SetupScript { throw 'should not be called' }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 2
         $script:lines | Should -Contain '부트스트랩은 일반 권한 창에서 실행한다'
+        Should -Invoke Test-CommandExists -Times 0 -Exactly
+        (& $script:guidanceLines).Count | Should -Be 0
     }
 
-    It '2: winget 충분·Git·pwsh 있음·$HOME\anything 없음 -> 모두 그대로, clone 바꿈, 승격 0회, 셋업 종료 코드 반환' {
-        Mock Start-SetupScript { return 0 }
+    It '모두 이미 있음 -> 모든 단계 그대로, 설치 함수 0회, 안내 두 줄, 0' {
+        & $script:newRepoWithSetup $script:defaultRepo
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
-        Should -Invoke Invoke-ElevatedInstall -Times 0 -Exactly
-        Should -Invoke Invoke-Git -Times 1 -Exactly
-        Should -Invoke Start-SetupScript -Times 1 -Exactly
         $script:lines | Should -Contain '[부트스트랩] winget: 그대로'
-        $script:lines | Should -Contain '[부트스트랩] Git.Git: 그대로'
+        $script:lines | Should -Contain '[부트스트랩] Git: 그대로'
         $script:lines | Should -Contain '[부트스트랩] Microsoft.PowerShell: 그대로'
-        $script:lines | Should -Contain '[부트스트랩] clone: 바꿈'
-        $script:lines | Should -Contain '부트스트랩 승격 요청: 0회'
-        ($script:lines | Where-Object { $_ -match '^부트스트랩 걸린 시간: \d{2}:\d{2}$' }).Count | Should -Be 1
+        $script:lines | Should -Contain '[부트스트랩] claude: 그대로'
+        $script:lines | Should -Contain '[부트스트랩] clone: 그대로'
+        Should -Invoke Install-GitForWindows -Times 0 -Exactly
+        Should -Invoke Invoke-Winget -Times 0 -Exactly
+        Should -Invoke Install-AgentCli -Times 0 -Exactly
+        Should -Invoke Invoke-Git -Times 0 -Exactly
+        Should -Invoke Update-SessionPath -Times 0 -Exactly
+        $script:lines[-2] | Should -Be "cd $script:defaultRepo\pc-setup"
+        $script:lines[-1] | Should -Be "claude --dangerously-skip-permissions `"$script:Prompt`""
+        (& $script:guidanceLines).Count | Should -Be 2
     }
 
-    It '3: winget 없음 -> Register-WingetFamily 후 충분 -> winget 바꿈, Install-WingetFromGitHub 안 불림' {
+    It '저장소 경로 없음 -> git clone Source 경로, clone 바꿈, 안내 두 줄' {
+        $script:gitArgs = $null
+        Mock Invoke-Git { $script:gitArgs = $Arguments; return 0 }
+
+        $ret = Invoke-Bootstrap
+        $ret | Should -Be 0
+        ($script:gitArgs -join '|') | Should -Be "clone|https://github.com/hdmun/anything.git|$script:defaultRepo"
+        $script:lines | Should -Contain '[부트스트랩] clone: 바꿈'
+        (& $script:guidanceLines).Count | Should -Be 2
+    }
+
+    It 'winget 없음 -> Register-WingetFamily 후 충분 -> winget 바꿈, Install-WingetFromGitHub 안 불림' {
         $script:wingetChecks = 0
         Mock Get-WingetVersion {
             $script:wingetChecks++
@@ -103,7 +149,6 @@ Describe 'Invoke-Bootstrap 엣지 케이스 표 1~20' {
             return [version]'1.29.380'
         }
         Mock Register-WingetFamily {}
-        Mock Install-WingetFromGitHub { throw 'should not be called' }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
@@ -112,11 +157,11 @@ Describe 'Invoke-Bootstrap 엣지 케이스 표 1~20' {
         $script:lines | Should -Contain '[부트스트랩] winget: 바꿈'
     }
 
-    It '4: 등록도 실패 -> GitHub 설치 후 충분 -> winget 바꿈' {
+    It 'winget 낡음·등록도 실패 -> GitHub 설치 후 충분 -> winget 바꿈' {
         $script:githubInstalled = $false
         Mock Get-WingetVersion {
             if ($script:githubInstalled) { return [version]'1.29.380' }
-            return $null
+            return [version]'1.2.0'
         }
         Mock Register-WingetFamily { throw 'not registered' }
         Mock Install-WingetFromGitHub { $script:githubInstalled = $true }
@@ -128,342 +173,299 @@ Describe 'Invoke-Bootstrap 엣지 케이스 표 1~20' {
         $script:lines | Should -Contain '[부트스트랩] winget: 바꿈'
     }
 
-    It '5: GitHub 설치도 실패 -> winget 실패, 1, 이후 단계 안 불림' {
+    It 'winget GitHub 설치도 실패 -> winget 실패, 1, 뒤 단계 안 불림, 안내 없음' {
         Mock Get-WingetVersion { return $null }
         Mock Register-WingetFamily { throw 'register failed' }
         Mock Install-WingetFromGitHub { throw 'github download failed' }
-        Mock Invoke-Winget { throw 'should not be called' }
-        Mock Invoke-ElevatedInstall { throw 'should not be called' }
         Mock Invoke-Git { throw 'should not be called' }
-        Mock Start-SetupScript { throw 'should not be called' }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 1
         $script:lines | Should -Contain '[부트스트랩] winget: 실패: github download failed'
+        Should -Invoke Test-CommandExists -Times 0 -Exactly
+        (& $script:guidanceLines).Count | Should -Be 0
     }
 
-    It '6: Git 없음·pwsh 있음 -> Invoke-ElevatedInstall -Ids Git.Git 1번, 승격 1회' {
-        Mock Invoke-Winget {
-            param([string[]]$Arguments)
-            $idx = [Array]::IndexOf($Arguments, '--id')
-            if ($idx -ge 0 -and $Arguments[$idx + 1] -eq 'Git.Git') { return 1 }
-            return 0
+    It 'Git 만 없음 -> 최신 태그로 Install-GitForWindows, Update-SessionPath, Git 바꿈' {
+        $script:gitInstalled = $false
+        Mock Test-CommandExists {
+            if ($Name -eq 'git') { return $script:gitInstalled }
+            return $true
         }
-        $script:capturedIds = $null
-        Mock Invoke-ElevatedInstall {
-            param([string[]]$Ids)
-            $script:capturedIds = $Ids
-            return @{ Requested = 1; Codes = @{ 'Git.Git' = 0 }; Error = '' }
-        }
+        Mock Get-GitLatestTag { return 'v2.47.1.windows.1' }
+        $script:capturedTag = $null
+        Mock Install-GitForWindows { $script:capturedTag = $Tag; $script:gitInstalled = $true; return 0 }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
-        Should -Invoke Invoke-ElevatedInstall -Times 1 -Exactly
-        $script:capturedIds.Count | Should -Be 1
-        $script:capturedIds[0] | Should -Be 'Git.Git'
-        $script:lines | Should -Contain '[부트스트랩] Git.Git: 바꿈'
+        $script:capturedTag | Should -Be 'v2.47.1.windows.1'
+        Should -Invoke Update-SessionPath -Times 1 -Exactly
+        $script:lines | Should -Contain '[부트스트랩] Git: 바꿈'
         $script:lines | Should -Contain '[부트스트랩] Microsoft.PowerShell: 그대로'
-        $script:lines | Should -Contain '부트스트랩 승격 요청: 1회'
+        $script:lines | Should -Contain '[부트스트랩] claude: 그대로'
+        Should -Invoke Invoke-Winget -Times 0 -Exactly
     }
 
-    It '7: 둘 다 없음 -> -Ids Git.Git,Microsoft.PowerShell 로 1번' {
-        Mock Invoke-Winget { return 1 }
-        $script:capturedIds = $null
-        Mock Invoke-ElevatedInstall {
-            param([string[]]$Ids)
-            $script:capturedIds = $Ids
-            return @{
-                Requested = 1
-                Codes     = @{ 'Git.Git' = 0; 'Microsoft.PowerShell' = 0 }
-                Error     = ''
-            }
+    It 'pwsh 만 없음 -> winget install --id Microsoft.PowerShell (사용자 범위 인자), Update-SessionPath, 바꿈' {
+        $script:pwshInstalled = $false
+        Mock Test-CommandExists {
+            if ($Name -eq 'pwsh') { return $script:pwshInstalled }
+            return $true
         }
+        $script:wingetArgs = $null
+        Mock Invoke-Winget { $script:wingetArgs = $Arguments; $script:pwshInstalled = $true; return 0 }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
-        Should -Invoke Invoke-ElevatedInstall -Times 1 -Exactly
-        ($script:capturedIds -join ',') | Should -Be 'Git.Git,Microsoft.PowerShell'
-        $script:lines | Should -Contain '[부트스트랩] Git.Git: 바꿈'
+        ($script:wingetArgs -join ' ') | Should -Be 'install --id Microsoft.PowerShell --source winget --exact --silent --accept-package-agreements --accept-source-agreements'
+        Should -Invoke Update-SessionPath -Times 1 -Exactly
+        $script:lines | Should -Contain '[부트스트랩] Git: 그대로'
         $script:lines | Should -Contain '[부트스트랩] Microsoft.PowerShell: 바꿈'
-        $script:lines | Should -Contain '부트스트랩 승격 요청: 1회'
+        Should -Invoke Install-GitForWindows -Times 0 -Exactly
     }
 
-    It '8: 설치 종료 코드 0x8A150109 -> 할 일: 재부팅 후 부트스트랩 다시 실행, 셋업 안 불림, 0' {
-        Mock Invoke-Winget { return 1 }
-        Mock Invoke-ElevatedInstall {
-            return @{
-                Requested = 1
-                Codes     = @{ 'Git.Git' = [int]0x8A150109; 'Microsoft.PowerShell' = 0 }
-                Error     = ''
-            }
-        }
-        Mock Invoke-Git { throw 'should not be called' }
-        Mock Start-SetupScript { throw 'should not be called' }
+    It '에이전트 CLI 만 없음 -> Install-AgentCli -Agent claude, Update-SessionPath, 바꿈' {
+        $script:agentInstalled = $false
+        Mock Get-AgentExePath { if ($script:agentInstalled) { return $Agent }; return '' }
+        $script:capturedAgent = $null
+        Mock Install-AgentCli { $script:capturedAgent = $Agent; $script:agentInstalled = $true; return 0 }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
-        $script:lines | Should -Contain '[부트스트랩] Git.Git: 할 일: 재부팅 후 부트스트랩 다시 실행'
-        $script:lines | Should -Contain '[부트스트랩] Microsoft.PowerShell: 바꿈'
+        $script:capturedAgent | Should -Be 'claude'
+        Should -Invoke Update-SessionPath -Times 1 -Exactly
+        $script:lines | Should -Contain '[부트스트랩] claude: 바꿈'
+        $script:lines[-1] | Should -Be "claude --dangerously-skip-permissions `"$script:Prompt`""
     }
 
-    It '9: 설치 종료 코드 그 밖 -> 실패: winget 종료 코드 0x..., 셋업 안 불림, 1' {
-        Mock Invoke-Winget { return 1 }
-        Mock Invoke-ElevatedInstall {
-            return @{
-                Requested = 1
-                Codes     = @{ 'Git.Git' = 5; 'Microsoft.PowerShell' = 0 }
-                Error     = ''
-            }
-        }
-        Mock Invoke-Git { throw 'should not be called' }
-        Mock Start-SetupScript { throw 'should not be called' }
+    It '-Agent agy -> agy 설치, agy 안내 줄' {
+        $script:agentInstalled = $false
+        Mock Get-AgentExePath { if ($script:agentInstalled) { return $Agent }; return '' }
+        $script:capturedAgent = $null
+        Mock Install-AgentCli { $script:capturedAgent = $Agent; $script:agentInstalled = $true; return 0 }
 
-        $ret = Invoke-Bootstrap
-        $ret | Should -Be 1
-        $script:lines | Should -Contain '[부트스트랩] Git.Git: 실패: winget 종료 코드 0x00000005'
+        $ret = Invoke-Bootstrap -Agent 'agy'
+        $ret | Should -Be 0
+        $script:capturedAgent | Should -Be 'agy'
+        $script:lines | Should -Contain '[부트스트랩] agy: 바꿈'
+        $script:lines[-1] | Should -Be "agy --dangerously-skip-permissions -i `"$script:Prompt`""
     }
 
-    It '10: Error = 승격 거부됨 -> 없던 Id 가 실패: 승격 거부됨, 1' {
-        Mock Invoke-Winget {
-            param([string[]]$Arguments)
-            $idx = [Array]::IndexOf($Arguments, '--id')
-            if ($idx -ge 0 -and $Arguments[$idx + 1] -eq 'Git.Git') { return 1 }
-            return 0
-        }
-        Mock Invoke-ElevatedInstall {
-            return @{ Requested = 1; Codes = @{}; Error = '승격 거부됨' }
-        }
-        Mock Invoke-Git { throw 'should not be called' }
-        Mock Start-SetupScript { throw 'should not be called' }
+    It '-Agent codex -> codex 설치, codex 안내 줄' {
+        $script:agentInstalled = $false
+        Mock Get-AgentExePath { if ($script:agentInstalled) { return $Agent }; return '' }
+        $script:capturedAgent = $null
+        Mock Install-AgentCli { $script:capturedAgent = $Agent; $script:agentInstalled = $true; return 0 }
 
-        $ret = Invoke-Bootstrap
-        $ret | Should -Be 1
-        $script:lines | Should -Contain '[부트스트랩] Git.Git: 실패: 승격 거부됨'
-        $script:lines | Should -Contain '[부트스트랩] Microsoft.PowerShell: 그대로'
+        $ret = Invoke-Bootstrap -Agent 'codex'
+        $ret | Should -Be 0
+        $script:capturedAgent | Should -Be 'codex'
+        $script:lines | Should -Contain '[부트스트랩] codex: 바꿈'
+        $script:lines[-1] | Should -Be "codex --yolo `"$script:Prompt`""
     }
 
-    It '11: ANYTHING_REPO 가 있고 pc-setup\setup.ps1 있음 -> Invoke-Git 안 불림, clone 그대로, 셋업이 그 폴더로 불림' {
-        $existingRepo = Join-Path $TestDrive 'custom-repo'
-        New-Item -Path (Join-Path $existingRepo 'pc-setup') -ItemType Directory -Force | Out-Null
-        Set-Content -Path (Join-Path $existingRepo 'pc-setup\setup.ps1') -Value '# dummy'
-        Mock Get-AnythingRepo { return $existingRepo }
-        Mock Invoke-Git { throw 'should not be called' }
-
-        $script:setupRepo = $null
-        Mock Start-SetupScript {
-            param([string]$RepoPath)
-            $script:setupRepo = $RepoPath
-            return 0
-        }
+    It '설치 뒤 PATH 에 없고 알려진 위치(공백 없음)에 있음 -> 바꿈, 안내 줄이 전체 경로로 시작' {
+        $script:agentInstalled = $false
+        Mock Get-AgentExePath { if ($script:agentInstalled) { return 'C:\Users\me\.local\bin\claude.exe' }; return '' }
+        Mock Install-AgentCli { $script:agentInstalled = $true; return 0 }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
-        $script:setupRepo | Should -Be $existingRepo
-        $script:lines | Should -Contain '[부트스트랩] clone: 그대로'
+        $script:lines | Should -Contain '[부트스트랩] claude: 바꿈'
+        $script:lines[-1] | Should -Be "C:\Users\me\.local\bin\claude.exe --dangerously-skip-permissions `"$script:Prompt`""
     }
 
-    It '12: ANYTHING_REPO 가 있지만 폴더 없음 -> $HOME\anything(Get-DefaultRepoPath) 로 clone' {
-        $missingEnvRepo = Join-Path $TestDrive 'missing-env-repo'
-        Mock Get-AnythingRepo { return $missingEnvRepo }
-        $script:gitArgs = $null
-        Mock Invoke-Git {
-            param([string[]]$Arguments)
-            $script:gitArgs = $Arguments
-            return 0
-        }
+    It '설치 뒤 PATH 에 없고 알려진 위치(공백 있음)에 있음 -> 안내 줄이 & "경로" 로 시작' {
+        $script:agentInstalled = $false
+        Mock Get-AgentExePath { if ($script:agentInstalled) { return 'C:\Users\my name\.local\bin\claude.exe' }; return '' }
+        Mock Install-AgentCli { $script:agentInstalled = $true; return 0 }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
-        Should -Invoke Invoke-Git -Times 1 -Exactly
-        $script:gitArgs[-1] | Should -Be $script:defaultRepo
+        $script:lines[-1] | Should -Be "& `"C:\Users\my name\.local\bin\claude.exe`" --dangerously-skip-permissions `"$script:Prompt`""
     }
 
-    It '13: $HOME\anything 이 이미 있고 셋업 있음 -> clone 그대로, Invoke-Git 안 불림' {
-        New-Item -Path (Join-Path $script:defaultRepo 'pc-setup') -ItemType Directory -Force | Out-Null
-        Set-Content -Path (Join-Path $script:defaultRepo 'pc-setup\setup.ps1') -Value '# dummy'
+    It 'ANYTHING_REPO 가 있고 SETUP.md 있음 -> 그 경로, clone 그대로, Invoke-Git 안 불림' {
+        $envRepo = Join-Path $script:testCaseDir 'custom-repo'
+        & $script:newRepoWithSetup $envRepo
+        Mock Get-AnythingRepo { return $envRepo }
         Mock Invoke-Git { throw 'should not be called' }
 
         $ret = Invoke-Bootstrap
         $ret | Should -Be 0
         $script:lines | Should -Contain '[부트스트랩] clone: 그대로'
+        $script:lines[-2] | Should -Be "cd $envRepo\pc-setup"
     }
 
-    It '14: $HOME\anything 이 이미 있고 셋업 없음 -> clone 실패, 1' {
-        New-Item -Path $script:defaultRepo -ItemType Directory -Force | Out-Null
-        Mock Invoke-Git { throw 'should not be called' }
-        Mock Start-SetupScript { throw 'should not be called' }
+    It 'ANYTHING_REPO 가 있고 그 경로가 없음 -> 그 경로로 clone' {
+        $envRepo = Join-Path $script:testCaseDir 'env-repo'
+        Mock Get-AnythingRepo { return $envRepo }
+        $script:gitArgs = $null
+        Mock Invoke-Git { $script:gitArgs = $Arguments; return 0 }
 
         $ret = Invoke-Bootstrap
-        $ret | Should -Be 1
-        $script:lines | Should -Contain "[부트스트랩] clone: 실패: $script:defaultRepo 에 셋업이 없다"
+        $ret | Should -Be 0
+        $script:gitArgs[-1] | Should -Be $envRepo
+        $script:lines[-2] | Should -Be "cd $envRepo\pc-setup"
     }
 
-    It '15: -Branch feat -Source C:\x.bundle -> Invoke-Git clone -b feat C:\x.bundle <폴더>' {
+    It '저장소 경로에 공백이 있음 -> cd 줄이 경로를 따옴표로 감싼다' {
+        $spaceRepo = Join-Path $script:testCaseDir 'my repo'
+        & $script:newRepoWithSetup $spaceRepo
+        Mock Get-AnythingRepo { return $spaceRepo }
+
+        $ret = Invoke-Bootstrap
+        $ret | Should -Be 0
+        $script:lines[-2] | Should -Be "cd `"$spaceRepo\pc-setup`""
+    }
+
+    It '-Branch feat -Source C:\x.bundle -> git clone -b feat C:\x.bundle 경로' {
         $script:gitArgs = $null
-        Mock Invoke-Git {
-            param([string[]]$Arguments)
-            $script:gitArgs = $Arguments
-            return 0
-        }
+        Mock Invoke-Git { $script:gitArgs = $Arguments; return 0 }
 
         $ret = Invoke-Bootstrap -Source 'C:\x.bundle' -Branch 'feat'
         $ret | Should -Be 0
         ($script:gitArgs -join '|') | Should -Be "clone|-b|feat|C:\x.bundle|$script:defaultRepo"
     }
 
-    It '16: -Branch 빈 값 -> -b 없이 clone' {
+    It '-Branch 빈 값 -> -b 없이 clone' {
         $script:gitArgs = $null
-        Mock Invoke-Git {
-            param([string[]]$Arguments)
-            $script:gitArgs = $Arguments
-            return 0
-        }
+        Mock Invoke-Git { $script:gitArgs = $Arguments; return 0 }
 
         $ret = Invoke-Bootstrap -Source 'https://example.com/repo.git' -Branch ''
         $ret | Should -Be 0
         ($script:gitArgs -join '|') | Should -Be "clone|https://example.com/repo.git|$script:defaultRepo"
     }
+}
 
-    It '17: git clone 종료 코드 128 -> clone 실패, 1' {
-        Mock Invoke-Git { return 128 }
-        Mock Start-SetupScript { throw 'should not be called' }
+Describe 'Invoke-Bootstrap 에러 처리 (실패하면 뒤 단계 없음, 1, 안내 없음)' {
+    BeforeEach {
+        $script:lines = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:lines.Add([string]$Object) }
+        Mock Test-AdminWindow { return $false }
+        Mock Get-AnythingRepo { return '' }
+        $script:testCaseDir = Join-Path $TestDrive ([System.Guid]::NewGuid().ToString())
+        New-Item -Path $script:testCaseDir -ItemType Directory -Force | Out-Null
+        $script:defaultRepo = Join-Path $script:testCaseDir 'anything'
+        Mock Get-DefaultRepoPath { return $script:defaultRepo }
+        Mock Get-WingetVersion { return [version]'1.29.380' }
+        Mock Register-WingetFamily { throw 'should not be called' }
+        Mock Install-WingetFromGitHub { throw 'should not be called' }
+        Mock Update-SessionPath {}
+        Mock Test-CommandExists { return $true }
+        Mock Get-AgentExePath { return $Agent }
+        Mock Get-GitLatestTag { return 'v2.47.1.windows.1' }
+        Mock Install-GitForWindows { throw 'should not be called' }
+        Mock Install-AgentCli { throw 'should not be called' }
+        Mock Invoke-Winget { throw 'should not be called' }
+        Mock Invoke-Git { throw 'should not be called' }
 
-        $ret = Invoke-Bootstrap
-        $ret | Should -Be 1
-        $script:lines | Should -Contain '[부트스트랩] clone: 실패: git clone 종료 코드 128'
+        $script:assertStopped = {
+            param([int]$Ret)
+            $Ret | Should -Be 1
+            @($script:lines | Where-Object { $_ -like 'cd *' -or $_ -like "*$script:Prompt*" }).Count | Should -Be 0
+        }
     }
 
-    It '18: -Skip a,b -SetupResultPath C:\o\s.json -> Start-SetupScript 가 그 값으로 불림' {
-        $script:capturedSkip = $null
-        $script:capturedSetupResult = $null
-        Mock Start-SetupScript {
-            param([string]$RepoPath, [string[]]$Skip, [string]$ResultPath)
-            $script:capturedSkip = $Skip
-            $script:capturedSetupResult = $ResultPath
-            return 0
+    Context 'Git 단계' {
+        BeforeEach {
+            Mock Test-CommandExists { if ($Name -eq 'git') { return $false }; return $true }
         }
 
-        $ret = Invoke-Bootstrap -Skip @('a', 'b') -SetupResultPath 'C:\o\s.json'
-        $ret | Should -Be 0
-        ($script:capturedSkip -join ',') | Should -Be 'a,b'
-        $script:capturedSetupResult | Should -Be 'C:\o\s.json'
-    }
+        It '최신 태그 읽기 예외 -> 실패: 이유' {
+            Mock Get-GitLatestTag { throw 'redirect failed' }
 
-    It '19: 셋업 종료 코드 1 -> Invoke-Bootstrap 이 1' {
-        Mock Start-SetupScript { return 1 }
-
-        $ret = Invoke-Bootstrap
-        $ret | Should -Be 1
-    }
-
-    It '20: -ResultPath 있음 -> JSON 에 Results(Stage 부트스트랩)·ElevationRequests·DurationSeconds·Check=false, 4·5 단계 멈춤에도 씀' {
-        $jsonOut1 = Join-Path $TestDrive 'res-normal.json'
-        $ret1 = Invoke-Bootstrap -ResultPath $jsonOut1
-        $ret1 | Should -Be 0
-        Test-Path -LiteralPath $jsonOut1 | Should -BeTrue
-        $data1 = Get-Content -LiteralPath $jsonOut1 -Raw -Encoding UTF8 | ConvertFrom-Json
-        $data1.Check | Should -BeFalse
-        $data1.ElevationRequests | Should -Be 0
-        $data1.DurationSeconds | Should -BeGreaterOrEqual 0
-        $data1.Results.Count | Should -Be 4
-        @($data1.Results | Where-Object { $_.Stage -eq '부트스트랩' }).Count | Should -Be 4
-
-        # Step 4 stop
-        Mock Invoke-Winget { return 1 }
-        Mock Invoke-ElevatedInstall {
-            return @{ Requested = 1; Codes = @{}; Error = '승격 거부됨' }
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] Git: 실패: redirect failed'
+            Should -Invoke Install-GitForWindows -Times 0 -Exactly
+            Should -Invoke Get-AgentExePath -Times 0 -Exactly
         }
-        $jsonOut4 = Join-Path $TestDrive 'res-step4.json'
-        $ret4 = Invoke-Bootstrap -ResultPath $jsonOut4
-        $ret4 | Should -Be 1
-        Test-Path -LiteralPath $jsonOut4 | Should -BeTrue
-        $data4 = Get-Content -LiteralPath $jsonOut4 -Raw -Encoding UTF8 | ConvertFrom-Json
-        $data4.ElevationRequests | Should -Be 1
-        $data4.Results.Count | Should -Be 3
-        $data4.Results[1].Status | Should -Be '실패'
-        $data4.Results[1].Detail | Should -Be '승격 거부됨'
 
-        # Step 5 stop
-        Mock Invoke-Winget { return 0 }
-        Mock Invoke-Git { return 128 }
-        $jsonOut5 = Join-Path $TestDrive 'res-step5.json'
-        $ret5 = Invoke-Bootstrap -ResultPath $jsonOut5
-        $ret5 | Should -Be 1
-        Test-Path -LiteralPath $jsonOut5 | Should -BeTrue
-        $data5 = Get-Content -LiteralPath $jsonOut5 -Raw -Encoding UTF8 | ConvertFrom-Json
-        $data5.Results.Count | Should -Be 4
-        $data5.Results[3].Id | Should -Be 'clone'
-        $data5.Results[3].Status | Should -Be '실패'
-        $data5.Results[3].Detail | Should -Be 'git clone 종료 코드 128'
+        It '최신 태그가 빈 값 -> 실패: 최신 태그를 읽지 못했다' {
+            Mock Get-GitLatestTag { return '' }
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] Git: 실패: 최신 태그를 읽지 못했다'
+        }
+
+        It '설치 종료 코드 5 -> 실패: Git 설치 종료 코드 5' {
+            Mock Install-GitForWindows { return 5 }
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] Git: 실패: Git 설치 종료 코드 5'
+            Should -Invoke Get-AgentExePath -Times 0 -Exactly
+        }
+
+        It '설치 뒤에도 git 없음 -> 실패: 설치 뒤에도 git 이 없다' {
+            Mock Install-GitForWindows { return 0 }
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] Git: 실패: 설치 뒤에도 git 이 없다'
+            Should -Invoke Update-SessionPath -Times 1 -Exactly
+        }
     }
 
-    It '결과 JSON 쓰기 실패 -> 경고 출력, 종료 코드는 바꾸지 않음' {
-        $badPath = Join-Path $TestDrive 'no-such-dir\nested\out.json'
-        $script:warned = $false
-        Mock Write-Warning { $script:warned = $true }
+    Context 'pwsh 단계' {
+        BeforeEach {
+            Mock Test-CommandExists { if ($Name -eq 'pwsh') { return $false }; return $true }
+        }
 
-        $ret = Invoke-Bootstrap -ResultPath $badPath
-        $ret | Should -Be 0
-        $script:warned | Should -BeTrue
+        It 'winget 종료 코드 0 아님 -> 실패: pwsh 설치 종료 코드 n' {
+            Mock Invoke-Winget { return -1978335212 }
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] Microsoft.PowerShell: 실패: pwsh 설치 종료 코드 -1978335212'
+            Should -Invoke Get-AgentExePath -Times 0 -Exactly
+        }
+
+        It '설치 뒤에도 pwsh 없음 -> 실패: 설치 뒤에도 pwsh 이 없다' {
+            Mock Invoke-Winget { return 0 }
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] Microsoft.PowerShell: 실패: 설치 뒤에도 pwsh 이 없다'
+        }
+    }
+
+    Context '에이전트 CLI 단계' {
+        BeforeEach {
+            Mock Get-AgentExePath { return '' }
+        }
+
+        It '설치 종료 코드 1 -> 실패: claude 설치 종료 코드 1, clone 안 함' {
+            Mock Install-AgentCli { return 1 }
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] claude: 실패: claude 설치 종료 코드 1'
+            Should -Invoke Invoke-Git -Times 0 -Exactly
+        }
+
+        It '설치 뒤 PATH 에도 알려진 위치에도 없음 -> 실패: 설치 뒤에도 codex 이 없다' {
+            Mock Install-AgentCli { return 0 }
+
+            & $script:assertStopped (Invoke-Bootstrap -Agent 'codex')
+            $script:lines | Should -Contain '[부트스트랩] codex: 실패: 설치 뒤에도 codex 이 없다'
+            Should -Invoke Update-SessionPath -Times 1 -Exactly
+        }
+    }
+
+    Context 'clone 단계' {
+        It '저장소 경로가 있지만 pc-setup\SETUP.md 없음 -> 실패: 경로 에 셋업이 없다' {
+            New-Item -Path $script:defaultRepo -ItemType Directory -Force | Out-Null
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain "[부트스트랩] clone: 실패: $script:defaultRepo 에 셋업이 없다"
+        }
+
+        It 'git clone 종료 코드 128 -> 실패: git clone 종료 코드 128' {
+            Mock Invoke-Git { return 128 }
+
+            & $script:assertStopped (Invoke-Bootstrap)
+            $script:lines | Should -Contain '[부트스트랩] clone: 실패: git clone 종료 코드 128'
+        }
     }
 }
 
 Describe '하위 함수 단위 테스트 (실제 외부 명령 호출 없음)' {
-    It 'Invoke-ElevatedInstall: RunAs + EncodedCommand 로 winget 설치를 실행하고 결과 JSON 을 읽어 정리한다' {
-        $script:capturedArgs = $null
-        $script:capturedTempPath = $null
-        Mock Start-Process {
-            param($FilePath, $Verb, $Wait, $ArgumentList)
-            $FilePath | Should -Be 'powershell.exe'
-            $Verb | Should -Be 'RunAs'
-            $script:capturedArgs = $ArgumentList
-            $b64 = $ArgumentList[-1]
-            $decoded = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($b64))
-            $decoded | Should -Match 'winget install --id \$id -e --scope machine --no-upgrade --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity'
-            if ($decoded -match "WriteAllText\('([^']+)'") {
-                $script:capturedTempPath = $Matches[1].Replace("''", "'")
-                [System.IO.File]::WriteAllText($script:capturedTempPath, '{"Git.Git":0,"Microsoft.PowerShell":0}', [System.Text.Encoding]::UTF8)
-            }
-        }
-
-        $res = Invoke-ElevatedInstall -Ids @('Git.Git', 'Microsoft.PowerShell')
-        $res.Requested | Should -Be 1
-        $res.Error | Should -Be ''
-        $res.Codes['Git.Git'] | Should -Be 0
-        $res.Codes['Microsoft.PowerShell'] | Should -Be 0
-        $script:capturedTempPath | Should -Not -BeNullOrEmpty
-        Test-Path -LiteralPath $script:capturedTempPath | Should -BeFalse
-    }
-
-    It 'Invoke-ElevatedInstall: Start-Process 예외 -> Error = 승격 거부됨' {
-        Mock Start-Process { throw [System.ComponentModel.Win32Exception]::new('User canceled') }
-        $res = Invoke-ElevatedInstall -Ids @('Git.Git')
-        $res.Requested | Should -Be 1
-        $res.Error | Should -Be '승격 거부됨'
-        $res.Codes.Count | Should -Be 0
-    }
-
-    It 'Invoke-ElevatedInstall: 결과 파일 없음 -> Error = 승격 단계 결과 없음' {
-        Mock Start-Process {}
-        $res = Invoke-ElevatedInstall -Ids @('Git.Git')
-        $res.Requested | Should -Be 1
-        $res.Error | Should -Be '승격 단계 결과 없음'
-    }
-
-    It 'Invoke-ElevatedInstall: 깨진 JSON -> Error = 승격 단계 결과 없음' {
-        Mock Start-Process {
-            param($ArgumentList)
-            $decoded = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($ArgumentList[-1]))
-            if ($decoded -match "WriteAllText\('([^']+)'") {
-                $p = $Matches[1].Replace("''", "'")
-                [System.IO.File]::WriteAllText($p, '{bad-json', [System.Text.Encoding]::UTF8)
-            }
-        }
-        $res = Invoke-ElevatedInstall -Ids @('Git.Git')
-        $res.Requested | Should -Be 1
-        $res.Error | Should -Be '승격 단계 결과 없음'
-    }
-
     It 'Register-WingetFamily: Add-AppxPackage -RegisterByFamilyName 호출' {
         $script:regCalled = $false
         Mock Add-AppxPackage {
@@ -477,23 +479,12 @@ Describe '하위 함수 단위 테스트 (실제 외부 명령 호출 없음)' {
         $script:regCalled | Should -BeTrue
     }
 
-    It 'Install-WingetFromGitHub: 의존성 .appx 먼저, msixbundle 나중 순서로 Add-AppxPackage 호출' {
-        Mock Invoke-RestMethod {
-            return [pscustomobject]@{
-                assets = @(
-                    [pscustomobject]@{
-                        name                 = 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
-                        browser_download_url = 'https://example.invalid/winget.msixbundle'
-                    },
-                    [pscustomobject]@{
-                        name                 = 'DesktopAppInstaller_Dependencies.zip'
-                        browser_download_url = 'https://example.invalid/deps.zip'
-                    }
-                )
-            }
-        }
+    It 'Install-WingetFromGitHub: API 없이 releases/latest/download 에서 받고, 의존성 .appx 먼저·msixbundle 나중으로 설치' {
+        Mock Invoke-RestMethod { throw 'should not be called' }
+        $script:webUris = [System.Collections.Generic.List[string]]::new()
         Mock Invoke-WebRequest {
             param([string]$Uri, [string]$OutFile)
+            $script:webUris.Add($Uri)
             [System.IO.File]::WriteAllText($OutFile, 'dummy')
         }
         Mock Expand-Archive {
@@ -510,26 +501,68 @@ Describe '하위 함수 단위 테스트 (실제 외부 명령 호출 없음)' {
         }
 
         Install-WingetFromGitHub
+        $script:webUris | Should -Contain 'https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+        $script:webUris | Should -Contain 'https://github.com/microsoft/winget-cli/releases/latest/download/DesktopAppInstaller_Dependencies.zip'
+        Should -Invoke Invoke-RestMethod -Times 0 -Exactly
         $script:appxCalls.Count | Should -Be 2
         $script:appxCalls[0] | Should -Be 'dep1.appx'
         $script:appxCalls[1] | Should -Be 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
     }
 
-    It 'Start-SetupScript: -NoProfile -File <repo>\pc-setup\setup.ps1 -Skip a,b -ResultPath C:\o\s.json 인자로 실행한다' {
-        $fakeCmd = Join-Path $TestDrive 'fake-pwsh.cmd'
-        $captureFile = Join-Path $TestDrive 'captured-args.txt'
-        Set-Content -Path $fakeCmd -Value "@echo off`r`necho %* > `"$captureFile`"`r`nexit /b 0" -Encoding ASCII
+    It 'Get-GitInstallerName: 태그를 64비트 설치 파일 이름으로 바꾼다' {
+        Get-GitInstallerName -Tag 'v2.47.1.windows.1' | Should -Be 'Git-2.47.1-64-bit.exe'
+        Get-GitInstallerName -Tag 'v2.47.1.windows.2' | Should -Be 'Git-2.47.1.2-64-bit.exe'
+        { Get-GitInstallerName -Tag 'v2.47.1' } | Should -Throw
+    }
 
-        Mock Get-Command {
-            param([string]$Name)
-            if ($Name -eq 'pwsh') {
-                return [pscustomobject]@{ Source = $fakeCmd }
-            }
+    It 'Install-GitForWindows: 그 태그의 설치 파일을 받아 비관리자 무인 설치 인자로 실행하고 종료 코드를 돌려준다' {
+        $script:webUri = $null
+        Mock Invoke-WebRequest {
+            param([string]$Uri, [string]$OutFile)
+            $script:webUri = $Uri
+            [System.IO.File]::WriteAllText($OutFile, 'dummy')
+        }
+        $script:procArgs = $null
+        $script:procVerb = $null
+        Mock Start-Process {
+            $script:procArgs = $ArgumentList
+            $script:procVerb = $Verb
+            return [pscustomobject]@{ ExitCode = 3 }
         }
 
-        $code = Start-SetupScript -RepoPath 'C:\myrepo' -Skip @('a', 'b') -ResultPath 'C:\o\s.json'
-        $code | Should -Be 0
-        $recorded = (Get-Content -LiteralPath $captureFile -Raw).Trim()
-        $recorded | Should -Be '-NoProfile -File C:\myrepo\pc-setup\setup.ps1 -Skip a,b -ResultPath C:\o\s.json'
+        $code = Install-GitForWindows -Tag 'v2.47.1.windows.1'
+        $code | Should -Be 3
+        $script:webUri | Should -Be 'https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.1/Git-2.47.1-64-bit.exe'
+        $expectedDir = Join-Path $env:LOCALAPPDATA 'Programs\Git'
+        ($script:procArgs -join ' ') | Should -Be "/VERYSILENT /NORESTART /DIR=`"$expectedDir`" /o:PathOption=Cmd"
+        ($script:procArgs -join ' ') | Should -Not -Match 'CURRENTUSER'
+        $script:procVerb | Should -BeNullOrEmpty
+    }
+
+    It 'Get-AgentInstallUrl: 에이전트마다 공식 install.ps1 주소' {
+        Get-AgentInstallUrl -Agent 'claude' | Should -Be 'https://claude.ai/install.ps1'
+        Get-AgentInstallUrl -Agent 'agy' | Should -Be 'https://antigravity.google/cli/install.ps1'
+        Get-AgentInstallUrl -Agent 'codex' | Should -Be 'https://chatgpt.com/codex/install.ps1'
+    }
+
+    It 'Get-AgentKnownPath: 에이전트마다 알려진 설치 위치' {
+        Get-AgentKnownPath -Agent 'claude' | Should -Be (Join-Path $env:USERPROFILE '.local\bin\claude.exe')
+        Get-AgentKnownPath -Agent 'agy' | Should -Be (Join-Path $env:LOCALAPPDATA 'agy\bin\agy.exe')
+        Get-AgentKnownPath -Agent 'codex' | Should -Be (Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin\codex.exe')
+    }
+
+    It 'Get-AgentExePath: PATH 에 있으면 이름, 아니면 알려진 위치의 전체 경로, 둘 다 없으면 빈 문자열' {
+        $knownExe = Join-Path $TestDrive 'known\claude.exe'
+        Mock Get-AgentKnownPath { return $knownExe }
+
+        Mock Test-CommandExists { return $true }
+        Get-AgentExePath -Agent 'claude' | Should -Be 'claude'
+
+        Mock Test-CommandExists { return $false }
+        Get-AgentExePath -Agent 'claude' | Should -Be ''
+
+        New-Item -Path (Split-Path -Parent $knownExe) -ItemType Directory -Force | Out-Null
+        Set-Content -Path $knownExe -Value 'dummy'
+        Get-AgentExePath -Agent 'claude' | Should -Be $knownExe
     }
 }
