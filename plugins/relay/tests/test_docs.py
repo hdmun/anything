@@ -226,6 +226,12 @@ class SessionStructure(unittest.TestCase):
         self.assertNotIn("사람이 relay 로", head)
         self.assertIn("relay: 구현 이슈 <URL>", head)
 
+    def test_skill_md_names_the_default_branch_not_main(self):
+        # 기본 브랜치는 base-branch 결정기가 정한다 (#158). 멈춤 사유 이름 「main 과 충돌」·「main 깨짐」은 stop.md 와 짝이라 남긴다
+        self.assertNotIn("--base-branch main", SKILL_MD)
+        self.assertNotIn("main 에 직접 푸시", SKILL_MD)
+        self.assertIn("기본 브랜치에 직접 푸시하거나 force push 하지 않는다", SKILL_MD)
+
     def test_stops_with_a_report_not_ask_or_decision_gates(self):
         # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
