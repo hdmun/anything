@@ -26,6 +26,9 @@
 | rdp-notify | `rdp-notify/` | 필요 |
 | git 훅 | `.githooks/` | |
 | agent-rules | `agent-rules/` | |
+| claude-statusline | `claude-statusline/` | |
+| agy-statusline | `agy-statusline/` | |
+| codex-statusline | `codex-statusline/` | |
 
 ## rdp-notify
 
@@ -34,3 +37,8 @@
 ## agent-rules
 
 - 사용자 전역 규칙 파일(`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`)을 만든다. 생성 표시가 없는 파일이 있으면 `install.ps1` 이 `할 일: …` 을 출력한다. 그 줄을 그대로 끝 요약의 `할 일:` 에 옮긴다. `-Force` 실행은 사람이 내용을 옮긴 뒤 한다([../agent-rules/README.md](../agent-rules/README.md)).
+
+## statusline (claude·agy·codex)
+
+- 각 에이전트 폴더의 statusline 설정을 저장소 스크립트로 덮어쓴다(에이전트 폴더 경계의 예외). 대상과 바꾸는 키는 각 README 에 있다: [../claude-statusline/README.md](../claude-statusline/README.md), [../agy-statusline/README.md](../agy-statusline/README.md), [../codex-statusline/README.md](../codex-statusline/README.md).
+- codex-statusline 은 Python 에 의존한다. [apps.md](apps.md) 의 Python 이 `실패` 면 실행하지 않고 `실패: Python 실패` 로 기록한다.

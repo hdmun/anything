@@ -129,4 +129,4 @@
 
 ## 셋업 밖의 일
 
-셋업이 끝난 뒤 사람이 손으로 하는 일은 [README.md](README.md) 의 「손으로 할 일」에 있다. **에이전트 폴더**는 셋업이 건드리지 않는다.
+셋업이 끝난 뒤 사람이 손으로 하는 일은 [README.md](README.md) 의 「손으로 할 일」에 있다. **에이전트 폴더**는 셋업이 건드리지 않는다. 예외는 저장소 도구가 맞추는 전역 규칙(agent-rules)과 statusline 이다([repo-tools.md](repo-tools.md)).
