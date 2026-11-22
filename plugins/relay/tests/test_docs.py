@@ -220,6 +220,12 @@ class SessionStructure(unittest.TestCase):
         self.assertIn("(기동 줄에 `일괄 진행:` 이 있을 때만)", batch.splitlines()[2])
         self.assertIn("references/stop-batch.md", MERGE_MD)
 
+    def test_relay_fires_only_on_the_launch_line(self):
+        # "relay 로 진행해줘" 는 relay:start 의 일이다. 진입은 이슈 워크트리 밖이면 진행하지 않는다 (#159)
+        head = SKILL_MD.split("---")[1]
+        self.assertNotIn("사람이 relay 로", head)
+        self.assertIn("relay: 구현 이슈 <URL>", head)
+
     def test_stops_with_a_report_not_ask_or_decision_gates(self):
         # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
