@@ -25,7 +25,12 @@
 |---|---|---|
 | rdp-notify | `rdp-notify/` | 필요 |
 | git 훅 | `.githooks/` | |
+| agent-rules | `agent-rules/` | |
 
 ## rdp-notify
 
 - 설정 파일(env)이 없으면 `install.ps1` 이 `할 일: …` 을 출력한다. 그 줄을 그대로 끝 요약의 `할 일:` 에 옮긴다. env 파일은 사람이 만든다([../rdp-notify/README.md](../rdp-notify/README.md)).
+
+## agent-rules
+
+- 사용자 전역 규칙 파일(`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`)을 만든다. 생성 표시가 없는 파일이 있으면 `install.ps1` 이 `할 일: …` 을 출력한다. 그 줄을 그대로 끝 요약의 `할 일:` 에 옮긴다. `-Force` 실행은 사람이 내용을 옮긴 뒤 한다([../agent-rules/README.md](../agent-rules/README.md)).
