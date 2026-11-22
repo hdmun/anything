@@ -78,7 +78,7 @@
 
 ## Bun
 
-- 확인: `~\.bun\bin\bun.exe` 가 있고, 그 폴더가 사용자 PATH 에 있다.
+- 확인: `bun` 명령이 있다.
 - 주의: PATH 는 `tools/add-user-path.ps1` 로 넣는다.
 
 ## CMake
