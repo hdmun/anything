@@ -56,4 +56,5 @@ Claude Code·Codex·Antigravity(`agy`)의 **사용자 전역** 규칙 원본이�
 - Codex 의 `AGENTS.md` 는 다른 파일을 import 하지 못한다. 그래서 원본을 합쳐서 만든다. 다른 도구도 같은 방식으로 만들어 결과를 한눈에 보게 한다.
 - 원본을 `.claude/rules/` 에 두지 않는다. Claude Code 가 이 폴더를 자동으로 읽어서 규칙이 두 번 들어가고 `*.codex.md` 도 Claude 에 들어간다.
 - Codex 는 `AGENTS.md` 를 기본 32 KiB(`project_doc_max_bytes`)까지만 읽는다. 넘으면 `-Verbose` 에서 경고한다.
-- Claude Code 의 ADHD 출력 규칙은 SessionStart 훅으로 들어온다. 그래서 출력 규칙 원본은 Claude 에 넣지 않는다.
+- Claude Code 의 ADHD 출력 규칙은 SessionStart 훅으로 들어온다. 그래서 `global/20-output-style.codex.gemini.md` 는 Codex·agy 에만 넣는다.
+- `agy` 는 `~/.gemini/GEMINI.md` 를 전역 규칙(`RULE[user_global]`)으로 읽는다. agy 1.5.14 의 변경 기록("global rules … `~/.gemini/GEMINI.md`")과 `agy -p` 실측으로 확인했다.
