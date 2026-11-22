@@ -128,5 +128,5 @@ Relay-Done: I-<n>        ← dismiss·accept 일 때만
 | **리뷰 라운드** | 리뷰 리포트 하나 | `<base>` 이후에 추가된 `.relay/reviews/I-<n>.r*.json` 파일 개수 |
 | **총 라운드** | 구현 라운드 + 리뷰 라운드 | 위 둘의 합 (기록용, 한도 없음) |
 
-- **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. breaker가 걸리면 멈춤 보고(ADR 0009).
+- **기동 실패의 끝은 Orca의 3회 circuit-break다.** 그 전까지는 Orca 가이드 `recovery-and-cleanup`의 복구 절차대로 같은 Task에 다시 띄운다. 단 `outcome_unknown`·`agent_prompt_blocked` 는 다시 띄우지 않는다 — SKILL.md 불변식대로 한다(`outcome_unknown` 은 멈춤 보고, `agent_prompt_blocked` 는 사람을 기다린다). breaker가 걸리면 멈춤 보고(ADR 0009).
 - 기동 실패는 환경 문제이고 구현자의 실력과 무관하므로 라운드로 세지 않는다.

@@ -203,6 +203,12 @@ class SessionStructure(unittest.TestCase):
             self.assertIn(phrase, stop)
         self.assertTrue((SKILL_DIR / "references" / "judgment-schema.json").exists())
 
+    def test_relaunch_line_excepts_outcome_unknown_and_prompt_blocked(self):
+        # 기동 실패로 분류해도 이 둘은 다시 띄우지 않는다 — 같은 Task 를 워커 둘이 하게 된다 (#159)
+        stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
+        line = next(l for l in stop.splitlines() if "같은 Task에 다시 띄운다" in l)
+        self.assertIn("`outcome_unknown`·`agent_prompt_blocked` 는 다시 띄우지 않는다", line)
+
     def test_stops_with_a_report_not_ask_or_decision_gates(self):
         # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
