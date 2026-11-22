@@ -7,7 +7,7 @@
 - **확인**: 원천마다 아래 기준으로 본다. 기준을 통과하면 `그대로`다.
   - winget·winget msstore: 그 원천의 설치 목록에 원천 힌트의 ID 가 정확히 일치하는 항목으로 있다.
   - scoop: 원천 힌트의 버킷이 추가돼 있고, 그 앱이 scoop 에 설치돼 있다.
-  - nvm: nvm 2.x 가 있고, 버전 줄에 맞는 Node 가 설치돼 있으며 지금 쓰는 Node 다.
+  - nvm: `nvm` 명령이 있고, 버전 줄에 맞는 Node 가 설치돼 있으며 지금 쓰는 Node 다.
   - pnpm: pnpm 전역 설치 목록에 그 패키지가 있다.
   - go: `go env GOPATH` 의 `bin` 폴더에 그 도구의 실행 파일이 있다.
   - 공식 배포: 표 아래 그 앱의 절에 적은 기준을 쓴다.
@@ -15,7 +15,7 @@
 - **범위**: winget 앱은 범위 칸의 범위(`user`/`machine`)로 설치한다. msstore 와 그 밖의 원천에는 범위 칸이 없다.
 - **승격**: 승격 칸이 `필요`인 앱과, 범위가 `machine` 인 winget 앱은 승격 항목이다(**승격 단계**에서 맞춘다).
 - **원천 준비**: scoop 이 없으면 첫 scoop 앱을 맞출 때 일반 권한으로 함께 설치한다. 계획에는 "원천 준비: scoop"으로 보인다.
-- **의존**: 표의 순서대로 진행한다. 앞 항목이 `실패`면 그 항목에 의존하는 항목은 시도하지 않고 `실패: <앞 항목> 실패`로 기록한다. scoop 앱은 scoop 에, Node 는 nvm 에, pnpm 패키지는 Node·pnpm 에, go 도구는 Go 에, Ubuntu 는 WSL 에 의존한다.
+- **의존**: 표의 순서대로 진행한다. 앞 항목이 `실패`면 그 항목에 의존하는 항목은 시도하지 않고 `실패: <앞 항목> 실패`로 기록한다. scoop 앱은 scoop 에, Node 는 nvm 에, pnpm 은 Node 에, pnpm 패키지는 Node·pnpm 에, go 도구는 Go 에, Ubuntu 는 WSL 에 의존한다.
 
 ## 목록
 
@@ -39,25 +39,25 @@
 | 7-Zip | winget | `7zip.7zip` | machine | | | |
 | Everything | winget | `voidtools.Everything` | machine | | | |
 | Obsidian | winget | `Obsidian.Obsidian` | user | | | |
-| Chrome | winget | `Google.Chrome` | machine | | | |
+| Chrome | 공식 배포 | Google Chrome 설치 프로그램(안정 채널) | | | 필요 | |
 | Discord | winget | `Discord.Discord` | user | | | |
 | Android Studio | winget | `Google.AndroidStudio` | machine | | | |
 | WinMerge | winget | `WinMerge.WinMerge` | machine | | | |
 | Python | winget | `Python.Python.3.13` | user | 3.13 | 필요 | py 런처 설치에 관리자 권한이 필요하다 |
 | Ruby (DevKit 포함) | winget | `RubyInstallerTeam.RubyWithDevKit.3.4` | user | 3.4 | | |
-| Bun | winget | `Oven-sh.Bun` | user | | | |
+| Bun | 공식 배포 | Bun 공식 설치 스크립트 | | | | |
 | Go | winget | `GoLang.Go` | machine | | | |
 | gopls | go | `golang.org/x/tools/gopls` | | | | |
 | staticcheck | go | `honnef.co/go/tools/cmd/staticcheck` | | | | |
 | Docker Desktop | winget msstore | `XP8CBJ40XLBWKX` | | | | |
 | iCloud | winget msstore | `9PKTQ5699M62` | | | | |
-| lazygit | scoop | extras 버킷의 `lazygit` | | | | |
-| CMake | scoop | main 버킷의 `cmake` | | | | |
-| DBeaver | scoop | extras 버킷의 `dbeaver` | | | | |
+| lazygit | winget | `JesseDuffield.lazygit` | user | | | |
+| CMake | 공식 배포 | CMake Windows 설치 프로그램(MSI) | | | | |
+| DBeaver | 공식 배포 | DBeaver Community 설치 프로그램 | | | | |
 | nano | scoop | main 버킷의 `nano` | | | | |
-| nvm | scoop | main 버킷의 `nvm` | | | | Node 버전 관리(nvm-windows 2.x) |
+| nvm | 공식 배포 | nvm-windows 2.x 설치 프로그램 | | | | Node 버전 관리(nvm-windows 2.x) |
 | Node | nvm | | | 26 | | pnpm 과 전역 패키지의 바탕 |
-| pnpm | winget | `pnpm.pnpm` | user | | | |
+| pnpm | 공식 배포 | npm 전역 패키지 `pnpm` | | | | |
 | Codex CLI | pnpm | `@openai/codex` | | | | |
 | WSL | 공식 배포 | Windows Subsystem for Linux | | | 필요 | |
 | Ubuntu | 공식 배포 | WSL 배포판 `Ubuntu-24.04` | | 24.04 | | |
@@ -69,9 +69,36 @@
 | NVIDIA 드라이버 | 공식 배포 | NVIDIA 그래픽 드라이버 | | | | |
 | Pester | 공식 배포 | PowerShell Gallery 의 `Pester` | | 6 | | `pc-setup/tests` 를 돌리는 테스트 도구 |
 
+## Chrome
+
+- 확인: Windows 의 설치된 프로그램 목록에 이름이 정확히 `Google Chrome` 인 항목이 있다. `Google Chrome Beta` 같은 다른 채널은 통과하지 않는다.
+- winget 목록으로 확인하지 않는다. winget 이 이미 설치된 안정 채널 Chrome 을 다른 ID(Beta)로 잘못 잡는 경우가 있다.
+- 모든 사용자용으로 설치한다(승격 단계에서).
+
+## Bun
+
+- 확인: `~\.bun\bin\bun.exe` 가 있고, 그 폴더가 사용자 PATH 에 있다.
+- 주의: PATH 는 `tools/add-user-path.ps1` 로 넣는다.
+
+## CMake
+
+- 확인: Windows 의 설치된 프로그램 목록에 이름이 `CMake` 인 항목이 있다.
+
+## DBeaver
+
+- 확인: Windows 의 설치된 프로그램 목록에 이름이 `DBeaver` 로 시작하는 항목이 있다.
+- 현재 사용자용으로 설치한다(관리자 없이).
+
+## nvm
+
+- 확인: `nvm` 명령이 있다. 이미 설치된 nvm 1.x 도 통과한다(버전 규칙대로 올리지 않는다).
+- 새로 설치할 때는 2.x 설치 프로그램을 일반 권한으로 실행한다.
+- 1.x → 2.x 업그레이드는 셋업 밖에서 한다. 2.x 설치 프로그램이 1.1.7 이상의 1.x 를 옮겨 준다.
+
 ## pnpm
 
-- 확인: 기본 규칙에 더해, 사용자 환경 변수 `PNPM_HOME` 이 있고 그 폴더가 사용자 PATH 에 있다.
+- 확인: `pnpm` 명령이 있고, 사용자 환경 변수 `PNPM_HOME` 이 있으며 그 폴더가 사용자 PATH 에 있다. 어떤 방법으로 설치했는지는 보지 않는다(독립 실행 스크립트로 설치한 pnpm 도 통과한다).
+- 없을 때만 npm 전역 패키지로 설치한다. 그 뒤 `PNPM_HOME` 을 공식 문서의 방법으로 정한다. Node 에 의존한다.
 - 주의: `PNPM_HOME` 의 PATH 추가는 [SETUP.md](SETUP.md) 의 규칙대로 `tools/add-user-path.ps1` 로 한다.
 
 ## Codex CLI
