@@ -1,5 +1,3 @@
-<!-- 생성 파일: 직접 고치지 않는다. 원본은 agent-rules/project/ 이고 `sh agent-rules/build.sh` 로 다시 만든다 -->
-
 ## Agent skills
 
 ### Issue tracker

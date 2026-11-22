@@ -1,44 +1,60 @@
 # agent-rules
 
-Claude Code·Codex 규칙의 원본이다. 루트의 `AGENTS.md`와 전역 규칙 파일은 여기서 만든 생성 파일이므로 직접 고치지 않는다.
+Claude Code·Codex·Antigravity(`agy`)의 **사용자 전역** 규칙 원본이다. 특정 저장소에 의존하지 않는다. 아래 생성 파일은 여기서 만들므로 직접 고치지 않는다.
+
+| 도구 | 생성 파일 |
+|---|---|
+| `claude` | `~/.claude/CLAUDE.md` |
+| `codex` | `~/.codex/AGENTS.md` |
+| `gemini` | `~/.gemini/GEMINI.md` |
+
+- 대상은 이 3개로 고정이다. `CLAUDE_CONFIG_DIR`·`CODEX_HOME` 환경 변수는 보지 않는다.
+- 대상 폴더(`~/.gemini` 등)가 없으면 그 도구가 설치되지 않은 PC 로 보고 건너뛴다. 폴더를 만들지 않는다.
 
 ## 규칙을 고치는 법
 
-1. `project/` 또는 `global/`의 파일을 고치거나 더한다
-2. `sh agent-rules/build.sh`를 실행한다 (전역 파일까지면 `--global`)
-3. 원본과 생성 파일을 함께 커밋한다
+1. `global/` 의 파일을 고치거나 더한다
+2. 원본을 커밋한다
+3. 저장소 루트에서 `pwsh -NoProfile -File agent-rules/install.ps1` 을 실행한다 (먼저 보려면 `-Check`)
 
-## 폴더 = 적용 범위
-
-| 폴더 | 만들어지는 파일 |
-|---|---|
-| `project/` | 이 저장소 루트의 `AGENTS.md` (Claude Code·Codex 가 함께 읽는다) |
-| `global/` | `$CLAUDE_CONFIG_DIR/CLAUDE.md` (기본 `~/.claude`), `$CODEX_HOME/AGENTS.md` (기본 `~/.codex`) |
+`install.ps1` 은 pc-setup 의 **저장소 도구**다([../pc-setup/repo-tools.md](../pc-setup/repo-tools.md)). 셋업이 `-Check` 와 맞춤 실행을 대신 부른다.
 
 ## 파일 이름
 
-- `NN-주제.md`: 숫자 순서대로 합친다. 10 단위로 띄워 두고 사이에 끼운다.
-- `global/`에서는 접미사로 대상 도구를 정한다. 접미사가 없으면 두 도구 모두, `*.claude.md`는 Claude Code만, `*.codex.md`는 Codex만이다.
-- `project/`에는 접미사 파일을 두지 않는다. 두 도구가 `AGENTS.md` 하나를 읽으므로 `build.sh`가 거부한다.
+- `NN-주제[.도구...].md`: 파일 이름 서수(ordinal) 순서대로 합친다. 10 단위로 띄워 두고 사이에 끼운다.
+- 마지막 `.md` 앞의 점 조각이 대상 도구다(`claude`·`codex`·`gemini`). 여러 개를 붙일 수 있다(예: `20-output-style.codex.gemini.md`). 도구 조각이 없으면 세 도구 모두에 들어간다.
+- 도구 이름이 아닌 조각이 있으면 `실패: …` 를 출력하고 아무것도 쓰지 않는다.
 - 파일 하나는 `## 제목` 섹션 하나로 시작한다.
 
-## 전역 파일 보호
+생성 파일은 생성 표시 한 줄 뒤에 원본마다 빈 줄 하나와 원본 내용을 잇는다. UTF-8(BOM 없음), LF 줄바꿈이다.
 
-- `--global`은 첫 줄에 생성 표시(`<!-- 생성 파일`)가 없는 전역 파일을 덮어쓰지 않는다. 설치 도구가 쓴 파일일 수 있어서다. 내용을 `global/`로 옮긴 뒤 `--force`로 덮어쓴다.
-- 전역 파일을 덮어쓸 때는 바뀌는 줄을 diff로 보여주고, 이전 파일을 `<파일>.prev`로 남긴다.
+## 생성 표시와 덮어쓰기
 
-## 커밋 검사
+- 생성 파일 첫 줄은 `<!-- 생성 파일` 로 시작하는 생성 표시다. 원본 위치는 PC 경로가 아니라 저장소 기준(`hdmun/anything` 의 `agent-rules/global/`)으로 적는다.
+- 첫 줄에 생성 표시가 없는 파일은 덮어쓰지 않고 `할 일: …` 을 출력한다. 손으로 쓴 규칙일 수 있어서다. 내용을 `global/` 로 옮긴 뒤 `-Force` 로 다시 실행한다.
+  - 예외: 파일이 비어 있거나(공백만), 생성할 본문과 같으면(CR·앞뒤 공백 무시) 그냥 덮어쓴다.
+- `-Force` 로 생성 표시가 없는 파일을 덮어쓸 때만 이전 파일을 `<파일>.prev` 로 남긴다. 생성 표시가 있는 파일은 백업 없이 덮어쓴다.
+- `-Verbose` 이면 파일마다 결과 한 줄과 바뀌는 줄을 더 보여 준다. 표준 출력의 한 줄 약속은 그대로다.
 
-`.githooks/pre-commit`은 `agent-rules/`·`AGENTS.md`·`CLAUDE.md`가 스테이징되면 아래 두 가지를 확인하고, 하나라도 어긋나면 커밋을 막는다.
+## 출력
 
-- 이 세 경로에 스테이징하지 않은 변경이나 추적하지 않는 파일이 없다
-- `build.sh --check`가 통과한다 (생성 파일 = 원본을 합친 결과, 루트에 `CLAUDE.md` 가 없다)
+표준 출력은 한 줄이다. 셋업이 이 줄을 읽는다.
+
+| 출력 | 뜻 |
+|---|---|
+| `그대로` | 모든 대상이 원본과 같다 |
+| `다름 (CLAUDE.md, …)` | `-Check`: 다시 만들 파일이 있다 |
+| `바꿈 (AGENTS.md, …)` | 그 파일을 다시 만들었다 |
+| `할 일: …` | 생성 표시가 없는 파일이 있다 (위 절) |
+| `실패: …` | 원본 이름이 틀렸거나 파일을 읽고 쓰지 못했다 |
+
+여러 파일의 결과가 섞이면 `실패` > `할 일` > `다름`/`바꿈` > `그대로` 순서로 하나만 보인다. `실패`·`할 일` 은 첫 번째 해당 파일의 문장이다. `-Check` 는 아무것도 쓰지 않는다.
 
 ## 왜 이렇게 했나
 
-- 이 저장소의 규칙 파일은 `AGENTS.md` 하나다. Claude Code는 기본 설정(`instructionFiles`: `claude-md-or-agents-md`)에서 저장소에 `CLAUDE.md`가 없으면 `AGENTS.md`를 `CLAUDE.md` 자리에서 읽는다(Claude Code 2.1.322 에서 확인). 루트에 `CLAUDE.md`가 생기면 `AGENTS.md` 대신 그것을 읽으므로, `build.sh`는 옛 생성 파일 `CLAUDE.md`를 지우고 `--check`는 실패한다.
-- 전역은 두 파일 그대로다. 도구마다 넣는 내용이 다르고(아래 출력 규칙, graphify), 사용자 범위에서 Claude Code가 `AGENTS.md`를 읽는지는 확인하지 않았다.
-- Codex의 `AGENTS.md`는 다른 파일을 import하지 못한다. 그래서 원본을 합쳐서 만든다. 전역 `CLAUDE.md`도 `@import` 대신 같은 방식으로 만들어 결과가 git diff에 보이게 한다.
-- 원본을 `.claude/rules/`에 두지 않는다. Claude Code가 이 폴더를 자동으로 읽어서 규칙이 두 번 들어가고 `*.codex.md`도 Claude에 들어간다.
-- Codex는 `AGENTS.md`를 기본 32 KiB(`project_doc_max_bytes`)까지만 읽는다. 넘으면 `build.sh`가 경고한다.
-- Claude Code의 ADHD 출력 규칙은 SessionStart 훅으로 들어온다. 그래서 `global/20-output-style.codex.md`는 Codex에만 넣는다.
+- 파일은 제자리에서 덮어쓴다(임시 파일 교체·삭제 후 생성을 하지 않는다). agent-accounts 가 계정 폴더(`~/.claude-max` 등)의 `CLAUDE.md` 를 `~/.claude/CLAUDE.md` 를 가리키는 심볼릭 링크로 만들기 때문이다. 링크를 지우면 계정 폴더가 규칙을 잃는다.
+- Codex 의 `AGENTS.md` 는 다른 파일을 import 하지 못한다. 그래서 원본을 합쳐서 만든다. 다른 도구도 같은 방식으로 만들어 결과를 한눈에 보게 한다.
+- 원본을 `.claude/rules/` 에 두지 않는다. Claude Code 가 이 폴더를 자동으로 읽어서 규칙이 두 번 들어가고 `*.codex.md` 도 Claude 에 들어간다.
+- Codex 는 `AGENTS.md` 를 기본 32 KiB(`project_doc_max_bytes`)까지만 읽는다. 넘으면 `-Verbose` 에서 경고한다.
+- Claude Code 의 ADHD 출력 규칙은 SessionStart 훅으로 들어온다. 그래서 `global/20-output-style.codex.gemini.md` 는 Codex·agy 에만 넣는다.
+- `agy` 는 `~/.gemini/GEMINI.md` 를 전역 규칙(`RULE[user_global]`)으로 읽는다. agy 1.5.14 의 변경 기록("global rules … `~/.gemini/GEMINI.md`")과 `agy -p` 실측으로 확인했다.
