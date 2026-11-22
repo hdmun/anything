@@ -1,8 +1,6 @@
 # pc-setup
 
-Windows 11 집 PC 를 **선언**대로(앱·설정 파일·Windows 설정·저장소 도구) 맞추는 **셋업** 도구다. 여러 번 돌려도 결과가 같고(멱등), 선언에 없는 것은 보지도 알리지도 지우지도 않는다. 용어는 [CONTEXT.md](CONTEXT.md) 를 따른다.
-
-새 셋업: [SETUP.md](SETUP.md)
+Windows 11 집 PC 를 **선언**대로(앱·설정 파일·Windows 설정·저장소 도구) 맞추는 **셋업** 도구다. 셋업은 에이전트 CLI(Claude Code·agy·Codex)가 [SETUP.md](SETUP.md) 를 읽고 진행한다. 여러 번 돌려도 결과가 같고(멱등), 선언에 없는 것은 보지도 알리지도 지우지도 않는다. 용어는 [CONTEXT.md](CONTEXT.md) 를 따른다.
 
 ## 새 PC
 
@@ -12,18 +10,23 @@ Windows 11 집 PC 를 **선언**대로(앱·설정 파일·Windows 설정·저�
 irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1 | iex
 ```
 
-- UAC 확인 창은 **부트스트랩**에서 1회, **셋업**에서 1회 뜬다. 관리자 창에서 실행하면 멈춘다.
+- **부트스트랩**은 winget·Git·pwsh·에이전트 CLI 하나를 준비하고 저장소를 받는다. 이미 있는 것은 그대로 둔다.
+- 부트스트랩은 UAC 를 띄우지 않는다. 셋업은 관리자 권한이 필요한 항목이 있을 때 최대 1회 띄운다. 관리자 창에서 실행하면 멈춘다.
 - 저장소는 `$HOME\anything` 에 받는다.
-- 끝 요약에 `할 일: 재부팅 후 셋업 다시 실행` 이 나오면 재부팅한 뒤 일반 권한 창에서 다시 실행한다.
+- 에이전트는 기본이 `claude` 다. `-Agent agy` 나 `-Agent codex` 로 고를 수 있다(아래 브랜치 형식처럼 인자를 넘긴다).
+- 부트스트랩은 끝에 두 줄을 출력한다. 사람이 그대로 쳐서 셋업을 시작한다.
 
   ```powershell
-  pwsh $HOME\anything\pc-setup\setup.ps1
+  cd $HOME\anything\pc-setup
+  claude --dangerously-skip-permissions "SETUP.md 를 읽고 셋업해"
   ```
 
-- 다른 브랜치나 `-Skip` 을 넘길 때는 [bootstrap.ps1](bootstrap.ps1) 이 정한 형식을 쓴다.
+  두 번째 줄은 고른 에이전트의 자동 승인 플래그를 붙인 명령이다.
+- 끝 요약에 `할 일: 재부팅 뒤 셋업을 다시 실행` 이 나오면 재부팅한 뒤 `pc-setup` 폴더에서 같은 에이전트 명령을 다시 실행한다.
+- 다른 브랜치를 쓸 때는 [bootstrap.ps1](bootstrap.ps1) 이 정한 형식을 쓴다.
 
   ```powershell
-  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/hdmun/anything/<branch>/pc-setup/bootstrap.ps1))) -Branch <branch> -Skip <Id>,<Id>
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/hdmun/anything/<branch>/pc-setup/bootstrap.ps1))) -Branch <branch>
   ```
 
 ## 손으로 할 일
@@ -59,18 +62,13 @@ irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1
 
 ### 셋업이 알린 할 일
 
-- [ ] 끝 요약의 `할 일:` 블록(예: [rdp-notify/README.md](../rdp-notify/README.md) 의 env 파일 작성, NVIDIA 드라이버)을 처리한다.
+- [ ] 셋업이 대화에 남긴 끝 요약의 `할 일` 항목(예: [rdp-notify/README.md](../rdp-notify/README.md) 의 env 파일 작성, NVIDIA 드라이버)을 처리한다.
 
 ## 이미 셋업한 PC
 
-일반 권한 PowerShell 7 창에서 다시 맞춘다(UAC 1회).
+`<저장소>\pc-setup` 폴더에서 에이전트를 띄우고 `SETUP.md 를 읽고 셋업해` 라고 친다. 어느 권한 모드로 열어도 된다. 자동 승인 모드가 아니면 에이전트 도구가 명령마다 묻는다.
 
-```powershell
-pwsh <저장소>\pc-setup\setup.ps1
-```
-
-- `-Check`: 아무것도 바꾸지 않고 UAC 도 띄우지 않는다.
-- `-Skip <Id,...>`: 이번 실행에서만 지정한 항목을 건너뛴다.
+- 확인만 하려면 셋업이 보여 주는 **계획**에서 중단한다.
 
 | 결과 말 | 뜻 |
 |---|---|
@@ -78,32 +76,25 @@ pwsh <저장소>\pc-setup\setup.ps1
 | `바꿈` | 선언대로 바꿨다 |
 | `할 일` | 사람이 처리해야 할 일이 있다 |
 | `실패` | 적용이나 확인에 실패했다 |
-| `다름` | (`-Check`) 선언과 다르다 |
-| `확인 못 함` | (`-Check`) 권한 등의 이유로 확인하지 못했다 |
-| `건너뜀` | `-Skip` 으로 건너뛰었다 |
 
-- 종료 코드: `0`(실패 0개), `1`(실패 1개 이상), `2`(실행 전 오류 — 관리자 창, 선언 오류, 모르는 `-Skip` Id).
 - 앱 업그레이드는 셋업 밖에서 한다(`winget upgrade`, `scoop update`, `pnpm update -g`, 앱 자체 업데이트).
 
 ## 선언
 
 | 파일 / 폴더 | 담는 것 |
 |---|---|
-| [windows-settings.psd1](windows-settings.psd1) | **Windows 설정** 목록 |
-| [apps.psd1](apps.psd1) | **원천**별 앱·**런타임**·전역 도구 목록 |
-| [config-files.psd1](config-files.psd1) | **설정 파일** 목록(링크·GitInclude) |
-| [repo-tools.psd1](repo-tools.psd1) | **저장소 도구** 목록 |
-| `windows/` | 스크립트형 Windows 설정 항목 |
-| `apps/` | 공식 배포 앱 설치·확인 스크립트 |
+| [windows-settings.md](windows-settings.md) | **Windows 설정** 목록 |
+| [apps.md](apps.md) | **원천**별 앱·**런타임**·전역 도구 목록 |
+| [config-files.md](config-files.md) | **설정 파일** 목록(링크·GitInclude) |
+| [repo-tools.md](repo-tools.md) | **저장소 도구** 목록 |
+| `tools/` | PATH 추가·설정 파일 연결 스크립트 |
+| `config/` | 설정 파일 정본 |
 
-선언에 앱을 더하려면 `apps.psd1` 의 `Items` 에 항목을 추가한다(공식 배포는 `apps/` 스크립트도 함께 둔다). 선언에서 항목을 빼도 이미 설치된 앱이나 설정은 PC 에서 지워지지 않는다.
+선언에 앱을 더하려면 `apps.md` 표에 한 줄을 추가한다(URL·경로는 적지 않는다). 선언에서 항목을 빼도 이미 설치된 앱이나 설정은 PC 에서 지워지지 않는다.
 
 ## 검증
 
-| 대상 | 방법 | 문서 |
-|---|---|---|
-| 단위 테스트 | `Invoke-Pester -Path pc-setup/tests -CI` (Pester 6 필요, `apps/pester.ps1` 이 설치) | — |
-| 이 PC 상태 확인 | `pwsh -NoProfile -File pc-setup/setup.ps1 -Check` | — |
-| 새 PC 경로 (Hyper-V VM) | 빈 Windows 11 VM 에서 부트스트랩부터 검증 | [test/vm-checklist.md](test/vm-checklist.md) |
-
-이미 쓰던 집 PC(**검증 PC**)에서 처음 검증할 때는 [test/verify-pc-checklist.md](test/verify-pc-checklist.md) 를 따른다.
+| 대상 | 방법 |
+|---|---|
+| 단위 테스트 | `Invoke-Pester -Path pc-setup/tests -CI` (Pester 는 `apps.md` 항목) |
+| 멱등 확인 | 이미 셋업한 PC 에서 셋업을 두 번 돌리고, 두 번째 요약이 `바꿈` 0·`실패` 0 인지 본다 |
