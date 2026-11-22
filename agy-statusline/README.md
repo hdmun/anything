@@ -16,14 +16,24 @@ Antigravity CLI(`agy`) 상태 줄 스크립트다. Windows PowerShell 7 전용.
 
 ## 설치
 
-`~/.gemini/antigravity-cli/settings.json` 에 넣는다:
+```powershell
+pwsh -NoProfile -File agy-statusline/install.ps1 -Check   # 먼저 보기 (아무것도 쓰지 않는다)
+pwsh -NoProfile -File agy-statusline/install.ps1
+```
+
+- 대상: `~/.gemini/antigravity-cli/settings.json`. 폴더가 없으면 건너뛴다.
+- `statusLine` 을 아래 값으로 덮어쓴다. 이미 다른 값이 있어도 바꾼다. 다른 키와 키 순서·줄바꿈은 그대로 두고, 링크면 링크 대상에 쓴다.
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "pwsh -NoProfile -File C:/workspace/anything/agy-statusline/statusline.ps1"
+  "command": "pwsh -NoProfile -File <저장소>/agy-statusline/statusline.ps1"
 }
 ```
+
+`install.ps1` 은 pc-setup 의 **저장소 도구**다([../pc-setup/repo-tools.md](../pc-setup/repo-tools.md)). 셋업이 `-Check` 와 맞춤 실행을 대신 부른다. 손으로 돌릴 때는 저장소 루트 체크아웃에서 실행한다. 명령에 이 스크립트가 있는 폴더의 절대 경로가 들어가므로, 지울 워크트리에서 실행하지 않는다.
+
+출력은 한 줄이다: `그대로` / `다름 (<파일>, …)`(`-Check`) / `바꿈 (<파일>, …)` / `실패: …`. 여러 파일이면 `실패` 가 먼저 보인다.
 
 TUI 안에서 `/statusline` 명령으로 켜고 끌 수 있다 (`/statusline on`, `/statusline off`, `/statusline delete`).
 
