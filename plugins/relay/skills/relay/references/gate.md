@@ -60,8 +60,6 @@ grep -E "^packages/.*error TS" tsc.log | sort -u | wc -l
 grep -cE "error TS[0-9]+" tsc.log
 ```
 
-수치 인수 조건을 쓸 때는 **측정 명령이 무엇을 놓치는지** 먼저 확인한다. 설정을 건드리는 태스크에서 접두사 있는 줄만 세는 grep을 인수 조건에 쓰면, 설정 오류를 만들고도 "0건 달성"이 된다.
-
 **3. 매니페스트가 바뀌었으면 의존성을 다시 설치하고 잰다.**
 머지로 `package.json`/lockfile이 갱신되어도 체크아웃의 `node_modules`는 그대로다.
 

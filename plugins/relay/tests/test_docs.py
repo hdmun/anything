@@ -232,6 +232,15 @@ class SessionStructure(unittest.TestCase):
         self.assertNotIn("main 에 직접 푸시", SKILL_MD)
         self.assertIn("기본 브랜치에 직접 푸시하거나 force push 하지 않는다", SKILL_MD)
 
+    def test_spec_writing_advice_lives_in_the_template_not_gate_md(self):
+        # 수치 인수 조건 쓰는 법은 설계자용이다. 진행자 gate.md 에 두지 않는다 (#159)
+        gate = (SKILL_DIR / "references" / "gate.md").read_text(encoding="utf-8")
+        self.assertNotIn("수치 인수 조건을 쓸 때는", gate)
+        for phrase in ("--force", "grep -cE", "의존성을 동기화"):
+            self.assertIn(phrase, gate)
+        template = (SPEC_DIR / "references" / "spec-template.md").read_text(encoding="utf-8")
+        self.assertIn("0건 달성", template)
+
     def test_stops_with_a_report_not_ask_or_decision_gates(self):
         # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)
         self.assertNotRegex(SKILL, r"gate-(create|resolve|list)")
