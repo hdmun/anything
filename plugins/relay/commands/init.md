@@ -22,6 +22,12 @@ argument-hint: "[--check | --force]"
 
 ### 2. `.relay/roles.json` 확보
 
+**먼저 옛 폴더를 확인한다.** `.ai/relay-roles.json` 이 있고 `.relay/roles.json` 이 없으면 아무것도 쓰지 않는다(값 추론도 하지 않는다). README 「4.0.0 으로 올리기」의 아래 줄을 알리고 끝난다. 추론값으로 새 파일을 만들면 저장소가 정한 값(`review_focus` 등)이 바뀐다.
+
+```bash
+git mv .ai/relay-roles.json .relay/roles.json
+```
+
 파일이 이미 있으면 그대로 쓴다. **없을 때만** 아래를 저장소에서 추론하고, 추론이 안 되는 것만 사용자에게 한 번에 묻는다.
 
 | 키 | 추론 방법 |
@@ -49,10 +55,34 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/relay_cli.py" roles --plugin-root "${CLAUD
 
 종료코드가 2이고 사유가 필수 키 누락이면 `.relay/roles.json` 을 고치고 3으로 돌아간다. 사유가 템플릿의 미치환 자리표시자면 플러그인 쪽 문제다 — 고치지 말고 사용자에게 알린다.
 
-### 4. 결과 보고
+### 4. 리뷰어 모델 확인
+
+3 이 성공한 뒤 돈다. 리뷰어 모델은 기본값이 없어서, 없으면 리뷰 단계가 시작되지 않는다. 값은 `~/.relay/models.json` 위에 이 저장소의 `.relay/models.json` 을 필드 단위로 겹친 결과다.
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/relay_cli.py" model reviewer --repo .
+```
+
+- `launch` → 결과 보고에 `리뷰어 모델: <model> / <effort>` 한 줄을 넣는다.
+- `human` / `reviewer_model_unset` → 사용자에게 **한 번에** 묻는다:
+  - 리뷰어 모델 — 예시는 codex 의 `~/.codex/models_cache.json` 에 있는 모델 목록
+  - 어디에 쓸지 — 이 PC 전역(`--user`, `~/.relay/models.json`) / 이 저장소(`.relay/models.json`)
+
+  답을 받아 돈다:
+
+  ```bash
+  python "${CLAUDE_PLUGIN_ROOT}/scripts/relay_cli.py" models-init --reviewer-model <모델> [--user]
+  ```
+
+  종료코드 2 면 그 메시지를 보여 주고 다시 묻는다.
+- 그 밖의 `human` → `reason` 과 `detail`(있으면 `missing`)을 결과 보고에 적는다. 고치지 않는다. 종료코드 2 면 stderr 를 결과 보고에 적는다.
+- `--check` 면 결과 줄만 보고한다. 묻지 않고 `models-init` 도 돌지 않는다(`--check` 는 쓰지 않는다).
+
+### 5. 결과 보고
 
 - 생성된 파일 경로
 - `.gitignore` 에 추가된 게이트 로그 항목
+- 4 의 리뷰어 모델 결과
 - 저장소의 `AGENTS.md` 또는 `CLAUDE.md` 에 역할 파일 링크가 **없으면** 추가를 제안한다.
   워커는 그 링크를 통해서만 역할 파일에 도달한다 — 링크가 없으면 파일이 있어도 읽히지 않는다.
 

@@ -306,6 +306,24 @@ class DefaultBranchDocs(unittest.TestCase):
         self.assertIn("launch.md` 2번의 찾기와 살아 있는 에이전트 검사", AUTO_MERGE_MD)
 
 
+class InitCommand(unittest.TestCase):
+    INIT_MD = (PLUGIN_ROOT / "commands" / "init.md").read_text(encoding="utf-8")
+
+    def test_init_checks_reviewer_model_before_report(self):
+        text = self.INIT_MD
+        self.assertIn('relay_cli.py" model reviewer --repo .', text)
+        self.assertIn("reviewer_model_unset", text)
+        self.assertIn("models-init --reviewer-model", text)
+        self.assertLess(text.index("### 3. 렌더링"), text.index("model reviewer"))
+        self.assertLess(text.index("model reviewer"), text.index("### 5. 결과 보고"))
+
+    def test_init_checks_old_folder_before_inferring_values(self):
+        sec = self.INIT_MD.split("### 2.")[1].split("\n### ")[0]
+        self.assertIn(".ai/relay-roles.json", sec)
+        self.assertLess(sec.index(".ai/relay-roles.json"), sec.index("추론"))
+        self.assertIn("git mv .ai/relay-roles.json .relay/roles.json", sec)
+
+
 class MergeProcedure(unittest.TestCase):
     def test_merge_md_commands_and_invariants(self):
         for phrase in ("--match-head-commit", "--force-with-lease", "--worktree current --delete-branch",
