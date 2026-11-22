@@ -47,7 +47,7 @@ python "$RELAY/scripts/relay_cli.py" merge-check --issue <구현 이슈 URL> --w
   python "$RELAY/scripts/relay_cli.py" publish comment --worktree <worktree> --issue <자기 이슈 URL> --body-file <파일>
   ```
   `stop` 이거나 실패하면 6 을 하지 않는다(워크트리를 남긴다). 세션 출력에 이유와 올리려던 본문을 적고 끝난다(유출 검사에 걸렸으면 걸린 값은 뺀다). 다시 시작할 것이 없으므로 멈춤 보고가 아니다.
-- **있으면 handoff**: `python "$RELAY/scripts/relay_cli.py" doctor` 와 `python "$RELAY/scripts/relay_cli.py" handoff-check --issue <다음 이슈 URL>` 를 끝까지 돌린다. 둘 다 통과하면 `$RELAY/skills/start/references/launch.md` 절차로 띄운다(일괄 진행 기동 줄, 필드는 받은 그대로, 슬러그는 다음 이슈 제목에서). 검사 `FAIL` 이나 기동 실패면 **다음 이슈**에 멈춤 보고를 단다(`references/stop.md` 일괄 진행 형식). 6 을 하지 않고(워크트리를 남긴다) 끝난다. 다음 이슈는 워크트리가 없어 Orca 미읽음이 뜨지 않기 때문이다.
+- **있으면 handoff**: `python "$RELAY/scripts/relay_cli.py" doctor` 와 `python "$RELAY/scripts/relay_cli.py" handoff-check --issue <다음 이슈 URL>` 를 끝까지 돌린다. 둘 다 통과하면 `$RELAY/skills/start/references/launch.md` 절차로 띄운다(일괄 진행 기동 줄, 필드는 받은 그대로, 슬러그는 다음 이슈 제목에서). 검사 `FAIL` 이나 기동 실패면 **다음 이슈**에 멈춤 보고를 단다(`references/stop-batch.md` 형식). 6 을 하지 않고(워크트리를 남긴다) 끝난다. 다음 이슈는 워크트리가 없어 Orca 미읽음이 뜨지 않기 때문이다.
 - 중간 이슈의 머지는 따로 알리지 않는다(코멘트 없음).
 
 ## 5. 알림 원칙

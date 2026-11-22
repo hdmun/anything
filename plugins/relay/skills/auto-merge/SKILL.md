@@ -19,7 +19,7 @@ disable-model-invocation: true
 
 ## 순서
 
-1. `python "$RELAY/scripts/relay_cli.py" doctor` 한 번. `FAIL` 이면 `→` 줄과 함께 보고하고 끝난다. `WARN` 처리는 `relay:start` 2절과 같다(미검증 버전은 smoke 를 권하고 사람과 정한다. 사람이 이 자리에 있다).
+1. `python "$RELAY/scripts/relay_cli.py" doctor` 한 번. `FAIL` 이면 `→` 줄과 함께 보고하고 끝난다. `WARN` 처리는 `$RELAY/skills/start/references/warn.md` 대로 한다(사람이 이 자리에 있다).
 2. `python "$RELAY/scripts/relay_cli.py" batch-plan --issue <URL>`. 종료코드 1 이면 모든 `FAIL` 과 `→` 줄을 그대로 보고하고 끝난다. 2 면 입력 오류를 보고하고 끝난다.
 3. **살아 있는 에이전트 검사**: 진행 목록의 이슈마다 `$RELAY/skills/start/references/launch.md` 2번의 찾기와 살아 있는 에이전트 검사를 돌린다. 하나라도 걸리면 시작하지 않고 그 워크트리들을 보고하고 끝난다.
 4. 한 줄로 보여 준다: `일괄 진행: #a #b #c — 첫 이슈 #a 를 띄운다`.

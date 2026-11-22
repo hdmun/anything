@@ -162,9 +162,27 @@ class SessionStructure(unittest.TestCase):
         self.assertNotIn("disable-model-invocation", head)
         self.assertIn('relay_cli.py" handoff-check', SPEC_MD)
 
+    def test_spec_takes_settled_decisions_not_task_tickets(self):
+        # wayfinder 의 task 티켓은 결정 전 수작업이다. spec 의 입력은 닫힌 지도의 결정이다 (#159)
+        head = SPEC_MD.split("---")[1]
+        self.assertNotIn("task 티켓", head)
+        steps = SPEC_MD.split("## 순서")[1].split("\n## ")[0]
+        self.assertIn("0. 입력을 확인한다", steps)
+        self.assertIn("Decisions so far", steps)
+
     def test_handoff_recommends_relay_spec(self):
         entry = START_MD.split("## 1. 구현 이슈를 쓴다")[1].split("\n## ")[0]
         self.assertIn("`relay:spec`", entry)
+
+    def test_warn_handling_lives_in_warn_md(self):
+        # WARN 처리는 한 곳에 둔다. 다른 스킬의 절 번호를 가리키면 절이 바뀔 때 깨진다 (#159)
+        warn = (START_DIR / "references" / "warn.md").read_text(encoding="utf-8")
+        self.assertIn("relay_cli.py smoke --dir <대상 저장소 루트>", warn)
+        self.assertIn("selector_not_found", warn)
+        self.assertNotIn("trust 등록된 디렉터리", START)
+        self.assertIn("references/warn.md", START_MD)
+        self.assertIn("skills/start/references/warn.md", AUTO_MERGE_MD)
+        self.assertNotIn("2절", AUTO_MERGE_MD)
 
     def test_workers_run_in_the_issue_worktree_and_close_themselves(self):
         self.assertIn("--worktree current", SKILL_MD)
@@ -184,6 +202,44 @@ class SessionStructure(unittest.TestCase):
                        "Judged-by: claude/", "Relay-Done: I-<n>", "Agent 도구"):
             self.assertIn(phrase, stop)
         self.assertTrue((SKILL_DIR / "references" / "judgment-schema.json").exists())
+
+    def test_relaunch_line_excepts_outcome_unknown_and_prompt_blocked(self):
+        # 기동 실패로 분류해도 이 둘은 다시 띄우지 않는다 — 같은 Task 를 워커 둘이 하게 된다 (#159)
+        stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
+        line = next(l for l in stop.splitlines() if "같은 Task에 다시 띄운다" in l)
+        self.assertIn("`outcome_unknown`·`agent_prompt_blocked` 는 다시 띄우지 않는다", line)
+
+    def test_batch_stop_report_lives_only_in_stop_batch_md(self):
+        # 일반 진행의 진행자가 일괄 진행 형식을 읽지 않게 한다 (#159, 컨텍스트 위생 (j))
+        stop = (SKILL_DIR / "references" / "stop.md").read_text(encoding="utf-8")
+        batch = (SKILL_DIR / "references" / "stop-batch.md").read_text(encoding="utf-8")
+        for phrase in ("남은 진행 목록", "/relay:auto-merge <URL>"):
+            self.assertIn(phrase, batch)
+            self.assertNotIn(phrase, stop)
+        self.assertIn("`일괄 진행:` 이 있으면 `references/stop-batch.md` 를 Read 하고", stop)
+        self.assertIn("(기동 줄에 `일괄 진행:` 이 있을 때만)", batch.splitlines()[2])
+        self.assertIn("references/stop-batch.md", MERGE_MD)
+
+    def test_relay_fires_only_on_the_launch_line(self):
+        # "relay 로 진행해줘" 는 relay:start 의 일이다. 진입은 이슈 워크트리 밖이면 진행하지 않는다 (#159)
+        head = SKILL_MD.split("---")[1]
+        self.assertNotIn("사람이 relay 로", head)
+        self.assertIn("relay: 구현 이슈 <URL>", head)
+
+    def test_skill_md_names_the_default_branch_not_main(self):
+        # 기본 브랜치는 base-branch 결정기가 정한다 (#158). 멈춤 사유 이름 「main 과 충돌」·「main 깨짐」은 stop.md 와 짝이라 남긴다
+        self.assertNotIn("--base-branch main", SKILL_MD)
+        self.assertNotIn("main 에 직접 푸시", SKILL_MD)
+        self.assertIn("기본 브랜치에 직접 푸시하거나 force push 하지 않는다", SKILL_MD)
+
+    def test_spec_writing_advice_lives_in_the_template_not_gate_md(self):
+        # 수치 인수 조건 쓰는 법은 설계자용이다. 진행자 gate.md 에 두지 않는다 (#159)
+        gate = (SKILL_DIR / "references" / "gate.md").read_text(encoding="utf-8")
+        self.assertNotIn("수치 인수 조건을 쓸 때는", gate)
+        for phrase in ("--force", "grep -cE", "의존성을 동기화"):
+            self.assertIn(phrase, gate)
+        template = (SPEC_DIR / "references" / "spec-template.md").read_text(encoding="utf-8")
+        self.assertIn("0건 달성", template)
 
     def test_stops_with_a_report_not_ask_or_decision_gates(self):
         # 진행자는 최상위라 ask 할 위 세션이 없다. decision gate 도 쓰지 않는다 (ADR 0008)

@@ -1,6 +1,6 @@
 ---
 name: relay
-description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리뷰어(codex)로 구현 이슈 하나를 PR 까지 옮기는 (일괄 진행이면 머지와 다음 이슈 handoff 까지) 진행자 세션의 스킬이다. 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. 기동 줄이 "relay: 구현 이슈 <URL>" 인 진행자 세션으로 떴을 때, 그리고 사람이 relay 로 구현 이슈를 진행하라고 할 때 쓴다. 구현 이슈를 진행자에게 넘기는 일은 `relay:start` 다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(감독·리뷰 없이 맡기기)에는 쓰지 않는다.'
+description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·리뷰어(codex)로 구현 이슈 하나를 PR 까지 옮기는 (일괄 진행이면 머지와 다음 이슈 handoff 까지) 진행자 세션의 스킬이다. 워커 dispatch, 게이트 재검증, 리뷰 심각도 분기, PR 생성까지를 다룬다. 기동 줄이 "relay: 구현 이슈 <URL>" 인 진행자 세션으로 떴을 때 쓴다. 구현 이슈를 진행자에게 넘기는 일은 `relay:start` 다. 작업을 다른 워크트리나 에이전트에 통째로 넘기는 단순 위임(감독·리뷰 없이 맡기기)에는 쓰지 않는다.'
 # 대상 모델: Opus · effort low (진행자 세션). 값의 정본은 relay_cli model coordinator 다.
 ---
 
@@ -57,7 +57,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
 - 게이트는 종료코드로 판정한다. 통과하면 즉시 구현 커밋을 만든다.
 - `<base>`는 spec과 리뷰 Task에 명시한다. 각 태스크의 `<base>`는 그 태스크의 스냅숏 커밋 직후의 HEAD다.
 - 기동 줄에 `일괄 진행:` 이 없으면 머지는 사람이 한다(자동 머지 금지). 있으면 `references/merge.md` 의 머지 조건·머지 방법대로 진행자가 머지한다. PR 은 구현 이슈마다 하나, 모든 태스크가 끝난 뒤에 연다(ADR 0007).
-- 일괄 진행이면 사람의 시작 명령이 진행 목록의 이슈 브랜치 푸시(rebase 뒤 `--force-with-lease` 포함)·원격 이슈 브랜치 삭제·PR 머지 요청이다. 저장소 규칙의 「푸시는 요청할 때만」·「force push 는 사전 확인」은 이 셋에 대해 이미 허락된 것으로 본다. main 에 직접 푸시하거나 force push 하지 않는다.
+- 일괄 진행이면 사람의 시작 명령이 진행 목록의 이슈 브랜치 푸시(rebase 뒤 `--force-with-lease` 포함)·원격 이슈 브랜치 삭제·PR 머지 요청이다. 저장소 규칙의 「푸시는 요청할 때만」·「force push 는 사전 확인」은 이 셋에 대해 이미 허락된 것으로 본다. 기본 브랜치에 직접 푸시하거나 force push 하지 않는다.
 - 진행자는 구현 이슈를 고치지 않는다. 스냅숏만 읽는다(ADR 0006).
 - 감독은 Orca의 깨우기와 영수증을 따른다(ADR 0009). relay가 더하는 감독 정책은 아래 세 줄뿐이다.
   - **`agent_prompt_blocked`면 사람을 부른다.** 워커의 확인창·프롬프트(업데이트·trust·승인)는 사람이 그 워커 터미널에서 직접 처리한다(자동 응답 금지). 진행자는 키를 보내지 않고, 보낼 키를 선택지로 묻지도 않는다 — 사람에게 알리고 기다린다. 'Skip'처럼 안전해 보이는 선택도 사람이 고르고 사람이 누른다. 알려진 확인창의 예방책은 `doctor`가 검사한다.
@@ -70,7 +70,7 @@ description: 'Orca orchestration 위에서 진행자(Claude)·구현자(agy)·�
 
 ## Orca 기본과 다른 점
 
-Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에만 적는다. 항목마다 근거가 있고, 근거가 사라지면 항목을 지운다. 이슈 워크트리를 만들 때의 차이(`--base-branch main` 등)는 `relay:start` 의 표에 있다.
+Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에만 적는다. 항목마다 근거가 있고, 근거가 사라지면 항목을 지운다. 이슈 워크트리를 만들 때의 차이(`--base-branch <기본 브랜치>` 등)는 `relay:start` 의 표에 있다.
 
 | relay 가 하는 것 | Orca 기본 | 근거 |
 |---|---|---|
@@ -90,7 +90,7 @@ Orca 가이드의 기본 경로와 일부러 다르게 하는 것은 여기에�
 | 대기 (e) | 턴을 끝내고 Orca가 깨우면 메시지를 처리한다 | 아래 (e) |
 | 게이트 (f) | 독립 재검증, 통과 즉시 커밋 | `references/gate.md` |
 | 리뷰 분기 (g) | review-branch, 수정 라운드 | `references/review.md` |
-| 판정·멈춤 (h) | 판정 서브에이전트, 판정 기록, 멈춤 보고, 시도와 라운드 | `references/stop.md` |
+| 판정·멈춤 (h) | 판정 서브에이전트, 판정 기록, 멈춤 보고, 시도와 라운드 | `references/stop.md`, `references/stop-batch.md`(일괄 진행일 때) |
 | 종료 (i) | 워커 출구, PR(경로 A/B), 사람에게 보고 | `references/finish.md` |
 | 머지 (일괄 진행) | 머지 조건·머지·연쇄 handoff·워크트리 삭제 | `references/merge.md` |
 | 다음 이슈 기동 (일괄 진행) | 머지 뒤 다음 이슈의 진행자 세션 띄우기 | `skills/start/references/launch.md` |

@@ -1,6 +1,6 @@
 ---
 name: start
-description: 설계 세션에서 다 쓴 구현 이슈를 relay 진행자 세션에 넘길 때 사용한다. 머신 점검(doctor)과 기동 전 검사(handoff-check)를 돌리고, 통과하면 이슈 워크트리와 진행자 세션을 한 번에 띄운 뒤 끝난다. "relay:start", "구현 이슈를 relay 로 넘겨줘", "relay 로 이 이슈 시작해줘"처럼 relay 를 명시해 구현 이슈를 넘기라고 할 때 쓴다. relay 없이 작업을 다른 워크트리나 에이전트에 통째로 맡기는 단순 위임(감독·리뷰 없음)에는 쓰지 않는다 — 그것은 Orca 스킬 `orca-cli` 의 handoff 다.
+description: 설계 세션에서 다 쓴 구현 이슈를 relay 진행자 세션에 넘길 때 사용한다. 머신 점검(doctor)과 기동 전 검사(handoff-check)를 돌리고, 통과하면 이슈 워크트리와 진행자 세션을 한 번에 띄운 뒤 끝난다. "relay:start", "구현 이슈를 relay 로 넘겨줘", "relay 로 이 이슈 시작해줘"처럼 relay 를 명시해 구현 이슈를 넘기라고 할 때 쓴다. 감독·리뷰 없이 작업을 통째로 맡기는 일에는 쓰지 않는다(`orca-cli`).
 # 대상 모델: Opus · effort high (설계 세션).
 ---
 
@@ -17,7 +17,7 @@ description: 설계 세션에서 다 쓴 구현 이슈를 relay 진행자 세션
 
 ## 1. 구현 이슈를 쓴다
 
-이슈가 없거나 템플릿을 따르지 않으면 `relay:spec` 으로 쓴다.
+구현 이슈가 없으면 띄우지 않고 `relay:spec` 으로 먼저 쓰라고 알리고 끝난다. 템플릿 위반은 2절 검사가 잡는다.
 
 ## 2. 두 검사를 돌린다
 
@@ -31,7 +31,7 @@ python "$RELAY/scripts/relay_cli.py" handoff-check --issue <이슈 URL>  # 기�
 - **`doctor`** — 이 머신의 상태(에이전트 CLI·설정 파일·Orca 스킬·플러그인 사본). `FAIL plugin` 이면 이 세션이 읽은 스킬이 설치본보다 낡았다 — `/reload-plugins` 나 세션 재시작을 요청하고 멈춘다.
 - **`handoff-check`** — 이 이슈 하나: 태스크 수 ≤5, 태스크마다 템플릿 필수 절(변경 대상 파일, 인수 조건의 `게이트 명령:`), 구현 이슈의 「사람이 할 일」 절, 작성자 권한. 마지막 `task` 줄들이 진행자가 돌 태스크다. 종료코드 2 는 이슈를 읽지 못한 것이다(URL·`gh` 인증·트래커 접근).
 - `FAIL` 이 하나라도 있으면 진행자를 띄우지 않는다. 각 `→` 줄(고치는 방법)을 그대로 전하고, 사람이 고친 뒤 두 검사를 다시 돌린다.
-- 사람 판단이 필요한 `WARN`(미검증 버전 `WARN version:*` 등)은 여기서 사람과 정한다. 미검증 버전이면 `relay_cli.py smoke --dir <trust 등록된 디렉터리>` 를 권하고, smoke 가 실패한 CLI 로는 띄우지 않는다. 그 밖의 `WARN` 은 보고만 하고 진행한다(진행자는 PR 본문 `warnings:` 에 적는다).
+- `WARN` 은 `references/warn.md` 를 Read 하고 그대로 한다.
 
 ## 3. 진행자 세션을 띄운다
 
