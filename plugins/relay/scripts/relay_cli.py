@@ -11,9 +11,10 @@
   python relay_cli.py snapshot --issue <URL|path> --worktree <dir> --slug <slug>   (spec 스냅숏을 쓰고 JSON 한 줄)
   python relay_cli.py handoff-check --issue <URL|path> [--json]        (검사기 — 기동 전 검사: 태스크 수·필수 절·작성자)
   python relay_cli.py batch-plan --issue <URL> [--json]                 (검사기 — 일괄 진행 시작 검사)
-  python relay_cli.py merge-check --issue <URL> --worktree <dir> [--base origin/main] [--json]   (검사기 — 머지 조건)
+  python relay_cli.py merge-check --issue <URL> --worktree <dir> [--base origin/<기본 브랜치>] [--json]   (검사기 — 머지 조건)
   python relay_cli.py batch-report --issue <URL> --list "<필드 값>" --out <파일>   (결정기 — 일괄 진행 완료 보고)
-  python relay_cli.py resume --worktree <dir> --tasks I-<a>,I-<b> [--base-branch main]   (결정기 — 재개: 다음 태스크)
+  python relay_cli.py resume --worktree <dir> --tasks I-<a>,I-<b> [--base-branch <기본 브랜치>]   (결정기 — 재개: 다음 태스크)
+  python relay_cli.py base-branch [--repo <dir>]                        (결정기 — 기본 브랜치: .relay/roles.json 의 default_branch, 없으면 main)
   python relay_cli.py judgment validate <판정.json> [--reason spec_violation|repeated_finding|question]   (검사기)
   python relay_cli.py commit-guard --worktree <dir> --base <sha>        (검사기)
   python relay_cli.py model designer|coordinator|implementer|reviewer|judge [--repo <dir>] [--user-config <file>] [--config <codex toml>]   (결정기)
@@ -148,11 +149,21 @@ def _reports_since(worktree, base, reviews):
     return {pathlib.PurePosixPath(n).name for n in names}
 
 
+def _default_branch(repo):
+    return roles.default_branch(repo)[0]
+
+
+def cmd_base_branch(a):
+    branch, source = roles.default_branch(a.repo)
+    return _emit({"action": "use", "branch": branch, "source": source})
+
+
 def cmd_resume(a):
     tasks = [t.strip() for t in a.tasks.split(",") if t.strip()]
     if not tasks:
         raise InputError("--tasks 가 비었다")
-    out = _git(a.worktree, "log", "--format=%(trailers:key=" + resume.TRAILER + ",valueonly)", "%s..HEAD" % a.base_branch)
+    base = a.base_branch or _default_branch(a.worktree)
+    out = _git(a.worktree, "log", "--format=%(trailers:key=" + resume.TRAILER + ",valueonly)", "%s..HEAD" % base)
     return _emit(resume.decide(tasks, resume.done_tasks(out.splitlines())))
 
 
@@ -423,7 +434,7 @@ def cmd_batch_plan(a):
 
 
 def cmd_merge_check(a):
-    res = merge.check(a.issue, a.worktree, _run, _git, base=a.base)
+    res = merge.check(a.issue, a.worktree, _run, _git, base=a.base or "origin/" + _default_branch(a.worktree))
     if a.json:
         print(json.dumps(res, ensure_ascii=False))
     else:
@@ -441,12 +452,12 @@ def cmd_batch_report(a):
 
 
 def cmd_publish_push(a):
-    dec = leak.push(a.worktree, base=a.base, force_with_lease=a.force_with_lease, run=_run, git=_git)
+    dec = leak.push(a.worktree, base=a.base or "origin/" + _default_branch(a.worktree), force_with_lease=a.force_with_lease, run=_run, git=_git)
     return _emit(dec)
 
 
 def cmd_publish_pr(a):
-    dec = leak.pr(a.worktree, title=a.title, body_file=a.body_file, base=a.base, run=_run, git=_git)
+    dec = leak.pr(a.worktree, title=a.title, body_file=a.body_file, base=a.base or _default_branch(a.worktree), run=_run, git=_git)
     return _emit(dec)
 
 
@@ -566,7 +577,7 @@ def build_parser():
     mc = sub.add_parser("merge-check", help="머지 조건 1~3 검사 (검사기)")
     mc.add_argument("--issue", required=True, help="구현 이슈 URL")
     mc.add_argument("--worktree", required=True)
-    mc.add_argument("--base", default="origin/main")
+    mc.add_argument("--base", help="기본: origin/<기본 브랜치> (base-branch --repo <worktree>)")
     mc.add_argument("--json", action="store_true")
     mc.set_defaults(func=cmd_merge_check)
 
@@ -585,8 +596,12 @@ def build_parser():
     rs = sub.add_parser("resume", help="Relay-Done 트레일러로 끝난 태스크를 보고 다음 태스크 (JSON 한 줄)")
     rs.add_argument("--worktree", required=True)
     rs.add_argument("--tasks", required=True, help="DAG 순서의 태스크 ID, 쉼표로")
-    rs.add_argument("--base-branch", default="main")
+    rs.add_argument("--base-branch", help="기본: <기본 브랜치> (base-branch --repo <worktree>)")
     rs.set_defaults(func=cmd_resume)
+
+    bb = sub.add_parser("base-branch", help="기본 브랜치: .relay/roles.json 의 default_branch, 없으면 main (JSON 한 줄)")
+    bb.add_argument("--repo", default=".", help="기본: 현재 디렉터리")
+    bb.set_defaults(func=cmd_base_branch)
 
     c = sub.add_parser("commit-guard", help="base..HEAD 에 귀속 트레일러 없는 커밋(워커 자체 커밋)이 없는지")
     c.add_argument("--worktree", required=True)
@@ -640,7 +655,7 @@ def build_parser():
 
     p_push = pub_sub.add_parser("push")
     p_push.add_argument("--worktree", required=True)
-    p_push.add_argument("--base", default="origin/main")
+    p_push.add_argument("--base", help="기본: origin/<기본 브랜치> (base-branch --repo <worktree>)")
     p_push.add_argument("--force-with-lease", action="store_true")
     p_push.set_defaults(func=cmd_publish_push)
 
@@ -648,7 +663,7 @@ def build_parser():
     p_pr.add_argument("--worktree", required=True)
     p_pr.add_argument("--title", required=True)
     p_pr.add_argument("--body-file", required=True)
-    p_pr.add_argument("--base", default="main")
+    p_pr.add_argument("--base", help="기본: <기본 브랜치> (base-branch --repo <worktree>)")
     p_pr.set_defaults(func=cmd_publish_pr)
 
     p_comment = pub_sub.add_parser("comment")
@@ -668,7 +683,7 @@ def main(argv=None):
         ap.error("trust %s 에는 경로가 필요하다" % a.op)
     try:
         return a.func(a)
-    except (InputError, issue.IssueError, models.ModelsError, review.ReviewError, leak.LeakError, verified.VerifiedError, OSError, ValueError) as e:
+    except (InputError, issue.IssueError, roles.RolesError, models.ModelsError, review.ReviewError, leak.LeakError, verified.VerifiedError, OSError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 2
 

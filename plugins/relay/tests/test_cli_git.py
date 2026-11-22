@@ -127,6 +127,29 @@ class ResumeCli(GitRepoCase):
         self.assertEqual(self.resume("I-46")["action"], "start")
 
 
+class ResumeDefaultBranch(GitRepoCase):
+    def test_resume_without_base_uses_roles_default_branch(self):
+        git(self.repo, "checkout", "-q", "-b", "develop")
+        self.commit("d.json", "review(I-46): pass\n\nRelay-Done: I-46")   # develop 에 있다 — 셈에서 빠져야 한다
+        git(self.repo, "checkout", "-q", "-b", "I-45-ante")
+        self.commit("e.json", "review(I-47): pass\n\nRelay-Done: I-47")
+        (self.repo / ".relay").mkdir()
+        (self.repo / ".relay" / "roles.json").write_text(json.dumps({"default_branch": "develop"}), encoding="utf-8")
+        r = cli("resume", "--worktree", str(self.repo), "--tasks", "I-46,I-47")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # develop..HEAD 를 본다. main..HEAD 였다면 I-46 도 끝난 것으로 셌다
+        self.assertEqual(json.loads(r.stdout), {"action": "start", "task": "I-46", "done": ["I-47"]})
+
+    def test_explicit_base_branch_wins(self):
+        git(self.repo, "checkout", "-q", "-b", "I-45-ante")
+        self.commit("e.json", "review(I-47): pass\n\nRelay-Done: I-47")
+        (self.repo / ".relay").mkdir()
+        (self.repo / ".relay" / "roles.json").write_text(json.dumps({"default_branch": "nope"}), encoding="utf-8")
+        r = cli("resume", "--worktree", str(self.repo), "--tasks", "I-47", "--base-branch", "main")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["action"], "pr")
+
+
 class CommitGuard(GitRepoCase):
     def test_attributed_commits_pass(self):
         self.commit("b.txt", "feat(I-42): b\n\nImplemented-by: agy/x")

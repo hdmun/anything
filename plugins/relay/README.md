@@ -141,6 +141,7 @@ plugins/relay/
 - `publish`: 유출 검사 후 원격에 내보내기 (`push`·`pr`·`comment`)
 - `snapshot`: spec 스냅숏 커밋
 - `resume`: 재개할 태스크 결정
+- `base-branch`: 기본 브랜치 결정 (`.relay/roles.json` 의 `default_branch`, 없으면 `main`)
 - `judgment`: 판정 결과 스키마 검증
 - `diff-guard` / `commit-guard`: 변경 및 커밋 규칙 검사
 - `review-branch` / `validate-review`: 리뷰 리포트 검증 및 분기

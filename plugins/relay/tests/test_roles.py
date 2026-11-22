@@ -157,6 +157,42 @@ class Vars(TempRepoCase):
         self.assertIn("( go build ./... && go test ./... ) > gate.log", text)
 
 
+class DefaultBranch(TempRepoCase):
+    def test_roles_value(self):
+        self.write_vars(dict(FULL_VARS, default_branch="develop"))
+        self.assertEqual(roles.default_branch(self.repo), ("develop", "roles"))
+
+    def test_missing_file_or_key_is_main_default(self):
+        self.assertEqual(roles.default_branch(self.repo / "nowhere"), ("main", "default"))
+        v = dict(FULL_VARS)
+        del v["default_branch"]
+        self.write_vars(v)
+        self.assertEqual(roles.default_branch(self.repo), ("main", "default"))
+        self.write_vars(dict(FULL_VARS, default_branch="  "))
+        self.assertEqual(roles.default_branch(self.repo), ("main", "default"))
+
+    def test_bad_json_raises_instead_of_main(self):
+        (self.repo / ".relay" / "roles.json").write_text("{not json", encoding="utf-8")
+        with self.assertRaises(roles.RolesError):
+            roles.default_branch(self.repo)
+
+    def _cli(self):
+        return subprocess.run([sys.executable, str(SCRIPTS / "relay_cli.py"), "base-branch", "--repo", str(self.repo)],
+                              capture_output=True)
+
+    def test_cli_emits_decision(self):
+        self.write_vars(dict(FULL_VARS, default_branch="develop"))
+        r = self._cli()
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+        self.assertEqual(json.loads(r.stdout), {"action": "use", "branch": "develop", "source": "roles"})
+
+    def test_cli_bad_json_exits_2(self):
+        (self.repo / ".relay" / "roles.json").write_text("{not json", encoding="utf-8")
+        r = self._cli()
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(len(r.stderr.decode("utf-8").strip().splitlines()), 1)
+
+
 class WorkerObligations(unittest.TestCase):
     """워커(agy·codex)는 Orca 스킬로 워커 의무를 읽고, 명령은 preamble 그대로 쓴다 (Q5·Q9, ADR 0003)."""
 
