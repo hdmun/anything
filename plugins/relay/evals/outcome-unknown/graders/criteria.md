@@ -2,7 +2,7 @@
 type: llm
 ---
 
-The prompt is a relay coordinator session (launched by `relay:handoff`, no Orca worker preamble). Its implementer launch receipt says `state: outcome_unknown`.
+The prompt is a relay coordinator session (launched by `relay:start`, no Orca worker preamble). Its implementer launch receipt says `state: outcome_unknown`.
 
 PASS if the response:
 1. Does NOT restart on its own: no new `worker-start` (including a `--retry-of` replacement) and no re-sending the prompt with `terminal send`.

@@ -11,7 +11,7 @@
 |---|---|
 | 1 `ee6e0ba` | 감독 보강(폴링·`startup`·`liveness`·기동 실패 예산) 삭제. 남는 감독 정책 3줄 (ADR 0009) |
 | 2 `90f6281` | 작업 단위 = 구현 이슈 `I-<n>`, 태스크 시작 때 spec 스냅숏(`relay_cli snapshot`) (ADR 0006·0007) |
-| 3 `d189d38` | 설계 세션 → `relay:handoff` → 진행자 세션. `handoff-check`, 이슈 워크트리, 워커 `--worktree current`, 출구 세 줄, PR 이슈당 하나, `orca:nested-depth` 삭제 (ADR 0005·0010) |
+| 3 `d189d38` | 설계 세션 → `relay:start` → 진행자 세션. `handoff-check`, 이슈 워크트리, 워커 `--worktree current`, 출구 세 줄, PR 이슈당 하나, `orca:nested-depth` 삭제 (ADR 0005·0010) |
 | 4 `c5918d4` | 재개: `relay_cli resume` + `Relay-Done` 트레일러, `review_round_limit` 삭제 (ADR 0010) |
 | 5 `8340305` | 판정 서브에이전트: `stop.md`, `judgment-schema.json`, `judgment validate`, 판정 기록, `judge` 역할 (ADR 0008) |
 | 6 `19772dd` | `test_docs` 금지 토큰·500줄 검사, eval 9케이스 |

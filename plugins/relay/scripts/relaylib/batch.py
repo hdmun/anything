@@ -293,7 +293,7 @@ def plan(issue_ref, run):
                 "before-merge:#%d" % num,
                 "fail",
                 "「사람이 할 일」 `머지 전:` 에 할 일 %d개 — 일괄 진행은 시작하지 않는다" % count,
-                fix="지금 하고 `없음` 으로 고치거나, `머지 뒤:` 로 옮기거나, 그 이슈를 relay:handoff 로 따로 돌린다",
+                fix="지금 하고 `없음` 으로 고치거나, `머지 뒤:` 로 옮기거나, 그 이슈를 relay:start 로 따로 돌린다",
             ))
 
     if order:

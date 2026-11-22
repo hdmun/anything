@@ -1,6 +1,6 @@
 ---
 name: spec
-description: '구현 이슈(relay spec)를 쓰거나 고칠 때 사용한다. "구현 이슈 써줘", "relay 템플릿으로 이슈 작성", wayfinder 지도의 task 티켓을 구현 이슈로 다시 쓸 때 부른다. 다 쓴 이슈를 진행자에게 넘기는 일은 relay:handoff 다.'
+description: '구현 이슈(relay spec)를 쓰거나 고칠 때 사용한다. "구현 이슈 써줘", "relay 템플릿으로 이슈 작성", wayfinder 지도의 task 티켓을 구현 이슈로 다시 쓸 때 부른다. 다 쓴 이슈를 진행자에게 넘기는 일은 relay:start 다.'
 # 대상 모델: Opus · effort high (설계 세션).
 ---
 
@@ -36,10 +36,10 @@ description: '구현 이슈(relay spec)를 쓰거나 고칠 때 사용한다. "�
 - 함께 돌릴 구현 이슈는 blocking 으로 잇는다. 의존이 없어도 같은 진행 목록에 넣으려면 blocking 하나를 건다. 다른 저장소 이슈와 잇지 않는다.
 - 하위 이슈의 blocking 은 형제 하위 이슈끼리만 건다.
 - `머지 전:` 에 할 일이 있는 이슈가 진행 목록에 있으면 일괄 진행은 시작하지 않는다. 머지 뒤로 옮길 수 있으면 옮긴다.
-- 여러 이슈를 이었으면 마지막에 `python "$RELAY/scripts/relay_cli.py" batch-plan --issue <URL>` 도 돌린다(읽기만 한다). 시작은 사람이 `/relay:batch <URL>` 로 한다. 모델은 이 스킬을 부를 수 없다.
+- 여러 이슈를 이었으면 마지막에 `python "$RELAY/scripts/relay_cli.py" batch-plan --issue <URL>` 도 돌린다(읽기만 한다). 시작은 사람이 `/relay:auto-merge <URL>` 로 한다. 모델은 이 스킬을 부를 수 없다.
 
 ## 끝내기
 
-`python "$RELAY/scripts/relay_cli.py" handoff-check --issue <이슈 URL>` 을 돌린다. 읽기만 하는 검사다. `FAIL` 이면 `→` 줄대로 이슈를 고치고 다시 돌린다. 통과하면 끝난다. 진행자 세션을 띄우는 것은 `relay:handoff` 다.
+`python "$RELAY/scripts/relay_cli.py" handoff-check --issue <이슈 URL>` 을 돌린다. 읽기만 하는 검사다. `FAIL` 이면 `→` 줄대로 이슈를 고치고 다시 돌린다. 통과하면 끝난다. 진행자 세션을 띄우는 것은 `relay:start` 다.
 
 `FAIL` 이 템플릿이나 위 「쓰는 규칙」에 없는 이유였으면, 끝에 새 규칙 한 줄을 제안하고 사용자의 승인을 받은 뒤 「쓰는 규칙」에 더한다.

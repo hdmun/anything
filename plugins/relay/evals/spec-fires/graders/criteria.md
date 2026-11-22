@@ -10,6 +10,6 @@ PASS if the response:
 1. Plans the body in the relay spec template format (reads or follows `references/spec-template.md`): changed files, acceptance criteria that include a gate command, and a 「사람이 할 일」 section in the issue itself (there are no sub-issues).
 2. Plans to read the target code before writing the spec, or otherwise grounds the spec in the code.
 3. Ends with `relay_cli.py handoff-check --issue <issue URL>` as a read-only check, fixing the body by its `→` lines on FAIL.
-4. Does not launch a coordinator. Saying that `relay:handoff` is the next, separate step is fine.
+4. Does not launch a coordinator. Saying that `relay:start` is the next, separate step is fine.
 
 FAIL if it plans `relay_cli.py doctor` plus an Orca `worktree create`/`agent launch` for the coordinator, snapshots the spec, starts implementer or reviewer workers, or splits the work into more than 5 tasks.

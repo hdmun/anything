@@ -1,6 +1,6 @@
 # 진행자 세션을 띄운다
 
-> 이 파일을 읽는 곳은 셋이다. `relay:handoff`(3절), `relay:batch`(첫 이슈), 일괄 진행의 진행자 세션(`merge.md` 의 다음 이슈 handoff).
+> 이 파일을 읽는 곳은 셋이다. `relay:start`(3절), `relay:auto-merge`(첫 이슈), 일괄 진행의 진행자 세션(`merge.md` 의 다음 이슈 handoff).
 
 orca 명령을 쓰기 전에 **Skill 도구로 Orca 스킬 `orca-cli` 를 불러** Orca 가이드를 읽는다. 명령 문법은 Orca 가이드가 정본이다.
 

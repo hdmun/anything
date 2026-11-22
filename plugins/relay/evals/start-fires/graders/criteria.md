@@ -2,7 +2,7 @@
 type: llm
 ---
 
-The prompt has no Orca preamble and no relay launch line; the user hands over a written implementation issue. Under relay 3.0.0 this session is the design session, and it should hand the issue to a coordinator session with `relay:handoff`.
+The prompt has no Orca preamble and no relay launch line; the user hands over a written implementation issue. Under relay 3.0.0 this session is the design session, and it should hand the issue to a coordinator session with `relay:start`.
 
 The prompt forbids execution, so the response is a written plan; judge the plan. Reading the issues, the spec template or the target code first is fine.
 

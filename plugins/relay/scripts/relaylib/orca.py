@@ -58,7 +58,7 @@ def implementer_model(cfg=None, agy_models_text=None):
 
 
 def coordinator_model(cfg=None):
-    """진행자 세션 기동 인자. relay:handoff 가 진행자 기동의 --model·--effort 로 그대로 준다 (ADR 0005)."""
+    """진행자 세션 기동 인자. relay:start 가 진행자 기동의 --model·--effort 로 그대로 준다 (ADR 0005)."""
     r = models.resolve("coordinator", cfg or {})
     return _d("launch", agent="claude", model=r["model"], effort=r["effort"],
               source="relay_models" if r["configured"] else "default")

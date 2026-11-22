@@ -1,10 +1,10 @@
 ---
-name: handoff
-description: 설계 세션에서 다 쓴 구현 이슈를 relay 진행자 세션에 넘길 때 사용한다. 머신 점검(doctor)과 기동 전 검사(handoff-check)를 돌리고, 통과하면 이슈 워크트리와 진행자 세션을 한 번에 띄운 뒤 끝난다. "relay:handoff", "구현 이슈를 relay 로 넘겨줘", "relay 로 이 이슈 시작해줘"처럼 relay 를 명시해 구현 이슈를 넘기라고 할 때 쓴다. relay 없이 작업을 다른 워크트리나 에이전트에 통째로 맡기는 단순 위임(감독·리뷰 없음)에는 쓰지 않는다 — 그것은 Orca 스킬 `orca-cli` 의 handoff 다.
+name: start
+description: 설계 세션에서 다 쓴 구현 이슈를 relay 진행자 세션에 넘길 때 사용한다. 머신 점검(doctor)과 기동 전 검사(handoff-check)를 돌리고, 통과하면 이슈 워크트리와 진행자 세션을 한 번에 띄운 뒤 끝난다. "relay:start", "구현 이슈를 relay 로 넘겨줘", "relay 로 이 이슈 시작해줘"처럼 relay 를 명시해 구현 이슈를 넘기라고 할 때 쓴다. relay 없이 작업을 다른 워크트리나 에이전트에 통째로 맡기는 단순 위임(감독·리뷰 없음)에는 쓰지 않는다 — 그것은 Orca 스킬 `orca-cli` 의 handoff 다.
 # 대상 모델: Opus · effort high (설계 세션).
 ---
 
-# relay:handoff
+# relay:start
 
 설계 세션이 구현 이슈를 **진행자 세션**에 넘기고 끝나는 스킬이다(ADR 0005). 진행자 세션은 Run 을 소유한 최상위 코디네이터로 떠서 이슈의 태스크를 모두 돌고 PR 을 연다. 설계 세션은 Run 을 만들지 않고, 감독하지 않으며, relay 스킬을 읽지 않는다.
 
