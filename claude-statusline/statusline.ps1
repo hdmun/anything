@@ -84,15 +84,27 @@ $line2 += C $Dim ((Fmt-Tokens $used) + '/' + $size)
 
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $rl = $j.rate_limits
+# rate_limits is absent until the first API response -> keep the last value per account config dir
+$rlDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
+$rlCache = Join-Path $rlDir 'statusline-rate-limits.json'
+$rlStale = $false
+if ($rl) {
+    try { [System.IO.File]::WriteAllText($rlCache, ($rl | ConvertTo-Json -Depth 5 -Compress), [System.Text.UTF8Encoding]::new($false)) } catch {}
+} else {
+    try { $rl = [System.IO.File]::ReadAllText($rlCache) | ConvertFrom-Json } catch { $rl = $null }
+    $rlStale = $true
+}
 if ($rl) {
     $lims = @()
     foreach ($w in @(@('five_hour', '5h'), @('seven_day', '7d'), @('spend_limit', 'spend'))) {
         $o = $rl.($w[0])
         if ($o -and $null -ne $o.used_percentage) {
-            $used = [double]$o.used_percentage
-            $left = [math]::Max(0, 100 - $used)
-            $s = $w[1] + ' ' + (C (Level-Color $used) ('{0:0}% left' -f $left))
-            if ($o.resets_at) { $s += ' ' + (C $Dim ('(' + (Emoji 0x1F504) + ' ' + (Fmt-Span ($o.resets_at - $now)) + ')')) }
+            $used = [math]::Min(100, [math]::Max(0, [double]$o.used_percentage))
+            # cached window already reset -> 0%, no reset time
+            $expired = $rlStale -and $o.resets_at -and ([double]$o.resets_at -le $now)
+            if ($expired) { $used = 0 }
+            $s = $w[1] + ' ' + (C (Level-Color $used) ('{0:0}%' -f $used))
+            if ($o.resets_at -and -not $expired) { $s += ' ' + (C $Dim ('(' + (Emoji 0x1F504) + ' ' + (Fmt-Span ($o.resets_at - $now)) + ')')) }
             $lims += $s
         }
     }
