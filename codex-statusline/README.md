@@ -16,7 +16,7 @@ Codex CLI의 custom MCP statusline이다. `claude-statusline` 구현과 `agy-sta
 
 게이지는 10칸이며 사용률 50% 미만은 초록, 80% 미만은 노랑, 그 이상은 빨강이다. 한도도 쓴 %(`used_percent`)를 보이고 같은 기준으로 색을 고른다. ANSI 대신 UI tree 색상을 사용한다. 타입 정의에 수직 레이아웃이 없어, 고정 2~3줄 대신 `row`의 자동 줄바꿈으로 표시한다. 별도 git 명령이나 transcript 탐색은 하지 않는다.
 
-공식 `create-statusline` 스킬의 `assets/statusline.py` starter를 재사용했다. 매 `resources/read` 요청의 스냅샷을 사용하므로 스레드별 상태를 저장하지 않는다.
+공식 `create-statusline` 스킬의 `assets/statusline.py` starter를 재사용했다. 매 `resources/read` 요청의 스냅샷을 사용하므로 스레드별 상태를 저장하지 않는다. 예외는 계정 한도 하나다. `account.rate_limits` 는 세션 첫 응답 전 등에는 스냅샷에 없으므로, 받을 때마다(값이 바뀌었을 때만) 저장해 두고 없을 때 마지막 값을 보인다. 리셋 시각이 지난 창은 0%, 리셋 시간 없음으로 보인다. 캐시: `CODEX_HOME`(MCP 프로세스에 없으면 설치 위치 `<CODEX_HOME>/statusline/` 의 상위, 그것도 아니면 `~/.codex`)의 `statusline-rate-limits.json`. 읽기·쓰기 실패는 무시한다.
 
 ## 설치
 
@@ -59,4 +59,4 @@ python codex-statusline/self_check.py "$env:USERPROFILE/.codex/statusline/status
 codex mcp get codex-statusline
 ```
 
-검증은 실제 stdio 프로세스에서 초기화·도구 광고·대표 스냅샷·optional 누락·연속 스레드 변경·잘못된 URI를 확인한다. 실제 TUI 표시는 위 선택 절차를 거쳐 별도로 확인한다.
+검증은 실제 stdio 프로세스에서 초기화·도구 광고·대표 스냅샷·optional 누락·연속 스레드 변경·잘못된 URI·한도 캐시(리셋 지남, 깨진 파일 포함)를 확인한다. 캐시는 임시 `CODEX_HOME` 에 쓴다. 실제 TUI 표시는 위 선택 절차를 거쳐 별도로 확인한다.

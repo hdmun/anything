@@ -2,6 +2,8 @@
 
 import json
 import ntpath
+import os
+from pathlib import Path
 import sys
 import time
 
@@ -16,6 +18,40 @@ TOOL = {
         "openai/ui": {"entrypoints": [{"type": "statusline", "resourceUri": URI}]}
     },
 }
+
+
+def cache_path():
+    """Per-account file: CODEX_HOME, else the install dir <CODEX_HOME>/statusline/, else ~/.codex."""
+    if home := os.environ.get("CODEX_HOME"):
+        return Path(home) / "statusline-rate-limits.json"
+    here = Path(__file__).resolve().parent
+    base = here.parent if here.name == "statusline" else Path.home() / ".codex"
+    return base / "statusline-rate-limits.json"
+
+
+_written = None
+
+
+def rate_limits(state):
+    """Return (limits, from_cache). Save fresh limits only when they change; ignore I/O errors."""
+    global _written
+    limits = state.get("account", {}).get("rate_limits")
+    if limits:
+        text = json.dumps(limits, ensure_ascii=False, sort_keys=True)
+        if text != _written:
+            try:
+                cache_path().write_text(text, encoding="utf-8")
+                _written = text
+            except OSError:
+                pass
+        return limits, False
+    try:
+        cached = json.loads(cache_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [], False
+    if not isinstance(cached, list):
+        return [], False
+    return [limit for limit in cached if isinstance(limit, dict)], True
 
 
 def level(used):
@@ -37,7 +73,7 @@ def span(seconds):
 
 
 def render(state):
-    """Use only the displayed thread's snapshot; omit unavailable values."""
+    """Use the displayed thread's snapshot; limits fall back to the cache; omit unavailable values."""
     thread = state.get("thread", {})
     children = []
 
@@ -63,7 +99,9 @@ def render(state):
     used, size = context.get("used_tokens"), context.get("context_window_size")
     if used is not None and size is not None:
         add(f"{tokens(used)}/{tokens(size)}", "status-metadata")
-    for limit in state.get("account", {}).get("rate_limits", []):
+    limits, from_cache = rate_limits(state)
+    now = time.time()
+    for limit in limits:
         for key in ("primary_limit", "secondary_limit"):
             window = limit.get(key)
             if not window:
@@ -73,9 +111,12 @@ def render(state):
             if duration is not None:
                 name += " " + span(duration * 60)
             used = max(0, min(100, window["used_percent"]))
+            resets_at = window.get("resets_at")
+            if from_cache and resets_at is not None and resets_at <= now:
+                used, resets_at = 0, None  # cached window already reset
             label = f"⏳ {name} {used:.0f}%"
-            if window.get("resets_at") is not None:
-                label += f" (🔄 {span(window['resets_at'] - time.time())})"
+            if resets_at is not None:
+                label += f" (🔄 {span(resets_at - now)})"
             add(label, level(used))
     cost = usage.get("cost", {}).get("total_cost_usd")
     if cost is not None:
