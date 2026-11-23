@@ -90,6 +90,58 @@ if ($cw -and $null -ne $cw.used_percentage -and ($cw.context_window_size -gt 0 -
 }
 
 $qt = $j.quota
+$now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+# quota is absent before the first response -> keep the last value in the agy config dir.
+# reset_in_seconds is relative, so the cache stores an absolute reset_at (unix seconds) instead.
+$qtCache = Join-Path $HOME '.gemini' 'antigravity-cli' 'statusline-quota.json'
+if ($qt) {
+    try {
+        $saved = [ordered]@{}
+        foreach ($prop in $qt.PSObject.Properties) {
+            $o = $prop.Value
+            if ($o -is [pscustomobject]) {
+                $c = [ordered]@{}
+                foreach ($q in $o.PSObject.Properties) { if ($q.Name -ne 'reset_in_seconds') { $c[$q.Name] = $q.Value } }
+                if ($null -ne $o.reset_in_seconds -and [double]$o.reset_in_seconds -gt 0) {
+                    $c['reset_at'] = [long]($now + [math]::Round([double]$o.reset_in_seconds))
+                }
+                $saved[$prop.Name] = $c
+            } else { $saved[$prop.Name] = $o }
+        }
+        $old = $null
+        try { $old = [System.IO.File]::ReadAllText($qtCache) } catch {}
+        # reset_at jitters by a second or two between calls: keep the cached one when close
+        try {
+            $prev = $old | ConvertFrom-Json -DateKind String
+            foreach ($k in @($saved.Keys)) {
+                $c = $saved[$k]; $pv = $prev.PSObject.Properties[$k]
+                if ($c -is [System.Collections.IDictionary] -and $c.Contains('reset_at') -and $pv -and $null -ne $pv.Value.reset_at -and
+                    [math]::Abs([double]$pv.Value.reset_at - $c['reset_at']) -le 5) { $c['reset_at'] = [long]$pv.Value.reset_at }
+            }
+        } catch {}
+        $txt = $saved | ConvertTo-Json -Depth 5 -Compress
+        # agy calls this every ~300ms: skip the write when nothing changed
+        if ($old -cne $txt) { [System.IO.File]::WriteAllText($qtCache, $txt, [System.Text.UTF8Encoding]::new($false)) }
+    } catch {}
+} else {
+    try { $qt = [System.IO.File]::ReadAllText($qtCache) | ConvertFrom-Json -DateKind String } catch { $qt = $null }
+    if ($qt) {
+        foreach ($prop in $qt.PSObject.Properties) {
+            $o = $prop.Value
+            if ($o -isnot [pscustomobject]) { continue }
+            $resetAt = $null
+            if ($null -ne $o.reset_at) { $resetAt = [double]$o.reset_at }
+            elseif ($o.reset_time) { try { $resetAt = [DateTimeOffset]::Parse([string]$o.reset_time).ToUnixTimeSeconds() } catch {} }
+            if ($null -ne $resetAt -and $resetAt -le $now) {
+                # cached window already reset -> 0% used, no reset time
+                $o.remaining_fraction = 1
+                $o.PSObject.Properties.Remove('reset_time')
+            } elseif ($null -ne $resetAt) {
+                $o | Add-Member -NotePropertyName 'reset_in_seconds' -NotePropertyValue ($resetAt - $now) -Force
+            }
+        }
+    }
+}
 if ($qt) {
     $modelKey = ''
     if ($j.model) { $modelKey = "$($j.model.id) $($j.model.display_name)" }
@@ -98,7 +150,6 @@ if ($qt) {
     } else {
         @(@('3p-5h', '5h'), @('3p-weekly', '7d'))
     }
-    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     $lims = @()
     foreach ($pair in $buckets) {
         $prop = $qt.PSObject.Properties[$pair[0]]

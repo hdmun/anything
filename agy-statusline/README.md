@@ -12,6 +12,7 @@ Antigravity CLI(`agy`) 상태 줄 스크립트다. Windows PowerShell 7 전용.
 - 2줄: 컨텍스트 게이지 · 토큰 · 사용 한도의 쓴 %와 리셋까지 남은 시간(`quota`) · 예상 과금액(`cost.total_usd`)
   - 세션 실행 시간은 agy 입력 JSON에 없어 생략한다.
 - 3줄: 대화 제목(`conversation_title`). 없으면 줄이 안 나온다.
+- 사용 한도는 세션 첫 응답 전에는 입력에 없다. 그때는 마지막 값을 캐시에서 읽어 보인다(리셋 시각이 지난 창은 0%, 리셋 시간 없음). 캐시: `~/.gemini/antigravity-cli/statusline-quota.json`.
 - 값이 없는 항목은 빠진다. 컨텍스트·사용량 색(쓴 % 기준): 50% 미만 초록, 80% 미만 노랑, 그 이상 빨강.
 
 ## 설치
