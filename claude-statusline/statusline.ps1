@@ -89,9 +89,8 @@ if ($rl) {
     foreach ($w in @(@('five_hour', '5h'), @('seven_day', '7d'), @('spend_limit', 'spend'))) {
         $o = $rl.($w[0])
         if ($o -and $null -ne $o.used_percentage) {
-            $used = [double]$o.used_percentage
-            $left = [math]::Max(0, 100 - $used)
-            $s = $w[1] + ' ' + (C (Level-Color $used) ('{0:0}% left' -f $left))
+            $used = [math]::Min(100, [math]::Max(0, [double]$o.used_percentage))
+            $s = $w[1] + ' ' + (C (Level-Color $used) ('{0:0}%' -f $used))
             if ($o.resets_at) { $s += ' ' + (C $Dim ('(' + (Emoji 0x1F504) + ' ' + (Fmt-Span ($o.resets_at - $now)) + ')')) }
             $lims += $s
         }
