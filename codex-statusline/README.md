@@ -3,18 +3,18 @@
 Codex CLI의 custom MCP statusline이다. `claude-statusline` 구현과 `agy-statusline/PROMPT.md`의 표시 방식을 참고했다. 외부 의존성 없이 Python 3로 실행한다. 없는 값은 생략한다.
 
 ```text
-🤖 GPT-6 (high) | 📁 anything | 🧠 ██████░░░░ 62% | 124k/200k | ⏳ codex 5h0m 70% left (🔄 2h9m) | 💰 $1.23
+🤖 GPT-6 (high) | 📁 anything | 🧠 ██████░░░░ 62% | 124k/200k | ⏳ codex 5h0m 30% (🔄 2h9m) | 💰 $1.23
 ```
 
 | 기존 항목 | Codex 대응 |
 | --- | --- |
 | 모델·effort·폴더명 | `thread.model.display_name`, `reasoning_level`, `workspace.cwd` |
 | 컨텍스트 게이지·토큰 | `thread.usage.context`의 `used_percentage`, `used_tokens`, `context_window_size` |
-| 남은 한도·리셋 | `account.rate_limits`의 primary/secondary window, 실제 이름·기간 표시 |
+| 한도 쓴 %·리셋 | `account.rate_limits`의 primary/secondary window, 실제 이름·기간 표시 |
 | 비용 | `thread.usage.cost.total_cost_usd` |
 | Git 브랜치·변경 표시, 실행 시간, recap | 스냅샷에 없음: 생략 |
 
-게이지는 10칸이며 사용률 50% 미만은 초록, 80% 미만은 노랑, 그 이상은 빨강이다. 한도도 같은 기준이다. ANSI 대신 UI tree 색상을 사용한다. 타입 정의에 수직 레이아웃이 없어, 고정 2~3줄 대신 `row`의 자동 줄바꿈으로 표시한다. 별도 git 명령이나 transcript 탐색은 하지 않는다.
+게이지는 10칸이며 사용률 50% 미만은 초록, 80% 미만은 노랑, 그 이상은 빨강이다. 한도도 쓴 %(`used_percent`)를 보이고 같은 기준으로 색을 고른다. ANSI 대신 UI tree 색상을 사용한다. 타입 정의에 수직 레이아웃이 없어, 고정 2~3줄 대신 `row`의 자동 줄바꿈으로 표시한다. 별도 git 명령이나 transcript 탐색은 하지 않는다.
 
 공식 `create-statusline` 스킬의 `assets/statusline.py` starter를 재사용했다. 매 `resources/read` 요청의 스냅샷을 사용하므로 스레드별 상태를 저장하지 않는다.
 

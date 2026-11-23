@@ -76,8 +76,8 @@ items = [child for child in tree["children"] if isinstance(child, dict)]
 labels = [child["children"][0] for child in items]
 assert labels[:4] == ["🤖 GPT-6 (high)", "📁 work", "🧠 █████████░ 85%", "124k/200k"]
 assert items[2]["props"]["color"] == "red"
-assert labels[4].startswith("⏳ codex 5h0m 70% left (🔄 2h")
-assert labels[5:] == ["⏳ codex 7d0h 0% left", "💰 $1.23"]
+assert labels[4].startswith("⏳ codex 5h0m 30% (🔄 2h")
+assert labels[5:] == ["⏳ codex 7d0h 100%", "💰 $1.23"]
 assert items[4]["props"]["color"] == "green"
 assert items[5]["props"]["color"] == "red"
 print("PASS: MCP handshake, tools/list, resource reads, missing optional fields, thread switch, invalid URI")

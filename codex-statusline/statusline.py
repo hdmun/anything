@@ -72,8 +72,8 @@ def render(state):
             duration = window.get("window_minutes")
             if duration is not None:
                 name += " " + span(duration * 60)
-            used = window["used_percent"]
-            label = f"⏳ {name} {max(0, 100 - used):.0f}% left"
+            used = max(0, min(100, window["used_percent"]))
+            label = f"⏳ {name} {used:.0f}%"
             if window.get("resets_at") is not None:
                 label += f" (🔄 {span(window['resets_at'] - time.time())})"
             add(label, level(used))
