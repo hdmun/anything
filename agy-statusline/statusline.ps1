@@ -105,9 +105,8 @@ if ($qt) {
         if (-not $prop) { continue }
         $o = $prop.Value
         if (-not $o -or $o.disabled -eq $true -or $null -eq $o.remaining_fraction) { continue }
-        $left = [math]::Min(100, [math]::Max(0, [double]$o.remaining_fraction * 100))
-        $used = 100 - $left
-        $s = $pair[1] + ' ' + (C (Level-Color $used) ('{0:0}% left' -f $left))
+        $used = 100 - [math]::Min(100, [math]::Max(0, [double]$o.remaining_fraction * 100))
+        $s = $pair[1] + ' ' + (C (Level-Color $used) ('{0:0}%' -f $used))
         $resetSec = 0.0
         if ($null -ne $o.reset_in_seconds -and [double]$o.reset_in_seconds -gt 0) {
             $resetSec = [double]$o.reset_in_seconds
@@ -126,9 +125,8 @@ if ($qt) {
         foreach ($prop in $qt.PSObject.Properties) {
             $o = $prop.Value
             if (-not $o -or $o.disabled -eq $true -or $null -eq $o.remaining_fraction) { continue }
-            $left = [math]::Min(100, [math]::Max(0, [double]$o.remaining_fraction * 100))
-            $used = 100 - $left
-            $s = $prop.Name + ' ' + (C (Level-Color $used) ('{0:0}% left' -f $left))
+            $used = 100 - [math]::Min(100, [math]::Max(0, [double]$o.remaining_fraction * 100))
+            $s = $prop.Name + ' ' + (C (Level-Color $used) ('{0:0}%' -f $used))
             if ($null -ne $o.reset_in_seconds -and [double]$o.reset_in_seconds -gt 0) {
                 $s += ' ' + (C $Dim ('(' + (Emoji 0x1F504) + ' ' + (Fmt-Span ([double]$o.reset_in_seconds)) + ')'))
             }
