@@ -26,6 +26,7 @@
 | rdp-notify | `rdp-notify/` | 필요 |
 | git 훅 | `.githooks/` | |
 | agent-rules | `agent-rules/` | |
+| agent-skills | `agent-skills/` | |
 | claude-statusline | `claude-statusline/` | |
 | agy-statusline | `agy-statusline/` | |
 | codex-statusline | `codex-statusline/` | |
@@ -37,6 +38,10 @@
 ## agent-rules
 
 - 사용자 전역 규칙 파일(`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`)을 만든다. 생성 표시가 없는 파일이 있으면 `install.ps1` 이 `할 일: …` 을 출력한다. 그 줄을 그대로 끝 요약의 `할 일:` 에 옮긴다. `-Force` 실행은 사람이 내용을 옮긴 뒤 한다([../agent-rules/README.md](../agent-rules/README.md)).
+
+## agent-skills
+
+- 직접 만든 스킬을 `~/.claude/skills`·`~/.agents/skills` 로 복사한다(에이전트 폴더 경계의 예외). 생성 표시가 없고 내용이 다른 스킬 폴더가 있으면 `install.ps1` 이 `할 일: …` 을 출력한다. 그 줄을 그대로 끝 요약의 `할 일:` 에 옮긴다. `-Force` 실행은 사람이 내용을 옮긴 뒤 한다([../agent-skills/README.md](../agent-skills/README.md)).
 
 ## statusline (claude·agy·codex)
 

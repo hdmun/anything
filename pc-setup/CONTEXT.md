@@ -52,5 +52,5 @@ _Avoid_: 스텁, 껍데기
 _Avoid_: 시스템 설정, OS 설정, 레지스트리 설정(레지스트리가 아닌 것도 있다)
 
 **에이전트 폴더**:
-Claude Code·Codex·agy 같은 에이전트 CLI 가 설정·로그인·기록을 두는 폴더. agent-accounts 의 계정 폴더도 여기에 든다. **셋업**은 건드리지 않는다. 예외는 **저장소 도구**가 맞추는 전역 규칙(agent-rules)과 statusline 이다.
+Claude Code·Codex·agy 같은 에이전트 CLI 가 설정·로그인·기록을 두는 폴더. agent-accounts 의 계정 폴더도 여기에 든다. **셋업**은 건드리지 않는다. 예외는 **저장소 도구**가 맞추는 전역 규칙(agent-rules), 직접 만든 스킬(agent-skills), statusline 이다.
 _Avoid_: 설정 디렉터리(**설정 파일**과 헷갈린다), 계정 폴더(agent-accounts 가 만드는 한 종류일 뿐이다)
