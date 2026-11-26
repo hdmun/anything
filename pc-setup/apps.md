@@ -53,9 +53,12 @@
 | Docker Desktop | winget msstore | `XP8CBJ40XLBWKX` | | | | |
 | iCloud | winget msstore | `9PKTQ5699M62` | | | | |
 | lazygit | winget | `JesseDuffield.lazygit` | user | | | |
+| Gitleaks | winget | `Gitleaks.Gitleaks` | user | | | 커밋 전 비밀값 검사 |
+| Sysinternals Handle | winget | `Microsoft.Sysinternals.Handle` | user | | | 파일을 잡은 프로세스 찾기 |
 | CMake | 공식 배포 | CMake Windows 설치 프로그램(MSI) | | | | |
 | DBeaver | 공식 배포 | DBeaver Community 설치 프로그램 | | | | |
 | nano | scoop | main 버킷의 `nano` | | | | |
+| git-filter-repo | scoop | main 버킷의 `git-filter-repo` | | | | git 기록에서 파일·비밀값 지우기 |
 | nvm | 공식 배포 | nvm-windows 2.x 설치 프로그램 | | | | Node 버전 관리(nvm-windows 2.x) |
 | Node | nvm | | | 26 | | pnpm 과 전역 패키지의 바탕 |
 | pnpm | 공식 배포 | npm 전역 패키지 `pnpm` | | | | |
@@ -89,6 +92,10 @@
 
 - 확인: Windows 의 설치된 프로그램 목록에 이름이 `DBeaver` 로 시작하는 항목이 있다.
 - 현재 사용자용으로 설치한다(관리자 없이).
+
+## git-filter-repo
+
+- 실행에 Python 과 Git 이 필요하다. scoop 매니페스트는 둘을 `suggest` 로만 적고 함께 설치하지 않는다. 둘 다 이 표의 앞 항목이라 셋업 의존으로 두지 않는다.
 
 ## nvm
 
