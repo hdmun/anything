@@ -183,6 +183,18 @@ Describe 'agent-skills/install.ps1' {
         Get-HomeSnapshot $case | Should -Be $before
     }
 
+    It '6. -Force: skills.prev 가 없으면 만들고 그 아래로 옮긴 뒤 복사한다' {
+        $case = New-Case -Sources $script:one
+        $dest = & $script:demoDest $case
+        $backup = Join-Path $case.Home '.claude/skills.prev/demo'
+        Write-TextFile (Join-Path $dest 'SKILL.md') "# mine`n"
+
+        Invoke-Install $case -Force | Should -Be '바꿈 (~/.claude/skills/demo)'
+        [System.IO.File]::ReadAllText((Join-Path $backup 'SKILL.md')) | Should -BeExactly "# mine`n"
+        [System.IO.File]::ReadAllText((Join-Path $dest 'SKILL.md')) | Should -BeExactly "# demo`n"
+        Invoke-Install $case | Should -Be '그대로'
+    }
+
     It '6. -Force: skills.prev 아래로 옮긴 뒤 복사한다, 이전 백업이 있으면 바꾼다' {
         $case = New-Case -Sources $script:one
         $dest = & $script:demoDest $case
