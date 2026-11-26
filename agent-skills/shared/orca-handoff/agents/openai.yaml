@@ -1,0 +1,5 @@
+interface:
+  display_name: "Orca Handoff"
+  short_description: "Orca 새 워커 세션으로 작업 넘기기"
+policy:
+  allow_implicit_invocation: false
