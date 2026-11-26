@@ -107,6 +107,7 @@ Describe '셋업 문서의 상대 링크' {
         @{ File = 'config-files.md' }
         @{ File = 'windows-settings.md' }
         @{ File = 'repo-tools.md' }
+        @{ File = 'dev-tools.md' }
     ) {
         $path = Join-Path $script:pcSetupDir $File
         Test-Path -LiteralPath $path -PathType Leaf | Should -BeTrue
