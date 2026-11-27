@@ -91,6 +91,8 @@ irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1
 | `tools/` | PATH 추가·설정 파일 연결 스크립트 |
 | `config/` | 설정 파일 정본 |
 
+[dev-tools.md](dev-tools.md) 는 선언 밖 개발툴까지 모은 사람용 설치 체크리스트다. 셋업은 읽지 않는다.
+
 선언에 앱을 더하려면 `apps.md` 표에 한 줄을 추가한다(URL·경로는 적지 않는다). 선언에서 항목을 빼도 이미 설치된 앱이나 설정은 PC 에서 지워지지 않는다.
 
 ## 검증
