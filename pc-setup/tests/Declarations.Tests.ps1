@@ -54,12 +54,13 @@
     }
 }
 
-Describe '선언 md 4개' {
+Describe '선언 md 5개' {
     It '<File> 에 표가 있고, 모든 표가 정해진 칸을 쓰며 줄마다 칸 수가 같다' -ForEach @(
         @{ File = 'apps.md'; Columns = @('앱', '원천', '원천 힌트', '범위', '버전 줄', '승격', '왜') }
         @{ File = 'config-files.md'; Columns = @('설정 파일', '원래 자리', '거는 방법', '저장소 정본') }
         @{ File = 'windows-settings.md'; Columns = @('설정', '원하는 상태', '승격', '왜') }
         @{ File = 'repo-tools.md'; Columns = @('도구', '저장소 위치', '승격') }
+        @{ File = 'dev-tools.md'; Columns = @('개발툴', '원천', '원천 힌트', '설치 안내') }
     ) {
         $path = Join-Path $script:pcSetupDir $File
         Test-Path -LiteralPath $path -PathType Leaf | Should -BeTrue
@@ -81,9 +82,29 @@ Describe '선언 md 4개' {
         @{ File = 'config-files.md' }
         @{ File = 'windows-settings.md' }
         @{ File = 'repo-tools.md' }
+        @{ File = 'dev-tools.md' }
     ) {
         $content = Get-Content -LiteralPath (Join-Path $script:pcSetupDir $File) -Raw -Encoding UTF8
         $content | Should -Not -Match '(?i)https?://'
+    }
+
+    It 'apps.md 와 dev-tools.md 에 같은 항목이나 같은 원천 힌트가 없다 (셋업이 설치하는 것과 확인만 하는 것이 겹치지 않는다)' {
+        $names = @{}
+        $hints = @{}
+        foreach ($file in @('apps.md', 'dev-tools.md')) {
+            foreach ($table in (Get-MarkdownTables -Path (Join-Path $script:pcSetupDir $file))) {
+                $hintIndex = [Array]::IndexOf($table.Header, '원천 힌트')
+                foreach ($row in $table.Rows) {
+                    $names.ContainsKey($row[0]) | Should -BeFalse -Because "'$($row[0])' 가 $($names[$row[0]]) 와 $file 에 함께 있다"
+                    $names[$row[0]] = $file
+                    $hint = $row[$hintIndex]
+                    if (-not [string]::IsNullOrWhiteSpace($hint)) {
+                        $hints.ContainsKey($hint) | Should -BeFalse -Because "원천 힌트 $hint 가 $($hints[$hint]) 와 $file 에 함께 있다"
+                        $hints[$hint] = $file
+                    }
+                }
+            }
+        }
     }
 
     It 'repo-tools.md 의 저장소 위치마다 install.ps1 이 있다' {
