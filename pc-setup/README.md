@@ -1,6 +1,6 @@
 # pc-setup
 
-Windows 11 집 PC 를 **선언**대로(앱·설정 파일·Windows 설정·저장소 도구) 맞추는 **셋업** 도구다. 셋업은 에이전트 CLI(Claude Code·agy·Codex)가 [SETUP.md](SETUP.md) 를 읽고 진행한다. 여러 번 돌려도 결과가 같고(멱등), 선언에 없는 것은 보지도 알리지도 지우지도 않는다. 용어는 [CONTEXT.md](CONTEXT.md) 를 따른다.
+Windows 11 집 PC 를 **선언**대로(앱·설정 파일·Windows 설정·저장소 도구) 맞추는 **셋업** 도구다. **개발툴**은 설치하지 않고 확인만 해서, 없으면 설치 안내를 `할 일` 로 알린다. 셋업은 에이전트 CLI(Claude Code·agy·Codex)가 [SETUP.md](SETUP.md) 를 읽고 진행한다. 여러 번 돌려도 결과가 같고(멱등), 선언에 없는 것은 보지도 알리지도 지우지도 않는다. 용어는 [CONTEXT.md](CONTEXT.md) 를 따른다.
 
 ## 새 PC
 
@@ -63,7 +63,7 @@ irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1
 
 ### 셋업이 알린 할 일
 
-- [ ] 셋업이 대화에 남긴 끝 요약의 `할 일` 항목(예: [rdp-notify/README.md](../rdp-notify/README.md) 의 env 파일 작성, NVIDIA 드라이버)을 처리한다.
+- [ ] 셋업이 대화에 남긴 끝 요약의 `할 일` 항목(예: [rdp-notify/README.md](../rdp-notify/README.md) 의 env 파일 작성, NVIDIA 드라이버, 없는 개발툴의 설치 안내)을 처리한다.
 
 ## 이미 셋업한 PC
 
@@ -88,16 +88,15 @@ irm https://raw.githubusercontent.com/hdmun/anything/main/pc-setup/bootstrap.ps1
 | [apps.md](apps.md) | **원천**별 앱·**런타임**·전역 도구 목록 |
 | [config-files.md](config-files.md) | **설정 파일** 목록(링크·GitInclude) |
 | [repo-tools.md](repo-tools.md) | **저장소 도구** 목록 |
+| [dev-tools.md](dev-tools.md) | **개발툴** 목록(**확인 전용 선언**. 셋업은 설치하지 않는다) |
 | `tools/` | PATH 추가·설정 파일 연결 스크립트 |
 | `config/` | 설정 파일 정본 |
 
-[dev-tools.md](dev-tools.md) 는 선언 밖 개발툴까지 모은 사람용 설치 체크리스트다. 셋업은 읽지 않는다.
-
-선언에 앱을 더하려면 `apps.md` 표에 한 줄을 추가한다(URL·경로는 적지 않는다). 선언에서 항목을 빼도 이미 설치된 앱이나 설정은 PC 에서 지워지지 않는다.
+선언에 앱을 더하려면 `apps.md` 표에, 개발툴을 더하려면 `dev-tools.md` 의 분류 표에 한 줄을 추가한다(URL·경로는 적지 않는다). 선언에서 항목을 빼도 이미 설치된 앱이나 설정은 PC 에서 지워지지 않는다.
 
 ## 검증
 
 | 대상 | 방법 |
 |---|---|
-| 단위 테스트 | `Invoke-Pester -Path pc-setup/tests -CI` (Pester 는 `apps.md` 항목) |
+| 단위 테스트 | `Invoke-Pester -Path pc-setup/tests -CI` (Pester 는 `dev-tools.md` 항목이라 손으로 설치한다) |
 | 멱등 확인 | 이미 셋업한 PC 에서 셋업을 두 번 돌리고, 두 번째 요약이 `바꿈` 0·`실패` 0 인지 본다 |
