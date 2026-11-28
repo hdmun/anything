@@ -1,6 +1,6 @@
 # claude-statusline
 
-Claude Code 상태 줄 스크립트다. Windows PowerShell 7 전용.
+Claude Code 상태 줄 스크립트다. Windows 는 `statusline.ps1`(PowerShell 7), macOS 는 `statusline.sh`(bash 3.2 + jq 1.7)를 쓴다. 두 스크립트는 같은 출력을 낸다.
 
 ```
 🤖 Opus 5.5 (medium) | 📁 anything | 🌿 main*
@@ -15,6 +15,8 @@ Claude Code 상태 줄 스크립트다. Windows PowerShell 7 전용.
 - 값이 없는 항목은 빠진다. 컨텍스트·사용량 색(쓴 % 기준): 50% 미만 초록, 80% 미만 노랑, 그 이상 빨강.
 
 ## 설치
+
+### Windows
 
 ```powershell
 pwsh -NoProfile -File claude-statusline/install.ps1 -Check   # 먼저 보기 (아무것도 쓰지 않는다)
@@ -38,11 +40,41 @@ pwsh -NoProfile -File claude-statusline/install.ps1
 
 출력은 한 줄이다: `그대로` / `다름 (<파일>, …)`(`-Check`) / `바꿈 (<파일>, …)` / `실패: …`. 여러 파일이면 `실패` 가 먼저 보인다.
 
+### macOS
+
+```sh
+bash claude-statusline/install.sh --check   # 먼저 보기 (아무것도 쓰지 않는다)
+bash claude-statusline/install.sh
+```
+
+- 대상·덮어쓰기 규칙·출력 한 줄은 Windows 와 같다. 홈 폴더 대신 다른 폴더를 보려면 `--home <dir>` 을 붙인다(시험용).
+- 서브 계정 폴더는 `settings.json`·`.credentials.json`·`.claude.json` 중 하나가 있는 `~/.claude-*` 폴더다. 맥 Claude Code 는 로그인 정보를 Keychain 에 두어 `.credentials.json` 이 없을 수 있기 때문이다.
+- `statusLine` 값:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "bash <저장소>/claude-statusline/statusline.sh"
+}
+```
+
+- 이미 손으로 만든 `statusLine`(예: `bash ~/.claude/statusline-command.sh`)이 있어도 덮어쓴다. 지키려면 먼저 `--check` 로 보고 정한다.
+
 ## 시험
+
+Windows:
 
 ```powershell
 '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":45,"total_input_tokens":90000,"context_window_size":200000}}' |
   pwsh -NoProfile -File claude-statusline/statusline.ps1
+```
+
+macOS:
+
+```sh
+echo '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":45,"total_input_tokens":90000,"context_window_size":200000}}' |
+  bash claude-statusline/statusline.sh
+bash claude-statusline/test.sh   # 임시 HOME 으로 install.sh 와 statusline.sh 를 시험한다
 ```
 
 ## 주의
@@ -50,3 +82,6 @@ pwsh -NoProfile -File claude-statusline/install.ps1
 - 화면 갱신은 대화가 진행될 때 일어난다. 스크립트를 고친 직후엔 바로 안 바뀔 수 있다.
 - stdin 은 UTF-8 로 읽는다. `[Console]::In` 은 콘솔 코드 페이지(한국어 Windows 는 CP949)로 디코딩해 한글이 든 JSON 을 깨뜨린다.
 - PowerShell 변수는 대소문자를 가리지 않는다. 색 코드용 `$E` 와 겹치는 `$e` 같은 이름을 쓰지 않는다.
+- macOS 의 `/bin/bash` 는 3.2 다. 연관 배열·`${x,,}`·`mapfile` 같은 bash 4 기능을 쓰지 않는다. JSON 처리와 폭 계산은 jq 로 한다.
+- `statusline.sh` 의 폭 계산은 코드 포인트를 글자 묶음(결합 문자·ZWJ·국기)으로 묶어 센다. .NET 의 글자 단위와 드물게 다를 수 있다.
+- 분리된 HEAD 의 짧은 해시는 `git rev-parse --short` 로 얻는다. 브랜치와 변경 여부는 `git status --porcelain=v2 --branch` 한 번으로 얻는다.
