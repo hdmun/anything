@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rename Session"
+  short_description: "Recommend session titles formatted as (YYYY.MM.DD) Subject"
